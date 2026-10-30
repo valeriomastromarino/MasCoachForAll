@@ -1,0 +1,4 @@
+/* The app's own stylesheet, plus where Tailwind should look for class names. */
+@import "../src/app/globals.css";
+@source "../src";
+@source "./";

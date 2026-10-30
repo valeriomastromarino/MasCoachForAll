@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="it" class="h-full antialiased">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MasCoach</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@500&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --font-geist-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+        --font-geist-mono: "Geist Mono", ui-monospace, monospace;
+      }
+    </style>
+    <!-- Theme before first paint: saved choice, else Night if the device is dark. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("mascoach-theme");
+          if (t !== "day" && t !== "night" && t !== "paper") t = matchMedia("(prefers-color-scheme: dark)").matches ? "night" : "day";
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          document.documentElement.dataset.theme = "day";
+        }
+      })();
+    </script>
+  </head>
+  <body class="min-h-full">
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

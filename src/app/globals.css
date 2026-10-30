@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+/*
+ * MasCoach themes, chosen with the Day / Night / Paper switch (data-theme on <html>).
+ * Day   = style A: light, pastel, soft gradients.
+ * Night = midnight blue with brighter pastels.
+ * Paper = Day on warm paper, with a fine grain over the whole page.
+ * Metric colours follow Intervals.icu conventions in every theme.
+ */
+:root,
+:root[data-theme="day"] {
+  color-scheme: light;
+  --background: #f6f7fb;
+  --surface: #ffffff;
+  --border: #eceef3;
+  --foreground: #2b2f3a;
+  --muted: #6f7587;
+  --faint: #a3a9b8;
+  --grid: #eef0f5;
+
+  --accent-bg: #e3efff;
+  --accent-ink: #3b6fb6;
+  --map-bg: #eef1f6;
+
+  --fitness: #6fa6ee;
+  --fitness-ink: #3f78c6;
+  --fatigue: #b993e8;
+  --fatigue-ink: #8a5fc9;
+  --form: #f0cf6e;
+  --form-ink: #b4881a;
+  --hrv: #45b8a0;
+  --hrv-band: #d5f2ea;
+  --hrv-ink: #23866f;
+  --rhr: #ee8f9f;
+  --rhr-band: #fbe2e6;
+  --rhr-ink: #c24f63;
+  --anomaly: #fbe0e0;
+  --load: #7fb2ee;
+  --load-soft: #c8e0fa;
+  --altitude: #b4b9c6;
+
+  --z1: #c9d1db;
+  --z2: #9cc8f2;
+  --z3: #a6e0bb;
+  --z4: #f6dc8f;
+  --z5: #f5b98f;
+  --z6: #f2a1a1;
+  --z7: #c9b0ec;
+
+  --good: #2f8f5b;
+  --good-bg: #e6f8ee;
+  --warning: #b07d12;
+  --warning-bg: #fdf3d8;
+  --warning-ink: #6b4d0c;
+  --critical: #c0504d;
+  --critical-bg: #fde6e6;
+  --neutral-bg: #f0f1f5;
+  --sleep: #a7aef2;
+  --sleep-ink: #5a62c4;
+
+  --card-shadow: 0 1px 2px rgba(30, 40, 80, 0.04), 0 4px 14px rgba(30, 40, 80, 0.05);
+  --tip-shadow: 0 6px 24px rgba(30, 40, 80, 0.12);
+  --map-filter: grayscale(0.9) brightness(1.06) contrast(0.88);
+}
+
+:root[data-theme="night"] {
+  color-scheme: dark;
+  --background: #12151f;
+  --surface: #1b2030;
+  --border: #262d40;
+  --foreground: #e8ebf3;
+  --muted: #a3abc0;
+  --faint: #6f7891;
+  --grid: #232a3c;
+
+  --accent-bg: #24304a;
+  --accent-ink: #9cc4ff;
+  --map-bg: #1b2030;
+
+  --fitness: #8dbbff;
+  --fitness-ink: #a9ccff;
+  --fatigue: #c9a8ff;
+  --fatigue-ink: #d6bcff;
+  --form: #ffe08a;
+  --form-ink: #ffe08a;
+  --hrv: #86e8d2;
+  --hrv-band: rgba(134, 232, 210, 0.14);
+  --hrv-ink: #86e8d2;
+  --rhr: #ff9db0;
+  --rhr-band: rgba(255, 157, 176, 0.14);
+  --rhr-ink: #ffb3c1;
+  --anomaly: rgba(255, 120, 120, 0.2);
+  --load: #8dbbff;
+  --load-soft: #2a3d63;
+  --altitude: #6f7891;
+
+  --z1: #8e98ab;
+  --z2: #8dbbff;
+  --z3: #8fe3b4;
+  --z4: #ffe08a;
+  --z5: #ffb98a;
+  --z6: #ff9d9d;
+  --z7: #c9a8ff;
+
+  --good: #8fe3b4;
+  --good-bg: #1d3a2e;
+  --warning: #ffd479;
+  --warning-bg: #3a3220;
+  --warning-ink: #ffe3a6;
+  --critical: #ff9d9d;
+  --critical-bg: #3d2326;
+  --neutral-bg: #232a3c;
+  --sleep: #a9b4ff;
+  --sleep-ink: #c3cbff;
+
+  --card-shadow: 0 0 0 1px #232a3c;
+  --tip-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  --map-filter: invert(1) hue-rotate(180deg) grayscale(0.85) brightness(0.8) contrast(0.9);
+}
+
+:root[data-theme="paper"] {
+  color-scheme: light;
+  --background: #f4f1ea;
+  --surface: #fbf9f4;
+  --border: #e9e3d6;
+  --foreground: #2f2b25;
+  --muted: #6f675a;
+  --faint: #a39a8a;
+  --grid: #ece6da;
+
+  --accent-bg: #e6edf7;
+  --accent-ink: #3d6aa8;
+  --map-bg: #efebe2;
+
+  --neutral-bg: #efeadf;
+  --sleep: #9aa0dc;
+  --sleep-ink: #555cab;
+  --card-shadow: 0 1px 2px rgba(80, 60, 30, 0.06), 0 4px 14px rgba(80, 60, 30, 0.06);
+  --tip-shadow: 0 6px 24px rgba(80, 60, 30, 0.14);
+  --map-filter: grayscale(0.9) sepia(0.15) brightness(1.04) contrast(0.88);
+}
+
+/* Fine paper grain over the whole page (Paper theme only). */
+:root[data-theme="paper"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.22 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+}
+
+/* Map tiles toned to the theme: light grey on Day/Paper, dark on Night. */
+.pastel-tiles {
+  filter: var(--map-filter);
+}
+
+/* Leaflet controls follow the theme too. */
+.leaflet-container .leaflet-control-zoom a,
+.leaflet-container .leaflet-control-attribution {
+  background: var(--surface);
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+/* Terminal-style blinking cursor in the MasCoach logo. */
+@keyframes logo-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.logo-cursor {
+  animation: logo-blink 1.1s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-cursor {
+    animation: none;
+  }
+}
