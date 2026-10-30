@@ -24,6 +24,10 @@ abbonamento Claude che permetta i connettori personalizzati. Per farlo a mano: [
 
 Per pubblicare modifiche o aggiornamenti: **`/aggiorna-mascoach`**.
 
+In più, con **`/crea-artefatto`** (Claude Code desktop) nasce una pagina privata su claude.ai con prontezza di oggi,
+allenamenti da fare e ultime uscite, più una chat col coach che può anche scrivere su Intervals: vedi
+[artefatto/README.md](artefatto/README.md).
+
 ## Solo in locale
 
 ```bash

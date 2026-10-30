@@ -33,6 +33,9 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
   `storico` (fino a 4 anni, `lib/history.ts` via `GET /api/history?years=`): anni e mesi con ore, TSS, CTL, eFTP, migliori watt per anno, HRV/FC/sonno e notti anomale Altini, elenco test.
 - `prompt-coach/` — prompt del coach per il Progetto Claude: `MasCoach_prompt.txt` contiene `{{NOME}}`, che
   `node scripts/prompt-pronto.mjs` sostituisce con il nome dell'atleta in `prompt-coach/prompt-pronto.txt` (escluso da git).
+- **Artefatto claude.ai** (`artefatto/`, vedi il suo README; si pubblica con `/crea-artefatto`): pagina unica con prontezza,
+  allenamenti da fare (sposta/cancella) e ultime 3 sedute, dati dal connettore via capacità `mcp`, chat col coach
+  (`prompt-coach/prompt-pronto.txt`, scritture con conferma) via `sample`. Indirizzo in `artefatto/indirizzo.txt` (fuori da git).
 - Anteprima nel Browser pane: configurazione `mascoach` in `.claude/launch.json`.
   **Il dev server spesso non ricarica i file lato server e il CSS**: dopo modifiche a `src/lib/**`, route API o `globals.css`, riavviarlo (preview_stop + preview_start) prima di verificare.
 

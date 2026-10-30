@@ -48,3 +48,6 @@ next-env.d.ts
 # MasCoachForAll: credenziali e prompt personali
 credenziali-mascoach.txt
 prompt-coach/prompt-pronto.txt
+
+# Artefatto claude.ai: indirizzo personale
+artefatto/indirizzo.txt

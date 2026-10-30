@@ -1,0 +1,1376 @@
+<title>MasCoach</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: one column of soft cards — readiness first (the summary), then the four night/load numbers,
+   then trends, then the week ahead. Tokens and metric colours mirror the MasCoach app (Day / Night / Paper). */
+:root {
+  --font-sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --background: #f6f7fb; --surface: #ffffff; --border: #eceef3; --foreground: #2b2f3a;
+  --muted: #6f7587; --faint: #a3a9b8; --grid: #eef0f5;
+  --accent-bg: #e3efff; --accent-ink: #3b6fb6;
+  --fitness: #6fa6ee; --fitness-ink: #3f78c6; --fatigue: #b993e8; --fatigue-ink: #8a5fc9;
+  --form: #f0cf6e; --form-ink: #b4881a;
+  --hrv: #45b8a0; --hrv-band: #d5f2ea; --hrv-ink: #23866f;
+  --rhr: #ee8f9f; --rhr-band: #fbe2e6; --rhr-ink: #c24f63;
+  --anomaly: #fbe0e0; --load: #7fb2ee; --load-soft: #c8e0fa;
+  --z1: #c9d1db; --z2: #9cc8f2; --z3: #a6e0bb; --z4: #f6dc8f; --z5: #f5b98f; --z6: #f2a1a1; --z7: #c9b0ec;
+  --good: #2f8f5b; --good-bg: #e6f8ee; --warning: #b07d12; --warning-bg: #fdf3d8;
+  --critical: #c0504d; --critical-bg: #fde6e6; --neutral-bg: #f0f1f5;
+  --sleep: #a7aef2; --sleep-ink: #5a62c4;
+  --card-shadow: 0 1px 2px rgba(30, 40, 80, 0.04), 0 4px 14px rgba(30, 40, 80, 0.05);
+  --tip-shadow: 0 6px 24px rgba(30, 40, 80, 0.12);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --background: #12151f; --surface: #1b2030; --border: #262d40; --foreground: #e8ebf3;
+    --muted: #a3abc0; --faint: #6f7891; --grid: #232a3c;
+    --accent-bg: #24304a; --accent-ink: #9cc4ff;
+    --fitness: #8dbbff; --fitness-ink: #a9ccff; --fatigue: #c9a8ff; --fatigue-ink: #d6bcff;
+    --form: #ffe08a; --form-ink: #ffe08a;
+    --hrv: #86e8d2; --hrv-band: rgba(134, 232, 210, 0.14); --hrv-ink: #86e8d2;
+    --rhr: #ff9db0; --rhr-band: rgba(255, 157, 176, 0.14); --rhr-ink: #ffb3c1;
+    --anomaly: rgba(255, 120, 120, 0.2); --load: #8dbbff; --load-soft: #2a3d63;
+    --z1: #8e98ab; --z2: #8dbbff; --z3: #8fe3b4; --z4: #ffe08a; --z5: #ffb98a; --z6: #ff9d9d; --z7: #c9a8ff;
+    --good: #8fe3b4; --good-bg: #1d3a2e; --warning: #ffd479; --warning-bg: #3a3220;
+    --critical: #ff9d9d; --critical-bg: #3d2326; --neutral-bg: #232a3c;
+    --sleep: #a9b4ff; --sleep-ink: #c3cbff;
+    --card-shadow: 0 0 0 1px #232a3c; --tip-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #12151f; --surface: #1b2030; --border: #262d40; --foreground: #e8ebf3;
+  --muted: #a3abc0; --faint: #6f7891; --grid: #232a3c;
+  --accent-bg: #24304a; --accent-ink: #9cc4ff;
+  --fitness: #8dbbff; --fitness-ink: #a9ccff; --fatigue: #c9a8ff; --fatigue-ink: #d6bcff;
+  --form: #ffe08a; --form-ink: #ffe08a;
+  --hrv: #86e8d2; --hrv-band: rgba(134, 232, 210, 0.14); --hrv-ink: #86e8d2;
+  --rhr: #ff9db0; --rhr-band: rgba(255, 157, 176, 0.14); --rhr-ink: #ffb3c1;
+  --anomaly: rgba(255, 120, 120, 0.2); --load: #8dbbff; --load-soft: #2a3d63;
+  --z1: #8e98ab; --z2: #8dbbff; --z3: #8fe3b4; --z4: #ffe08a; --z5: #ffb98a; --z6: #ff9d9d; --z7: #c9a8ff;
+  --good: #8fe3b4; --good-bg: #1d3a2e; --warning: #ffd479; --warning-bg: #3a3220;
+  --critical: #ff9d9d; --critical-bg: #3d2326; --neutral-bg: #232a3c;
+  --sleep: #a9b4ff; --sleep-ink: #c3cbff;
+  --card-shadow: 0 0 0 1px #232a3c; --tip-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+/* The Day / Night / Paper switch overrides the viewer's theme when chosen (class "look" on <html>). */
+:root.look.look-day, :root.look.look-paper {
+  color-scheme: light;
+  --background: #f6f7fb; --surface: #ffffff; --border: #eceef3; --foreground: #2b2f3a;
+  --muted: #6f7587; --faint: #a3a9b8; --grid: #eef0f5;
+  --accent-bg: #e3efff; --accent-ink: #3b6fb6;
+  --fitness: #6fa6ee; --fitness-ink: #3f78c6; --fatigue: #b993e8; --fatigue-ink: #8a5fc9;
+  --form: #f0cf6e; --form-ink: #b4881a;
+  --hrv: #45b8a0; --hrv-band: #d5f2ea; --hrv-ink: #23866f;
+  --rhr: #ee8f9f; --rhr-band: #fbe2e6; --rhr-ink: #c24f63;
+  --anomaly: #fbe0e0; --load: #7fb2ee; --load-soft: #c8e0fa;
+  --z1: #c9d1db; --z2: #9cc8f2; --z3: #a6e0bb; --z4: #f6dc8f; --z5: #f5b98f; --z6: #f2a1a1; --z7: #c9b0ec;
+  --good: #2f8f5b; --good-bg: #e6f8ee; --warning: #b07d12; --warning-bg: #fdf3d8;
+  --critical: #c0504d; --critical-bg: #fde6e6; --neutral-bg: #f0f1f5;
+  --sleep: #a7aef2; --sleep-ink: #5a62c4;
+  --card-shadow: 0 1px 2px rgba(30, 40, 80, 0.04), 0 4px 14px rgba(30, 40, 80, 0.05);
+  --tip-shadow: 0 6px 24px rgba(30, 40, 80, 0.12);
+}
+:root.look.look-paper {
+  --background: #f4f1ea; --surface: #fbf9f4; --border: #e9e3d6; --foreground: #2f2b25;
+  --muted: #6f675a; --faint: #a39a8a; --grid: #ece6da;
+  --accent-bg: #e6edf7; --accent-ink: #3d6aa8; --neutral-bg: #efeadf;
+  --sleep: #9aa0dc; --sleep-ink: #555cab;
+  --card-shadow: 0 1px 2px rgba(80, 60, 30, 0.06), 0 4px 14px rgba(80, 60, 30, 0.06);
+  --tip-shadow: 0 6px 24px rgba(80, 60, 30, 0.14);
+}
+:root.look.look-night {
+  color-scheme: dark;
+  --background: #12151f; --surface: #1b2030; --border: #262d40; --foreground: #e8ebf3;
+  --muted: #a3abc0; --faint: #6f7891; --grid: #232a3c;
+  --accent-bg: #24304a; --accent-ink: #9cc4ff;
+  --fitness: #8dbbff; --fitness-ink: #a9ccff; --fatigue: #c9a8ff; --fatigue-ink: #d6bcff;
+  --form: #ffe08a; --form-ink: #ffe08a;
+  --hrv: #86e8d2; --hrv-band: rgba(134, 232, 210, 0.14); --hrv-ink: #86e8d2;
+  --rhr: #ff9db0; --rhr-band: rgba(255, 157, 176, 0.14); --rhr-ink: #ffb3c1;
+  --anomaly: rgba(255, 120, 120, 0.2); --load: #8dbbff; --load-soft: #2a3d63;
+  --z1: #8e98ab; --z2: #8dbbff; --z3: #8fe3b4; --z4: #ffe08a; --z5: #ffb98a; --z6: #ff9d9d; --z7: #c9a8ff;
+  --good: #8fe3b4; --good-bg: #1d3a2e; --warning: #ffd479; --warning-bg: #3a3220;
+  --critical: #ff9d9d; --critical-bg: #3d2326; --neutral-bg: #232a3c;
+  --sleep: #a9b4ff; --sleep-ink: #c3cbff;
+  --card-shadow: 0 0 0 1px #232a3c; --tip-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 96px;
+  transition: background-color 0.2s, color 0.2s;
+}
+.grain { display: none; }
+:root.look-paper .grain {
+  display: block; position: fixed; inset: 0; z-index: 50; pointer-events: none; opacity: 0.22; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.22 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.num, .mono { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); }
+.wrap { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.logo { display: inline-flex; align-items: center; font-family: var(--font-mono); font-weight: 500; font-size: 22px; line-height: 1; letter-spacing: -0.02em; }
+.lines { display: inline-flex; flex-direction: column; gap: 3px; margin-right: 8px; }
+.lines i { display: block; height: 3px; border-radius: 99px; }
+.logo .cursor { display: inline-block; width: 9px; height: 16px; margin-left: 3px; border-radius: 1px; background: var(--fitness); opacity: 0.85; animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.status { color: var(--muted); font-size: 12.5px; flex: 1 1 220px; min-width: 0; }
+.status b { color: var(--foreground); font-weight: 500; }
+.controls { display: flex; gap: 8px; align-items: center; }
+.seg { display: inline-flex; background: var(--neutral-bg); border-radius: 10px; padding: 3px; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: 500 12.5px var(--font-sans); padding: 5px 11px; border-radius: 8px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--foreground); box-shadow: var(--card-shadow); }
+.btn { border: 1px solid var(--border); background: var(--surface); color: var(--foreground); font: 500 12.5px var(--font-sans); padding: 6px 12px; border-radius: 10px; cursor: pointer; }
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--accent-bg); color: var(--accent-ink); border-color: transparent; }
+button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+
+/* Cards */
+.card { background: var(--surface); border-radius: 16px; box-shadow: var(--card-shadow); padding: 18px; min-width: 0; }
+.eyebrow { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.card h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.card-head .hint { color: var(--faint); font-size: 12px; }
+.grid-2 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr)); }
+.grid-4 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+@media (max-width: 520px) { .grid-4 { grid-template-columns: 1fr 1fr; gap: 10px; } .tile { padding: 14px; } }
+
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 500; padding: 2px 8px; border-radius: 99px; background: var(--neutral-bg); color: var(--muted); white-space: nowrap; }
+.chip.good { background: var(--good-bg); color: var(--good); }
+.chip.warning { background: var(--warning-bg); color: var(--warning); }
+.chip.critical { background: var(--critical-bg); color: var(--critical); }
+.chip.accent { background: var(--accent-bg); color: var(--accent-ink); }
+
+/* Readiness */
+.ready { display: grid; gap: 18px; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+@media (max-width: 760px) { .ready { grid-template-columns: 1fr; } }
+.ready-main { display: flex; gap: 16px; align-items: flex-start; }
+.light { flex: none; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: var(--neutral-bg); }
+.light i { width: 22px; height: 22px; border-radius: 50%; background: var(--faint); }
+.light.good { background: var(--good-bg); } .light.good i { background: var(--good); }
+.light.warning { background: var(--warning-bg); } .light.warning i { background: var(--warning); }
+.light.critical { background: var(--critical-bg); } .light.critical i { background: var(--critical); }
+.headline { font-size: 30px; font-weight: 600; line-height: 1.1; margin: 4px 0 6px; letter-spacing: -0.01em; text-wrap: balance; }
+.advice { margin: 0; color: var(--foreground); max-width: 60ch; }
+.reasons { margin: 10px 0 0; padding-left: 18px; color: var(--muted); max-width: 65ch; }
+.reasons li + li { margin-top: 3px; }
+.side { display: grid; gap: 12px; align-content: start; border-left: 1px solid var(--border); padding-left: 18px; }
+@media (max-width: 760px) { .side { border-left: 0; padding-left: 0; border-top: 1px solid var(--border); padding-top: 14px; } }
+.side p { margin: 4px 0 0; color: var(--muted); }
+.kv { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.kv b { color: var(--foreground); font-weight: 500; }
+
+/* Tiles */
+.tile { display: grid; gap: 6px; align-content: start; }
+.tile .val { font-size: 28px; font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; }
+.tile .val small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+.tile .sub { font-size: 12.5px; color: var(--muted); }
+.gauge { position: relative; height: 8px; border-radius: 99px; background: var(--neutral-bg); margin: 6px 0 2px; }
+.gauge .band { position: absolute; top: 0; bottom: 0; border-radius: 99px; }
+.gauge .mark { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--foreground); }
+
+/* Charts */
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { font-family: var(--font-sans); font-size: 10.5px; fill: var(--faint); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); color: var(--foreground); box-shadow: var(--tip-shadow); border-radius: 10px; padding: 7px 10px; font-size: 12px; white-space: nowrap; z-index: 5; transform: translate(-50%, -100%); }
+.tip b { font-weight: 600; display: block; margin-bottom: 2px; }
+.tip span { display: block; color: var(--muted); }
+.subchart-label { font-size: 12px; color: var(--muted); margin: 14px 0 4px; }
+
+/* Lists */
+.plan { display: grid; gap: 8px; }
+.plan details { border: 1px solid var(--border); border-radius: 12px; }
+.plan summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 12px; }
+.plan summary::-webkit-details-marker { display: none; }
+.date { text-align: center; line-height: 1.1; }
+.date small { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.date b { font-family: var(--font-mono); font-size: 20px; font-weight: 500; }
+.wname { font-weight: 500; overflow-wrap: anywhere; }
+.wmeta { font-size: 12.5px; color: var(--muted); }
+.plan pre { margin: 0; padding: 0 12px 12px 76px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .plan pre { padding-left: 12px; } }
+.event { background: var(--accent-bg); border-color: transparent !important; }
+.rides { display: grid; gap: 0; }
+.ride { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--border); }
+.ride:first-child { border-top: 0; padding-top: 0; }
+.ride-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.ride-top span { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); }
+.metrics b { color: var(--foreground); font-weight: 500; }
+.metrics .warn b { color: var(--warning); }
+.stack { display: flex; height: 14px; border-radius: 99px; overflow: hidden; background: var(--neutral-bg); }
+.stack i { display: block; height: 100%; }
+.empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+
+/* States */
+.skel { border-radius: 8px; background: linear-gradient(90deg, var(--neutral-bg), var(--grid), var(--neutral-bg)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.err { display: grid; gap: 4px; padding: 12px 14px; border-radius: 12px; background: var(--warning-bg); color: var(--foreground); font-size: 13px; }
+.err b { font-weight: 600; }
+.err span { color: var(--muted); }
+.err .btn { justify-self: start; margin-top: 6px; }
+.banner { display: grid; gap: 6px; padding: 16px 18px; border-radius: 16px; background: var(--warning-bg); }
+.banner b { font-size: 15px; }
+.banner span { color: var(--muted); }
+.demo { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; background: var(--accent-bg); color: var(--accent-ink); font-size: 13px; }
+footer { color: var(--faint); font-size: 12px; text-align: center; }
+
+/* Immediate view: today's workout beside readiness, quick actions on workouts, last sessions as tiles. */
+.wrap { max-width: 980px; }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 860px) { .grid-4 { grid-template-columns: 1fr 1fr; } }
+.demo { display: block; }
+.today { align-content: start; }
+.today-name { font-size: 17px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.today-w { display: grid; gap: 2px; }
+.today-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.head-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.plan details.is-today { border-color: var(--good); }
+.w-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 0 12px 12px 76px; }
+.move { display: inline-flex; gap: 6px; align-items: center; }
+.move input { border: 1px solid var(--border); background: var(--background); color: var(--foreground); border-radius: 10px; padding: 5px 8px; font: 12.5px var(--font-sans); }
+.act-msg { padding: 0 12px 10px 76px; font-size: 12.5px; color: var(--muted); }
+.card-head + .act-msg { padding: 0 0 10px; }
+.err-text { color: var(--critical); }
+@media (max-width: 520px) { .w-actions, .act-msg { padding-left: 12px; } }
+.btn.danger { background: var(--critical-bg); color: var(--critical); border-color: transparent; }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.sec-title { margin: 4px 2px 10px; }
+.sec-title h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.grid-3 { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 700px) { .grid-3 { grid-template-columns: 1fr; gap: 10px; } }
+.ride-tile { gap: 8px; }
+.ride-name { font-weight: 500; line-height: 1.3; min-height: 2.6em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.ride-tile .val small { margin-left: 6px; }
+.mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: 6px; padding: 8px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.mini span { display: grid; gap: 1px; min-width: 0; }
+.mini small { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.mini b { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.mini i { font-style: normal; font-weight: 400; font-size: 12px; color: var(--muted); }
+.ride-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 28px; }
+
+/* Coach chat: a floating button opens a side panel (full screen on phones). */
+.fab {
+  position: fixed; z-index: 30;
+  right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; border: 0; border-radius: 99px; padding: 12px 18px;
+  background: var(--foreground); color: var(--background); font: 500 14px var(--font-sans); box-shadow: var(--tip-shadow); cursor: pointer;
+}
+.fab:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 3px; }
+.chat {
+  position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: min(500px, 100%);
+  display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--tip-shadow);
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px);
+}
+@media (max-width: 520px) { .chat { border-left: 0; padding-left: env(safe-area-inset-left, 0px); } }
+.chat-head { display: flex; align-items: center; gap: 2px; padding: 12px 10px 12px 16px; border-bottom: 1px solid var(--border); }
+.chat-head h2 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.icon-btn { border: 0; background: transparent; color: var(--muted); font: 500 12.5px var(--font-sans); padding: 6px 8px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.icon-btn:hover, .icon-btn[aria-pressed="true"] { background: var(--neutral-bg); color: var(--foreground); }
+.msgs { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.msg { max-width: 94%; min-width: 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.msg.user { align-self: flex-end; background: var(--accent-bg); padding: 8px 12px; border-radius: 14px 14px 4px 14px; white-space: pre-wrap; }
+.msg.bot { align-self: stretch; max-width: 100%; }
+.msg.bot p { margin: 0 0 8px; }
+.msg.bot > :last-child { margin-bottom: 0; }
+.msg.bot ul, .msg.bot ol { margin: 0 0 8px; padding-left: 20px; }
+.msg.bot li + li { margin-top: 2px; }
+.msg.bot h4 { margin: 12px 0 4px; font-size: 14px; font-weight: 600; }
+.msg.bot code { font-family: var(--font-mono); font-size: 12.5px; background: var(--neutral-bg); padding: 1px 4px; border-radius: 4px; }
+.msg.bot .code { margin: 0 0 8px; border-radius: 8px; background: var(--neutral-bg); }
+.msg.bot pre { margin: 0; padding: 8px 10px 4px; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; }
+.code-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding: 2px 6px 6px; }
+.msg.bot .tbl { overflow-x: auto; margin: 0 0 8px; }
+.msg.bot table { border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.msg.bot th, .msg.bot td { border-bottom: 1px solid var(--border); padding: 4px 8px; text-align: left; white-space: nowrap; }
+.msg.bot th { color: var(--muted); font-weight: 500; }
+.msg.bot hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+.choice { margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; }
+.choice p { margin: 0 0 8px; font-weight: 500; }
+.choice div { display: flex; flex-wrap: wrap; gap: 6px; }
+.confirm { display: grid; gap: 6px; margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--warning-bg); }
+.confirm b { font-weight: 600; }
+.confirm .meta { color: var(--muted); font-size: 12.5px; }
+.confirm pre { background: var(--surface); border-radius: 8px; padding: 8px 10px !important; }
+.confirm-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.thinking { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+.dots i { display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; background: var(--faint); animation: pulse 1.2s infinite; }
+.dots i:nth-child(2) { animation-delay: 0.2s; }
+.dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes pulse { 50% { opacity: 0.25; } }
+.suggest { display: grid; gap: 8px; }
+.suggest p { margin: 0 0 4px; color: var(--muted); }
+.suggest button, .chat-item { text-align: left; border: 1px solid var(--border); background: var(--surface); color: var(--foreground); font: 13px var(--font-sans); padding: 9px 12px; border-radius: 12px; cursor: pointer; }
+.suggest button:hover, .chat-item:hover { border-color: var(--faint); }
+.chat-item { display: grid; gap: 2px; }
+.chat-item small { color: var(--muted); font-size: 11.5px; }
+.chat-item.current { border-color: var(--accent-ink); }
+.notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--warning-bg); font-size: 12.5px; }
+.scheda-view { display: grid; gap: 10px; }
+.scheda-view p { margin: 0; color: var(--muted); font-size: 13px; }
+.scheda-view textarea { width: 100%; min-height: 50vh; resize: vertical; border: 1px solid var(--border); background: var(--background); color: var(--foreground); border-radius: 12px; padding: 10px 12px; font: 12.5px/1.5 var(--font-mono); }
+.composer { display: grid; gap: 6px; padding: 10px 16px 6px; border-top: 1px solid var(--border); }
+.composer-row { display: flex; align-items: flex-end; gap: 8px; }
+.composer textarea { flex: 1; min-width: 0; resize: none; max-height: 160px; border: 1px solid var(--border); background: var(--background); color: var(--foreground); border-radius: 12px; padding: 9px 12px; font: 14px/1.4 var(--font-sans); }
+.composer textarea:focus, .scheda-view textarea:focus { outline: 2px solid var(--accent-ink); outline-offset: 0; border-color: transparent; }
+.composer-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.composer-tools select { border: 1px solid var(--border); background: var(--surface); color: var(--foreground); border-radius: 8px; padding: 3px 6px; font: 12px var(--font-sans); }
+.attach { display: flex; flex-wrap: wrap; gap: 6px; }
+.attach span { position: relative; display: inline-block; }
+.attach img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+.attach button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--foreground); color: var(--background); font: 600 12px/20px var(--font-sans); cursor: pointer; padding: 0; }
+.chat-foot { padding: 0 16px 10px; font-size: 11px; color: var(--faint); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .logo .cursor, .skel, .dots i { animation: none; } body { transition: none; } }
+</style>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="wrap">
+  <header class="top">
+    <span class="logo" aria-label="MasCoach">
+      <span class="lines" aria-hidden="true">
+        <i style="width:18px;background:var(--fatigue)"></i>
+        <i style="width:13px;margin-left:5px;background:var(--fitness)"></i>
+        <i style="width:8px;margin-left:10px;background:var(--hrv)"></i>
+      </span>
+      <span aria-hidden="true">MasCoach</span><span class="cursor" aria-hidden="true"></span>
+    </span>
+    <div class="status" id="status">Collegamento al connettore MasCoach…</div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Tema">
+        <button type="button" id="look-day" data-look="day">Day</button>
+        <button type="button" id="look-night" data-look="night">Night</button>
+        <button type="button" id="look-paper" data-look="paper">Paper</button>
+      </div>
+      <button type="button" class="btn" id="refresh" hidden>Aggiorna</button>
+    </div>
+  </header>
+
+  <div id="banner" hidden></div>
+  <div id="demo" class="demo" hidden>Stai vedendo <b>dati di esempio</b>. Apri questa pagina in claude.ai con il connettore MasCoach collegato per vedere i tuoi.</div>
+
+  <section class="card" id="sec-ready" aria-label="Prontezza e allenamento di oggi"></section>
+  <section class="grid-4" id="sec-tiles" aria-label="Notte e carico"></section>
+  <section class="card" id="sec-plan" aria-label="Allenamenti da fare"></section>
+  <section id="sec-rides" aria-label="Ultimi allenamenti fatti"></section>
+  <footer id="foot">Dati da Intervals.icu tramite il connettore MasCoach. HRV letta con il metodo Altini.</footer>
+</div>
+
+<button type="button" class="fab" id="chat-open" hidden aria-controls="chat">
+  <span class="lines" aria-hidden="true">
+    <i style="width:16px;background:var(--fatigue)"></i>
+    <i style="width:11px;margin-left:5px;background:var(--fitness)"></i>
+    <i style="width:7px;margin-left:9px;background:var(--hrv)"></i>
+  </span>Chiedi al coach
+</button>
+<aside class="chat" id="chat" hidden aria-label="Chat con il coach">
+  <div class="chat-head">
+    <span class="lines" aria-hidden="true">
+      <i style="width:16px;background:var(--fatigue)"></i>
+      <i style="width:11px;margin-left:5px;background:var(--fitness)"></i>
+      <i style="width:7px;margin-left:9px;background:var(--hrv)"></i>
+    </span>
+    <h2 id="chat-title">Coach</h2>
+    <button type="button" class="icon-btn" id="chat-list" aria-pressed="false">Chat</button>
+    <button type="button" class="icon-btn" id="chat-scheda" aria-pressed="false">Scheda</button>
+    <button type="button" class="icon-btn" id="chat-new">Nuova</button>
+    <button type="button" class="icon-btn" id="chat-close">Chiudi</button>
+  </div>
+  <div class="msgs" id="chat-msgs" aria-live="polite"></div>
+  <form class="composer" id="chat-form">
+    <div class="attach" id="chat-attach" hidden></div>
+    <div class="composer-row">
+      <textarea id="chat-input" rows="1" placeholder="Scrivi al coach…" aria-label="Messaggio al coach"></textarea>
+      <button type="button" class="btn primary" id="chat-send">Invia</button>
+    </div>
+    <div class="composer-tools">
+      <label for="chat-model">Modello</label>
+      <select id="chat-model"></select>
+      <button type="button" class="icon-btn" id="chat-img" hidden>Aggiungi immagine</button>
+      <input type="file" id="chat-file" class="sr-only" multiple tabindex="-1" aria-hidden="true">
+    </div>
+  </form>
+  <div class="chat-foot" id="chat-foot">Risponde Claude con il tuo account e il prompt del coach. Ogni scrittura su Intervals chiede la tua conferma.</div>
+</aside>
+
+<script>
+(function () {
+  "use strict";
+  const SERVER = "MasCoach";
+  const TOOLS = {
+    stato: { tool: "stato_di_oggi", input: null },
+    uscite: { tool: "uscite", input: null },
+    calendario: { tool: "calendario", input: null },
+  };
+  const AUTHZ = new Set(["needs_reauth", "server_not_connected", "selection_required", "blocked_by_policy", "approval_required", "not_in_manifest", "not_granted", "capability_disabled", "capability_removed", "consent_required"]);
+  const state = { data: {}, err: {}, at: {}, demo: false };
+  let mcp = null;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const isNum = (v) => typeof v === "number" && isFinite(v);
+  const num = (v, d = 0) => (isNum(v) ? v.toLocaleString("it-IT", { minimumFractionDigits: d, maximumFractionDigits: d }) : "–");
+  const signed = (v, d = 0) => (isNum(v) ? (v > 0 ? "+" : v < 0 ? "−" : "") + num(Math.abs(v), d) : "–");
+  const pd = (s) => { const [y, m, d] = String(s).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const fShort = (s) => pd(s).toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+  const fDay = (s) => pd(s).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
+  const fDur = (min) => { if (!isNum(min)) return "–"; const h = Math.floor(min / 60), m = Math.round(min % 60); return h ? `${h}h${m ? String(m).padStart(2, "0") : ""}` : `${m}′`; };
+  const fTime = (ms) => new Date(ms).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  const avg = (a) => { const v = a.filter(isNum); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+  const TIPO = { Ride: "Strada", VirtualRide: "Rulli", WeightTraining: "Palestra", Run: "Corsa", Walk: "Camminata", GravelRide: "Gravel", MountainBikeRide: "MTB" };
+  const LEVEL = { verde: ["good", "Verde"], giallo: ["warning", "Giallo"], rosso: ["critical", "Rosso"], grigio: ["", "Grigio"] };
+  const skel = (h, w = "100%") => `<div class="skel" style="height:${h}px;width:${w}"></div>`;
+
+  function errInfo(e) {
+    switch (e && e.code) {
+      case "needs_reauth": return ["Il connettore MasCoach va ricollegato.", "Ricollegalo in claude.ai → Impostazioni → Connettori, poi ricarica la pagina."];
+      case "server_not_connected": return ["Il connettore MasCoach non è collegato a questo account.", "Aggiungilo in claude.ai → Impostazioni → Connettori."];
+      case "selection_required": return ["Hai più connettori chiamati MasCoach.", "Scegli quale usare nella richiesta che compare in claude.ai."];
+      case "approval_required": case "consent_required": return ["Serve il tuo consenso per leggere i dati da MasCoach.", "I dati restano tuoi: la pagina li legge solo mentre la guardi."];
+      case "not_in_manifest": return ["L'accesso a MasCoach è spento per questa pagina.", "Riaccendilo dal menu Permessi dell'artefatto."];
+      case "blocked_by_policy": return ["Le regole dell'organizzazione bloccano questo connettore.", ""];
+      case "server_unavailable": return ["MasCoach non risponde in questo momento.", "La pagina riprova da sola al prossimo aggiornamento."];
+      case "tool_error": return ["MasCoach ha risposto con un errore.", (e && e.message) || ""];
+      case "not_granted": case "capability_disabled": case "capability_removed": return ["Questa vista non può usare i connettori.", "Apri la pagina in claude.ai."];
+      default: return ["Lettura non riuscita.", (e && e.message) || ""];
+    }
+  }
+  function errBlock(e) {
+    const [t, s] = errInfo(e);
+    const ask = e && (e.code === "approval_required" || e.code === "consent_required");
+    return `<div class="err"><b>${esc(t)}</b>${s ? `<span>${esc(s)}</span>` : ""}${ask ? `<button type="button" class="btn primary" data-allow>Consenti l'accesso a MasCoach</button>` : ""}</div>`;
+  }
+  // Section body: data → render, error → message (keeping last good data for transient errors), else skeleton.
+  function body(key, render, loading) {
+    const d = state.data[key], e = state.err[key];
+    if (d) return render(d) + (e ? `<div style="margin-top:10px">${errBlock(e)}</div>` : "");
+    if (e) return errBlock(e);
+    return loading;
+  }
+
+  // ── Theme switch (Day / Night / Paper) ─────────────────────────────────────
+  let look = null;
+  try { look = localStorage.getItem("mascoach-look"); } catch (e) { look = null; }
+  if (!["day", "night", "paper"].includes(look)) look = null;
+  const mq = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+  function effectiveLook() {
+    if (look) return look;
+    const host = document.documentElement.getAttribute("data-theme");
+    if (host === "dark") return "night";
+    if (host === "light") return "day";
+    return mq && mq.matches ? "night" : "day";
+  }
+  function applyLook() {
+    const root = document.documentElement;
+    root.classList.remove("look", "look-day", "look-night", "look-paper");
+    if (look) root.classList.add("look", "look-" + look);
+    const eff = effectiveLook();
+    document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.look === eff)));
+  }
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+    look = b.dataset.look;
+    try { localStorage.setItem("mascoach-look", look); } catch (e) { /* storage unavailable */ }
+    applyLook();
+  }));
+  if (mq && mq.addEventListener) mq.addEventListener("change", applyLook);
+  new MutationObserver(applyLook).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  applyLook();
+
+  // ── Sections ───────────────────────────────────────────────────────────────
+  function gauge(v, lo, hi, color) {
+    if (![v, lo, hi].every(isNum)) return "";
+    const span = Math.max(1, hi - lo), a = lo - span * 0.7, b = hi + span * 0.7;
+    const p = (t) => Math.max(0, Math.min(100, ((t - a) / (b - a)) * 100));
+    return `<div class="gauge" aria-hidden="true"><div class="band" style="left:${p(lo)}%;width:${p(hi) - p(lo)}%;background:${color}"></div><div class="mark" style="left:${p(v)}%"></div></div>`;
+  }
+
+  // ── Today: readiness + what is planned for today ──
+  const canChat = () => !!(chat.sample && !chat.off);
+  const wMeta = (w) => [TIPO[w.tipo] || w.tipo, fDur(w.durata_min), isNum(w.tss) ? num(w.tss) + " TSS" : null].filter(Boolean).join(" · ");
+  const coachBtn = (label, msg, sendNow, cls = "btn") => (canChat() ? `<button type="button" class="${cls}" data-coach="${esc(msg)}" data-send="${sendNow ? 1 : 0}">${esc(label)}</button>` : "");
+
+  function renderReady() {
+    $("sec-ready").innerHTML = body("stato", (s) => {
+      const p = s.prontezza || {}, [cls, lab] = LEVEL[p.level] || ["", p.level || "—"];
+      const cal = state.data.calendario, us = Array.isArray(state.data.uscite) ? state.data.uscite : [];
+      const todays = cal && Array.isArray(cal.pianificato) ? cal.pianificato.filter((w) => w.data === s.oggi) : [];
+      const doneToday = us.filter((r) => r.data === s.oggi);
+      let today;
+      if (!cal) today = `${skel(16, "70%")}${skel(12, "50%")}`;
+      else if (todays.length) today = todays.map((w) => `<div class="today-w"><div class="today-name">${esc(w.nome)}</div><div class="wmeta num">${esc(wMeta(w))}</div></div>`).join("");
+      else today = `<div class="today-name" style="color:var(--muted)">Niente in programma</div>`;
+      const ask = todays.length
+        ? `Oggi ho in programma ${todays.map((w) => `«${w.nome}» (${wMeta(w)}, id ${w.id})`).join(" e ")}. Con la prontezza di oggi va bene così o lo modifico?`
+        : "Oggi non ho allenamenti in programma. Cosa mi consigli di fare, con la prontezza di oggi?";
+      return `<div class="ready">
+        <div class="ready-main">
+          <div class="light ${cls}" aria-hidden="true"><i></i></div>
+          <div style="min-width:0">
+            <div class="eyebrow">Prontezza · ${esc(s.oggi ? fDay(s.oggi) : "oggi")}</div>
+            <div class="headline">${esc(p.headline || "—")} <span class="chip ${cls}" style="vertical-align:middle">${esc(lab)}</span></div>
+            <p class="advice">${esc(p.advice || "")}</p>
+            ${Array.isArray(p.reasons) && p.reasons.length ? `<ul class="reasons">${p.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}
+          </div>
+        </div>
+        <div class="side today">
+          <div class="eyebrow">Da fare oggi</div>
+          ${today}
+          ${doneToday.length ? `<div class="wmeta">Fatto oggi: ${esc(doneToday.map((r) => r.nome).join(", "))}</div>` : ""}
+          ${cal ? `<div class="today-actions">${coachBtn(todays.length ? "Chiedi al coach se va bene" : "Chiedi al coach cosa fare", ask, true, "btn primary")}</div>` : ""}
+        </div>
+      </div>`;
+    }, `<div class="ready"><div class="ready-main"><div class="light" aria-hidden="true"><i></i></div><div style="flex:1;display:grid;gap:10px">${skel(12, "30%")}${skel(30, "50%")}${skel(14, "80%")}</div></div><div class="side today">${skel(12, "40%")}${skel(20, "80%")}${skel(32, "60%")}</div></div>`);
+  }
+
+  function renderTiles() {
+    const el = $("sec-tiles");
+    const s = state.data.stato;
+    if (!s) {
+      const e = state.err.stato;
+      el.innerHTML = e ? "" : [0, 1, 2, 3].map(() => `<div class="card tile">${skel(11, "50%")}${skel(28, "60%")}${skel(10)}</div>`).join("");
+      el.hidden = !!e;
+      return;
+    }
+    el.hidden = false;
+    const h = s.hrv_altini || {}, f = s.fc_riposo || {}, c = s.carico || {};
+    const last14 = Array.isArray(s.ultimi_14_giorni) ? s.ultimi_14_giorni : [];
+    const tonight = last14.length ? last14[last14.length - 1] : {};
+    const sleep7 = avg(last14.slice(-7).map((d) => d.sonno_ore));
+    const hr = Array.isArray(h.range_normale_ms) ? h.range_normale_ms : [];
+    const fr = Array.isArray(f.range_normale) ? f.range_normale : [];
+    const hrvCls = h.calo_acuto_stanotte ? "critical" : h.stato === "nella norma" ? "good" : "warning";
+    let fcState = "—", fcCls = "";
+    if (isNum(f.media_7gg) && fr.length === 2) {
+      if (f.media_7gg < fr[0]) { fcState = "sotto il solito"; fcCls = "good"; }
+      else if (f.media_7gg > fr[1]) { fcState = "sopra il solito"; fcCls = "warning"; }
+      else { fcState = "nella norma"; fcCls = "good"; }
+    }
+    const zona = c.zona_forma || "";
+    const zCls = { ottimale: "good", grigia: "", fresca: "accent", transizione: "accent", rischio: "critical", "alto rischio": "critical" }[zona] ?? "";
+    el.innerHTML = `
+      <div class="card tile">
+        <div class="eyebrow" style="color:var(--hrv-ink)">HRV · media 7 gg</div>
+        <div class="val num">${num(h.media_7gg_ms)}<small>ms</small></div>
+        ${gauge(h.media_7gg_ms, hr[0], hr[1], "var(--hrv-band)")}
+        <div class="sub num">normale ${num(hr[0])}–${num(hr[1])} · stanotte ${num(tonight.rmssd_ms)}</div>
+        <div><span class="chip ${hrvCls}">${esc(h.calo_acuto_stanotte ? "calo acuto stanotte" : h.stato || "—")}</span> <span class="sub num">CV ${num(h.cv_7gg_pct, 1)}%</span></div>
+      </div>
+      <div class="card tile">
+        <div class="eyebrow" style="color:var(--rhr-ink)">FC a riposo</div>
+        <div class="val num">${num(f.oggi)}<small>bpm</small></div>
+        ${gauge(f.media_7gg, fr[0], fr[1], "var(--rhr-band)")}
+        <div class="sub num">media 7 gg ${num(f.media_7gg, 1)} · normale ${num(fr[0], 1)}–${num(fr[1], 1)}</div>
+        <div><span class="chip ${fcCls}">${esc(fcState)}</span></div>
+      </div>
+      <div class="card tile">
+        <div class="eyebrow" style="color:var(--sleep-ink)">Sonno stanotte</div>
+        <div class="val num">${num(s.sonno_stanotte_ore, 1)}<small>h</small></div>
+        ${gauge(s.sonno_stanotte_ore, 7, 9, "var(--neutral-bg)")}
+        <div class="sub num">media ultime 7 notti ${num(sleep7, 1)} h</div>
+      </div>
+      <div class="card tile">
+        <div class="eyebrow" style="color:var(--form-ink)">Forma · TSB</div>
+        <div class="val num">${signed(c.forma_tsb, 1)}</div>
+        <div class="sub num"><span style="color:var(--fitness-ink)">Fitness ${num(c.fitness_ctl, 1)}</span> · <span style="color:var(--fatigue-ink)">Fatica ${num(c.fatica_atl, 1)}</span></div>
+        <div><span class="chip ${zCls}">zona ${esc(zona || "—")}</span> <span class="sub num">ramp ${signed(c.ramp_rate, 1)}</span></div>
+      </div>`;
+  }
+
+  // ── Workouts to do: quick actions (move / delete coach workouts, ask the coach) ──
+  const act = {};          // workout id (or "__prove") → { busy, msg, err, confirm }
+  const openW = new Set(); // workouts expanded by the viewer, kept across re-renders
+  function actLine(id) {
+    const a = act[id];
+    return a && a.msg ? `<div class="act-msg${a.err ? " err-text" : ""}">${esc(a.msg)}</div>` : "";
+  }
+  function renderPlan() {
+    const cal = state.data.calendario;
+    const today = (state.data.stato && state.data.stato.oggi) || iso(new Date());
+    const planned = cal && Array.isArray(cal.pianificato) ? cal.pianificato.filter((w) => w.data >= today) : [];
+    const hasProve = planned.some((w) => w.creato_dal_coach === "prova");
+    const pa = act.__prove || {};
+    const head = `<div class="card-head"><h2>Allenamenti da fare</h2><div class="head-actions">
+      ${hasProve && mcp && !state.demo ? (pa.confirm ? `<button type="button" class="btn danger" data-prove="go"${pa.busy ? " disabled" : ""}>Conferma: cancella tutte le prove</button><button type="button" class="icon-btn" data-prove="no">Annulla</button>` : `<button type="button" class="icon-btn" data-prove="ask">Cancella le prove</button>`) : ""}
+      ${coachBtn("Nuovo allenamento", "Proponimi un allenamento per ", false, "btn primary")}
+    </div></div>${actLine("__prove")}`;
+    $("sec-plan").innerHTML = head + body("calendario", (c) => {
+      const items = [];
+      (Array.isArray(c.gare_impegni_note) ? c.gare_impegni_note : []).forEach((e) => { if ((e.fino_al || e.data) >= today) items.push({ ev: true, ...e }); });
+      planned.forEach((w) => items.push(w));
+      items.sort((a, b) => String(a.data).localeCompare(String(b.data)));
+      if (!items.length) return `<div class="empty">Nessun allenamento pianificato nei prossimi 14 giorni.</div>`;
+      return `<div class="plan">${items.slice(0, 12).map((w) => {
+        const d = pd(w.data), wd = d.toLocaleDateString("it-IT", { weekday: "short" }), mo = d.toLocaleDateString("it-IT", { month: "short" });
+        const isToday = w.data === today;
+        if (w.ev) return `<details class="event"><summary><div class="date"><small>${esc(wd)}</small><b>${d.getDate()}</b></div><div style="min-width:0"><div class="wname">${esc(w.nome || w.tipo)}</div><div class="wmeta">${esc(w.tipo || "")}${w.fino_al ? " · fino al " + esc(fShort(w.fino_al)) : ""}${isNum(w.tss_obiettivo) ? " · obiettivo " + num(w.tss_obiettivo) + " TSS" : ""}</div></div><span class="chip accent">${esc(mo)}</span></summary>${w.note ? `<pre>${esc(w.note)}</pre>` : ""}</details>`;
+        const id = String(w.id), a = act[id] || {}, mine = !!w.creato_dal_coach && !!mcp && !state.demo;
+        const tag = w.creato_dal_coach === "coach" ? `<span class="chip accent">Coach</span>` : w.creato_dal_coach === "prova" ? `<span class="chip">Prova</span>` : isToday ? `<span class="chip good">oggi</span>` : "";
+        const ctx = `«${w.nome}» di ${fDay(w.data)} (${wMeta(w)}, id ${id})`;
+        const actions = [
+          coachBtn("Adatta con il coach", `Parliamo dell'allenamento ${ctx}: `, false, "btn"),
+          mine ? `<span class="move"><label class="sr-only" for="mv-${esc(id)}">Nuova data</label><input type="date" id="mv-${esc(id)}" min="${today}" value="${esc(w.data)}"><button type="button" class="btn" data-move="${esc(id)}"${a.busy ? " disabled" : ""}>Sposta</button></span>` : "",
+          mine ? (a.confirm ? `<button type="button" class="btn danger" data-del="go" data-id="${esc(id)}"${a.busy ? " disabled" : ""}>Conferma cancellazione</button><button type="button" class="icon-btn" data-del="no" data-id="${esc(id)}">Annulla</button>` : `<button type="button" class="icon-btn" data-del="ask" data-id="${esc(id)}">Cancella</button>`) : "",
+        ].filter(Boolean).join("");
+        return `<details data-wid="${esc(id)}"${openW.has(id) ? " open" : ""}${isToday ? ' class="is-today"' : ""}><summary><div class="date"><small>${esc(wd)}</small><b>${d.getDate()}</b></div><div style="min-width:0"><div class="wname">${esc(w.nome)}</div><div class="wmeta num">${esc(wMeta(w))}</div></div>${tag}</summary>
+          ${w.testo ? `<pre>${esc(w.testo)}</pre>` : ""}
+          ${actions ? `<div class="w-actions">${actions}</div>` : ""}
+          ${!w.creato_dal_coach && mcp && !state.demo ? `<div class="act-msg">Non creato dal coach: si sposta o cancella da Intervals.</div>` : ""}
+          ${actLine(id)}</details>`;
+      }).join("")}</div>`;
+    }, `<div class="plan">${[0, 1, 2].map(() => skel(56)).join("")}</div>`);
+  }
+  async function planWrite(key, tool, input, busyMsg, okMsg) {
+    act[key] = { busy: true, msg: busyMsg };
+    renderPlan();
+    try {
+      await mcp.callTool(SERVER, tool, input);
+      act[key] = { msg: okMsg };
+      mcp.invalidate(SERVER).catch(() => {});
+    } catch (e) {
+      act[key] = { err: true, msg: errInfo(e).filter(Boolean).join(" ") };
+    }
+    renderPlan();
+  }
+  $("sec-plan").addEventListener("toggle", (e) => {
+    const d = e.target.closest && e.target.closest("details[data-wid]");
+    if (!d) return;
+    if (d.open) openW.add(d.dataset.wid); else openW.delete(d.dataset.wid);
+  }, true);
+  $("sec-plan").addEventListener("click", (e) => {
+    const t = e.target;
+    const mv = t.closest("[data-move]");
+    if (mv && mcp) {
+      const id = mv.getAttribute("data-move"), inp = document.getElementById("mv-" + id), to = inp ? inp.value : "";
+      const today = (state.data.stato && state.data.stato.oggi) || iso(new Date());
+      if (!DATE.test(to) || to < today) { act[id] = { err: true, msg: "Scegli una data da oggi in poi." }; renderPlan(); return; }
+      planWrite(id, "modifica_allenamento", { id, data: to }, "Sposto…", "Spostato a " + fDay(to) + ".");
+      return;
+    }
+    const del = t.closest("[data-del]");
+    if (del && mcp) {
+      const id = del.getAttribute("data-id"), step = del.getAttribute("data-del");
+      if (step === "ask") { act[id] = { confirm: true }; renderPlan(); }
+      else if (step === "no") { delete act[id]; renderPlan(); }
+      else planWrite(id, "cancella_allenamento", { id }, "Cancello…", "Cancellato.");
+      return;
+    }
+    const pr = t.closest("[data-prove]");
+    if (pr && mcp) {
+      const step = pr.getAttribute("data-prove");
+      if (step === "ask") { act.__prove = { confirm: true }; renderPlan(); }
+      else if (step === "no") { delete act.__prove; renderPlan(); }
+      else planWrite("__prove", "cancella_prove", undefined, "Cancello le prove…", "Prove cancellate.");
+    }
+  });
+
+  // ── Last 3 sessions, as tiles ──
+  function rideTile(r) {
+    const gym = r.tipo === "WeightTraining";
+    const [kind, ink] = gym ? ["Palestra", "var(--muted)"] : r.rulli || r.tipo === "VirtualRide" ? ["Rulli", "var(--fatigue-ink)"] : [TIPO[r.tipo] || r.tipo || "Uscita", "var(--fitness-ink)"];
+    const dec = r.disaccoppiamento_pct;
+    return `<article class="card tile ride-tile">
+      <div class="eyebrow" style="color:${ink}">${esc(kind)} · ${esc(fDay(r.data))}</div>
+      <div class="ride-name" title="${esc(r.nome)}">${esc(r.nome)}</div>
+      <div class="val num">${fDur(r.durata_min)}${isNum(r.km) ? `<small>${num(r.km, 1)} km</small>` : ""}</div>
+      <div class="mini num">
+        <span><small>TSS</small><b>${num(r.tss)}</b></span>
+        ${gym ? "" : `<span><small>NP</small><b>${num(r.np)}<i> W</i></b></span><span><small>IF</small><b>${num(r.if, 2)}</b></span>`}
+        <span><small>FC</small><b>${num(r.fc_media)}</b></span>
+      </div>
+      <div class="ride-foot">
+        ${r.test ? `<span class="chip accent">test</span>` : ""}
+        ${isNum(dec) ? `<span class="chip ${dec > 5 ? "warning" : "good"}">disacc. ${num(dec, 1)}%</span>` : ""}
+        ${isNum(r.ef) ? `<span class="chip">EF ${num(r.ef, 2)}</span>` : ""}
+        <span style="flex:1"></span>
+        ${coachBtn("Analizza", `Analizza ${gym ? "la seduta" : "l'uscita"} «${r.nome}» di ${fDay(r.data)} (id ${r.id}).`, true, "icon-btn")}
+      </div>
+    </article>`;
+  }
+  function renderRides() {
+    $("sec-rides").innerHTML = `<div class="card-head sec-title"><h2>Ultimi allenamenti fatti</h2><span class="hint">gli ultimi 3</span></div>` +
+      body("uscite", (u) => {
+        const list = (Array.isArray(u) ? u : []).slice().sort((a, b) => String(b.data).localeCompare(String(a.data))).slice(0, 3);
+        if (!list.length) return `<div class="card empty">Nessun allenamento nelle ultime 4 settimane.</div>`;
+        return `<div class="grid-3">${list.map(rideTile).join("")}</div>`;
+      }, `<div class="grid-3">${[0, 1, 2].map(() => `<div class="card tile">${skel(11, "50%")}${skel(16, "80%")}${skel(28, "40%")}${skel(30)}</div>`).join("")}</div>`);
+  }
+
+  function renderStatus() {
+    const st = $("status");
+    $("demo").hidden = !state.demo;
+    $("refresh").hidden = state.demo || !mcp;
+    if (state.demo) { st.innerHTML = "Anteprima con dati di esempio"; return; }
+    const times = Object.values(state.at);
+    if (!times.length) { st.textContent = Object.keys(state.err).length ? "Connettore MasCoach non raggiungibile" : "Collegamento al connettore MasCoach…"; return; }
+    st.innerHTML = `Dati Intervals.icu via MasCoach · aggiornati alle <b class="num">${fTime(Math.min(...times))}</b>`;
+  }
+
+  function renderBanner() {
+    const keys = Object.keys(TOOLS), errs = keys.map((k) => state.err[k]);
+    const pageLevel = !state.demo && errs.every((e) => e && AUTHZ.has(e.code)) && errs.every((e) => e.code === errs[0].code) && keys.every((k) => !state.data[k]);
+    const b = $("banner");
+    if (pageLevel) {
+      const [t, s] = errInfo(errs[0]);
+      const ask = errs[0].code === "approval_required" || errs[0].code === "consent_required";
+      b.className = "banner"; b.hidden = false;
+      b.innerHTML = `<b>${esc(t)}</b>${s ? `<span>${esc(s)}</span>` : ""}${ask ? `<button type="button" class="btn primary" style="justify-self:start" data-allow>Consenti l'accesso a MasCoach</button>` : ""}`;
+    } else { b.hidden = true; b.innerHTML = ""; }
+    document.querySelectorAll("section").forEach((s) => { s.style.display = pageLevel ? "none" : ""; });
+    return pageLevel;
+  }
+
+  function renderAll() {
+    renderStatus();
+    if (renderBanner()) return;
+    renderReady(); renderTiles(); renderPlan(); renderRides();
+  }
+
+  // ── Data: live watches on the MasCoach connector ───────────────────────────
+  function onEvent(key, ev) {
+    if (ev.type === "data") {
+      const p = ev.result && ev.result.payload;
+      if (p && typeof p === "object") {
+        state.data[key] = p; delete state.err[key];
+        state.at[key] = (ev.result.cache && ev.result.cache.storedAt) || Date.now();
+      } else state.err[key] = { code: "tool_error", message: typeof p === "string" ? p : "Risposta vuota." };
+    } else {
+      const e = ev.error || { code: "upstream_error" };
+      state.err[key] = e;
+      if (AUTHZ.has(e.code)) { delete state.data[key]; delete state.at[key]; }
+    }
+    renderAll();
+  }
+
+  let allowing = false;
+  document.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("[data-allow]");
+    if (!btn || !mcp || allowing) return;
+    allowing = true; btn.disabled = true; btn.textContent = "Richiesta in corso…";
+    for (const [key, t] of Object.entries(TOOLS)) {
+      try {
+        const r = await mcp.callTool(SERVER, t.tool, t.input == null ? undefined : t.input);
+        onEvent(key, { type: "data", result: r });
+      } catch (e) { onEvent(key, { type: "error", error: e }); }
+    }
+    allowing = false;
+  });
+
+  $("refresh").addEventListener("click", async () => {
+    if (!mcp) return;
+    const b = $("refresh"); b.disabled = true; b.textContent = "Aggiorno…";
+    try { await mcp.invalidate(SERVER); } catch (e) { /* nothing cached */ }
+    setTimeout(() => { b.disabled = false; b.textContent = "Aggiorna"; }, 1500);
+  });
+
+  // ── Example data, shown only where the connector cannot be reached ─────────
+  function demoData() {
+    let seed = 11;
+    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+    const today = new Date(), day = (off) => { const d = new Date(today); d.setDate(d.getDate() + off); return iso(d); };
+    const pattern = [0, 55, 0, 45, 30, 140, 0];
+    let ctl = 36, atl = 34;
+    const rm = [], rh = [];
+    const giorni = [];
+    for (let i = 41; i >= 0; i--) {
+      const tss = pattern[(41 - i) % 7] + (rnd() < 0.2 ? 20 : 0);
+      const tsb = +(ctl - atl).toFixed(1);
+      ctl += (tss - ctl) / 42; atl += (tss - atl) / 7;
+      const anom = i === 20 || i === 21;
+      const r = Math.round(64 + (rnd() - 0.5) * 16 - (anom ? 16 : 0)), h = Math.round(47 + (rnd() - 0.5) * 4 + (anom ? 4 : 0));
+      rm.push(r); rh.push(h);
+      giorni.push({ data: day(-i), rmssd_ms: r, hrv_media_7gg_ms: +avg(rm.slice(-7)).toFixed(1), hrv_range_ms: [58, 70], fc_riposo: h, fc_riposo_media: +avg(rh.slice(-7)).toFixed(1), notte_anomala: anom, sonno_ore: +(6.4 + rnd() * 1.8).toFixed(1), carico_tss: tss, ctl: +ctl.toFixed(1), atl: +atl.toFixed(1), tsb });
+    }
+    const last = giorni[giorni.length - 1];
+    const monday = (off) => { const d = new Date(today); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + off * 7); return iso(d); };
+    return {
+      stato: {
+        oggi: day(0),
+        atleta: { ftp_impostata_W: 240, ftp_rulli_W: 230, fc_soglia: 160, fc_max: 182, peso_kg: 72, w_prime_impostato_J: 19000 },
+        prontezza: { level: "verde", headline: "Pronto", advice: "Esempio: puoi svolgere l'allenamento previsto.", reasons: ["Esempio: HRV nella norma e FC a riposo stabile."] },
+        carico: { fitness_ctl: last.ctl, fatica_atl: last.atl, forma_tsb: last.tsb, zona_forma: "grigia", ramp_rate: 0.8 },
+        hrv_altini: { media_7gg_ms: last.hrv_media_7gg_ms, range_normale_ms: [58, 70], stato: "nella norma", calo_acuto_stanotte: false, cv_7gg_pct: 4.2 },
+        fc_riposo: { oggi: last.fc_riposo, media_7gg: last.fc_riposo_media, range_normale: [45.5, 48.5] },
+        sistema_nervoso_autonomo: { title: "Equilibrio", explanation: "Esempio: HRV e FC a riposo nel loro range abituale.", severity: 0, anomalyToday: false, anomalyStreak: 0 },
+        sonno_stanotte_ore: last.sonno_ore,
+        ultimi_14_giorni: giorni.slice(-14),
+        uscite_ultimi_7_giorni: [
+          { data: day(-1), nome: "Esempio · Sweet spot 3×10′", tipo: "VirtualRide", rulli: true, durata_min: 62, km: 31.5, np: 198, if: 0.83, tss: 70, fc_media: 138, disaccoppiamento_pct: 2.4, ef: 1.43 },
+          { data: day(-3), nome: "Esempio · Fondo collinare", tipo: "Ride", rulli: false, durata_min: 175, km: 78.2, np: 172, if: 0.72, tss: 150, fc_media: 131, disaccoppiamento_pct: 6.1, ef: 1.31 },
+        ],
+      },
+      andamento: {
+        giorni,
+        pianificato_vs_fatto: [-5, -4, -3, -2, -1, 0, 1].map((o) => ({ week: monday(o), planned: o < -2 ? 0 : 260, done: o < 0 ? 200 + Math.round(rnd() * 120) : o === 0 ? 110 : 0, doneHours: o < 0 ? +(6 + rnd() * 3).toFixed(1) : o === 0 ? 3.1 : 0, when: o < 0 ? "past" : o === 0 ? "current" : "next" })),
+        distribuzione_intensita: { low: 0.8, mid: 0.15, high: 0.05, totalSecs: 61200, pattern: "piramidale", days: 28 },
+        tempo_per_zona_coggan: [["Z1", 44], ["Z2", 36], ["Z3", 13], ["Z4", 4.5], ["Z5", 1.6], ["Z6", 0.6], ["Z7", 0.3]].map(([zona, quota_pct]) => ({ zona, quota_pct })),
+        eftp_intervals: [{ date: day(-30), eftp: 236, ftp: 240 }, { date: day(-2), eftp: 241, ftp: 240 }],
+      },
+      calendario: {
+        pianificato: [
+          { data: day(1), nome: "Esempio · Z2 + cadenza", tipo: "VirtualRide", durata_min: 60, tss: 45, testo: "Riscaldamento\n- 10m ramp 40-70%\n\nCadenza 5x\n- 1m 68% 105rpm\n- 4m 65%\n\nDefaticamento\n- 5m 40%", creato_dal_coach: "coach" },
+          { data: day(3), nome: "Esempio · Soglia 2×15′", tipo: "VirtualRide", durata_min: 70, tss: 72, testo: "Riscaldamento\n- 15m ramp 45-75%\n\nSoglia 2x\n- 15m 95-100%\n- 5m 55%\n\nDefaticamento\n- 10m 45%", creato_dal_coach: "coach" },
+          { data: day(5), nome: "Esempio · Fondo lungo", tipo: "Ride", durata_min: 210, tss: 160, testo: "Fondo\n- 3h30m 65-75%", creato_dal_coach: null },
+        ],
+        gare_impegni_note: [],
+      },
+    };
+  }
+
+  // ── Coach chat: Claude (sample) with the coach prompt and every MasCoach tool ──
+  const DATE = /^\d{4}-\d{2}-\d{2}$/;
+  const BIKE_TYPES = ["Ride", "VirtualRide", "GravelRide", "MountainBikeRide"];
+  const dateP = (d) => ({ type: "string", format: "date", description: d });
+  const WF = 'Testo in formato Intervals.icu, una riga per passo che inizia con "- ": durata (10m, 30s, 1h) e intensità. ' +
+    "Intensità: percentuale dell'FTP impostata su Intervals (es. 88-92%), zone (Z2), watt assoluti (210-220w) se vuoi un " +
+    "riferimento diverso dall'FTP impostata, FC (75% LTHR), cadenza (90rpm). Rampe: \"- 10m ramp 50-70%\". " +
+    'Ripetute: una riga "Titolo 3x" seguita dai passi da ripetere, sempre con una riga vuota prima del titolo (senza, Intervals ignora la ripetizione). ' +
+    'Righe senza "- " sono titoli di sezione. ' +
+    "Esempio:\nRiscaldamento\n- 10m ramp 50-70%\n\nSweet spot 3x\n- 12m 88-92%\n- 5m 55%\n\nDefaticamento\n- 10m 50%";
+  const obj = (properties, required) => (required ? { type: "object", properties, required } : { type: "object", properties });
+  // Same names, descriptions and inputs as the connector (bike-coach/src/lib/coach/tools.ts).
+  const CT = [
+    { name: "stato_di_oggi", label: "lo stato di oggi", schema: obj({}),
+      description: "Da chiamare per primo. Prontezza di oggi, HRV con il metodo Altini (media 7 gg vs range normale), FC a riposo, sistema nervoso autonomo, sonno, fitness/fatica/forma, profilo dell'atleta (FTP, soglie, peso), ultimi 14 giorni e uscite della settimana." },
+    { name: "andamento", label: "l'andamento", schema: obj({ giorni: { type: "integer", minimum: 7, maximum: 120, description: "Quanti giorni indietro (default 42)" } }),
+      description: "Serie giornaliera di HRV, FC a riposo, sonno, carico e CTL/ATL/TSB, più carico settimanale, pianificato vs fatto, distribuzione dell'intensità (Seiler) e eFTP. Utile per tendenze e programmazione." },
+    { name: "calendario", label: "il calendario", schema: obj({ da: dateP("Primo giorno AAAA-MM-GG"), a: dateP("Ultimo giorno AAAA-MM-GG") }),
+      description: "Uscite fatte e allenamenti pianificati in un periodo (default da 7 giorni fa a 14 giorni avanti, massimo 70 giorni), con il testo di ogni allenamento, se l'ha creato il coach, e gare, impegni e note del periodo." },
+    { name: "eventi", label: "gare, impegni e note", schema: obj({ da: dateP("Primo giorno AAAA-MM-GG (default oggi)"), a: dateP("Ultimo giorno AAAA-MM-GG (default da + 12 mesi)") }),
+      description: "Tutto quello che sul calendario di Intervals non è un allenamento: gare A/B/C, vacanze e impegni, malattia, infortuni, note, inizio stagione, obiettivi della settimana (TSS, ore, km). Default da oggi a 12 mesi, massimo 2 anni. Usalo prima di pianificare una settimana, un blocco o la stagione." },
+    { name: "uscite", label: "le uscite", schema: obj({ da: dateP("Primo giorno AAAA-MM-GG"), a: dateP("Ultimo giorno AAAA-MM-GG (default oggi)") }),
+      description: "Elenco delle uscite in un periodo (default ultime 4 settimane, massimo un anno per richiesta, anche negli anni passati): durata, NP, IF, TSS, FC, disaccoppiamento, EF, test." },
+    { name: "dettaglio_uscita", label: "il dettaglio dell'uscita", schema: obj({ id: { type: "string", description: "id dell'uscita (da uscite o calendario)" } }, ["id"]),
+      description: "Analisi di una uscita: riepilogo, tempo nelle zone, migliori sforzi e, se è un test, il risultato (FTP stimata, soglie)." },
+    { name: "profilo_potenza", label: "il profilo di potenza", schema: obj({ con_durability: { type: "boolean", description: "Includi la durability (default no)" } }),
+      description: "Curva di potenza degli ultimi 84 giorni, potenza critica (CP, W'), modelli di Intervals, record del mese, eFTP, zone di potenza e FC. Con con_durability=true aggiunge il calo di potenza dopo 2 h e 3 h (più lento da calcolare)." },
+    { name: "storico", label: "lo storico", schema: obj({ anni: { type: "integer", minimum: 1, maximum: 4, description: "Quanti anni indietro (default 4)" } }),
+      description: "Lo storico fino a 4 anni: per anno e per mese ore, km, TSS, uscite lunghe, test, CTL (media, picco, fine), eFTP, migliori watt per anno (5s, 1m, 5m, 20m, 60m), tempo nelle zone, HRV media, FC a riposo, sonno, notti anomale (Altini); più l'elenco dei test. Da usare per la prima analisi dell'atleta e per confrontare stagioni." },
+    { name: "w_balance", label: "il W′ balance", schema: obj({ id: { type: "string", description: "id dell'uscita (da uscite o calendario); senza, elenco delle uscite" }, giorni: { type: "integer", minimum: 7, maximum: 120, description: "Senza id: quanti giorni indietro (default 28)" } }),
+      description: "Senza id: svuotamento massimo del W′ in ogni uscita degli ultimi giorni (default 28). Con id: W′bal di una uscita (modello di Skiba, calcolato da Intervals.icu): minimo in J e %, minuti sotto 50% e 25%, ogni svuotamento sotto il 50% con il tempo per tornare all'80%, e una serie in % del W′. Il W′ impostato è in stato_di_oggi e profilo_potenza (w_prime_impostato_J)." },
+    { name: "fueling_log", label: "i carboidrati delle uscite", schema: obj({ da: dateP("Primo giorno AAAA-MM-GG"), a: dateP("Ultimo giorno AAAA-MM-GG (default oggi)"), minimo_minuti: { type: "integer", minimum: 30, maximum: 600, description: "Durata minima delle uscite (default 90)" } }),
+      description: "Uscite lunghe di un periodo (default ultime 4 settimane, sopra i 90 minuti): durata, kJ, NP, IF, disaccoppiamento, RPE, carboidrati assunti (g e g/h, se registrati) e carboidrati consumati stimati da Intervals." },
+    { name: "libreria_allenamenti", label: "la libreria", schema: obj({}),
+      description: "Gli allenamenti salvati nella libreria di Intervals.icu, per cartella, con il loro testo." },
+    { name: "crea_allenamento", write: true, schema: obj({
+        data: dateP("Giorno AAAA-MM-GG, da oggi in poi"), nome: { type: "string", description: "Nome breve, es. \"Sweet spot 3×12'\"" },
+        testo: { type: "string", description: "Passi in formato Intervals.icu (vedi descrizione)" },
+        tipo: { type: "string", enum: BIKE_TYPES, description: "Ride (default), VirtualRide per i rulli, GravelRide, MountainBikeRide" },
+        rulli: { type: "boolean", description: "Da fare sui rulli (default no; sì se tipo è VirtualRide)" },
+        prova: { type: "boolean", description: "Marca come prova (default true). false solo quando l'atleta lo vuole davvero nel piano." } }, ["data", "nome", "testo"]),
+      description: "Scrive un allenamento sul calendario di Intervals.icu (da lì arriva al Garmin). Prima di usarlo mostra l'anteprima e aspetta la conferma esplicita. Con prova=true (default) l'allenamento è marcato \"Prova\" e si cancella in blocco con cancella_prove. " + WF },
+    { name: "modifica_allenamento", write: true, schema: obj({ id: { type: "string", description: "id dell'allenamento (da calendario)" }, data: dateP("Nuovo giorno AAAA-MM-GG"), nome: { type: "string" }, testo: { type: "string", description: "Nuovi passi in formato Intervals.icu" } }, ["id"]),
+      description: "Cambia data, nome o testo di un allenamento creato dal coach (gli altri non si toccano). Chiedi prima conferma. " + WF },
+    { name: "cancella_allenamento", write: true, schema: obj({ id: { type: "string", description: "id dell'allenamento (da calendario)" } }, ["id"]),
+      description: "Cancella un allenamento creato dal coach (gli altri non si toccano). Chiedi prima conferma." },
+    { name: "registra_carboidrati", write: true, schema: obj({ id: { type: "string", description: "id dell'uscita (da fueling_log o uscite)" }, grammi: { type: "number", minimum: 0, maximum: 1000, description: "Carboidrati totali in grammi" }, grammi_ora: { type: "number", minimum: 0, maximum: 150, description: "In alternativa: grammi per ora" } }, ["id"]),
+      description: "Scrive su Intervals.icu i carboidrati assunti in una uscita, quando l'atleta li riferisce in chat: grammi totali oppure grammi_ora (moltiplicati per la durata in movimento). Sostituisce il valore precedente. Chiedi prima conferma del numero." },
+    { name: "salva_in_libreria", write: true, schema: obj({ nome: { type: "string", description: "Nome del workout" }, testo: { type: "string", description: "Passi in formato Intervals.icu" },
+        tipo: { type: "string", enum: BIKE_TYPES, description: "Ride (default), VirtualRide, GravelRide, MountainBikeRide" }, rulli: { type: "boolean", description: "Pensato per i rulli (default no; sì se tipo è VirtualRide)" },
+        tag: { type: "array", items: { type: "string" }, description: 'Tag del workout, es. ["THRESHOLD", "GRANFONDO", "K2"]' } }, ["nome", "testo"]),
+      description: 'Salva un workout nella libreria di Intervals.icu, nella cartella "MasCoach Coach" (creata la prima volta), con i tag indicati (es. THRESHOLD, GRANFONDO, K2). Non lo mette sul calendario. Chiedi prima conferma. ' + WF },
+    { name: "cancella_prove", write: true, schema: obj({}),
+      description: "Cancella tutti gli allenamenti marcati \"Prova\" dal coach (da 30 giorni fa a 13 mesi avanti). Chiedi prima conferma." },
+  ];
+
+  const ADAPTER = [
+    "===== DOVE STAI LAVORANDO (vale sopra il prompt dove è diverso) =====",
+    "Non sei nel Progetto Claude: sei nella chat dentro l'artefatto MasCoach, una pagina web. Gli strumenti del connettore MasCoach sono gli stessi, con gli stessi parametri.",
+    "• Scheda atleta: non è un file del Progetto. È salvata nella pagina e te la riporto più sotto (oppure ti dico che manca). Per salvarla o aggiornarla mostrala COMPLETA in un unico blocco di codice markdown che inizia con \"# Scheda atleta\": sotto il blocco la pagina mostra il pulsante \"Salva come Scheda atleta\". Chiedi all'atleta di premerlo (al posto di sostituire il file del Progetto).",
+    "• Domande a pulsanti (§3.2): la pagina le supporta. Scrivi ogni domanda in un blocco di codice con linguaggio scelta: prima riga la domanda, poi un'opzione per riga (2–4 opzioni, senza lettere davanti). Massimo 3 blocchi per messaggio. Esempio:\n```scelta\nCome ti senti oggi?\nFresco e motivato\nNormale\nStanco, gambe vuote\n```\nQuando l'atleta preme un pulsante ricevi il testo dell'opzione come suo messaggio.",
+    "• Approvazione (§3.2): ogni strumento di scrittura apre nella pagina una richiesta di conferma. Se l'atleta annulla, lo strumento risponde con un errore \"Non confermato\": non è successo nulla, dillo in una riga.",
+    "• Memoria e chat precedenti: non ne hai. Vale solo questa conversazione.",
+    "• Giri di strumenti: per ogni risposta puoi fare pochi giri di chiamate. Chiama insieme, nello stesso giro, gli strumenti che servono. Se non bastano, rispondi con quello che hai e dì cosa leggerai al messaggio successivo.",
+    "• Immagini: L'atleta può allegare foto o screenshot al messaggio; le vedi solo nel messaggio in cui le invia.",
+  ].join("\n");
+
+  const chat = {
+    sample: null, prompt: "", scheda: "", tools: false, maxTools: 0, images: null, tiers: null, model: "default",
+    id: null, title: "", turns: [], index: [], view: "chat", busy: false, ctl: null, pending: null, confirms: [],
+    autoApprove: false, attach: [], notice: null, canRetry: false, off: false, gen: 0,
+  };
+  const store = { db: null, uid: null };
+  const PERMANENT = new Set(["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"]);
+  const SUGGEST = ["Come sto oggi? Posso fare intensità?", "Analizza la mia ultima uscita", "Prepariamo la prossima settimana", "Facciamo la Scheda atleta"];
+  const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } };
+  const userPath = (id) => `data/users/${store.uid}/${id}`;
+
+  // ── Saved chats and Scheda: the private per-viewer db subtree, else this browser ──
+  async function loadSaved() {
+    if (store.db) {
+      try {
+        const [idx, sch] = await Promise.all([store.db.doc(userPath("chats-index")).get(), store.db.doc(userPath("scheda")).get()]);
+        chat.index = idx.exists && Array.isArray(idx.data().items) ? idx.data().items : [];
+        chat.scheda = sch.exists && typeof sch.data().text === "string" ? sch.data().text : "";
+        return;
+      } catch (e) { store.db = null; }
+    }
+    chat.index = lsGet("mascoach-chats", []).map((c) => ({ id: c.id, title: c.title, updated: c.updated }));
+    chat.scheda = lsGet("mascoach-scheda", "");
+  }
+  async function loadChat(id) {
+    let turns = [];
+    if (store.db) {
+      try { const d = await store.db.doc(userPath(id)).get(); if (d.exists && Array.isArray(d.data().turns)) turns = d.data().turns; } catch (e) { turns = []; }
+    } else {
+      const c = lsGet("mascoach-chats", []).find((x) => x.id === id);
+      if (c && Array.isArray(c.turns)) turns = c.turns;
+    }
+    const meta = chat.index.find((c) => c.id === id);
+    chat.id = id; chat.title = meta ? meta.title : ""; chat.autoApprove = false;
+    chat.turns = turns.filter((t) => t && (t.role === "user" || t.role === "assistant") && typeof t.content === "string" && t.content.trim());
+    lsSet("mascoach-chat-current", id);
+  }
+  let saving = Promise.resolve();
+  function saveChat() {
+    if (!chat.id || !chat.turns.length) return saving;
+    const first = chat.turns.find((t) => t.role === "user");
+    chat.title = chat.title || (first ? first.content.replace(/\s+/g, " ").slice(0, 70) : "Chat");
+    let turns = chat.turns.slice();
+    while (turns.length > 2 && JSON.stringify(turns).length > 200000) turns.shift();
+    const meta = { id: chat.id, title: chat.title, updated: Date.now() };
+    chat.index = [meta, ...chat.index.filter((c) => c.id !== chat.id)].slice(0, 100);
+    const id = chat.id, items = chat.index.slice();
+    saving = saving.then(async () => {
+      if (store.db) {
+        try {
+          await store.db.doc(userPath(id)).set({ kind: "chat", title: meta.title, updated: meta.updated, turns });
+          await store.db.doc(userPath("chats-index")).set({ kind: "index", items });
+          return;
+        } catch (e) { /* fall back to this browser below */ }
+      }
+      const all = lsGet("mascoach-chats", []).filter((c) => c.id !== id);
+      all.unshift({ ...meta, turns: turns.slice(-40) });
+      lsSet("mascoach-chats", all.slice(0, 15));
+    });
+    return saving;
+  }
+  async function saveScheda(text) {
+    chat.scheda = text;
+    if (store.db) { try { await store.db.doc(userPath("scheda")).set({ kind: "scheda", text, updated: Date.now() }); return true; } catch (e) { /* below */ } }
+    lsSet("mascoach-scheda", text);
+    return !store.db;
+  }
+  function newChat() {
+    chat.gen++;
+    if (chat.ctl) chat.ctl.abort();
+    chat.id = "chat-" + Date.now().toString(36); chat.title = ""; chat.turns = []; chat.pending = null;
+    chat.notice = null; chat.canRetry = false; chat.autoApprove = false; chat.view = "chat";
+    lsSet("mascoach-chat-current", chat.id);
+  }
+
+  // ── The prompt Claude reads: coach prompt + page notes + Scheda + today's state ──
+  function rules() {
+    const s = state.data.stato;
+    return [
+      chat.prompt || "(Il prompt del coach non è stato caricato. Rispondi in italiano come coach di ciclismo e usa solo numeri letti dagli strumenti.)",
+      ADAPTER,
+      chat.scheda.trim() ? "===== SCHEDA ATLETA (salvata nella pagina) =====\n" + chat.scheda.trim() : "===== SCHEDA ATLETA =====\nAssente: nella pagina non c'è ancora una Scheda salvata (vedi §3.3 e §14 S).",
+      s ? "===== stato_di_oggi, letto dalla pagina pochi minuti fa (vale come chiamata già fatta; richiamalo per decisioni importanti) =====\n" + JSON.stringify(s) : "",
+    ].filter(Boolean).join("\n\n");
+  }
+  function history() {
+    const turns = chat.turns.slice(-40);
+    while (turns.length > 1 && JSON.stringify(turns).length > 120000) turns.shift();
+    while (turns.length && turns[0].role !== "user") turns.shift();
+    return turns;
+  }
+
+  // ── Tools: reads run straight away, writes wait for the athlete's confirmation ──
+  function coerce(schema, input) {
+    const out = {}, props = (schema && schema.properties) || {};
+    for (const [k, p] of Object.entries(props)) {
+      const v = input ? input[k] : undefined;
+      if (v === undefined || v === null || v === "") continue;
+      const lim = (n) => Math.max(p.minimum ?? -Infinity, Math.min(p.maximum ?? Infinity, n));
+      if (p.type === "string") { const s = String(v); if (p.format === "date" && !DATE.test(s)) continue; if (p.enum && !p.enum.includes(s)) continue; out[k] = s; }
+      else if (p.type === "integer") { const n = Math.round(Number(v)); if (isFinite(n)) out[k] = lim(n); }
+      else if (p.type === "number") { const n = Number(v); if (isFinite(n)) out[k] = lim(n); }
+      else if (p.type === "boolean") out[k] = v === true || v === "true";
+      else if (p.type === "array" && Array.isArray(v)) out[k] = v.map(String);
+    }
+    return Object.keys(out).length ? out : undefined;
+  }
+  const setStatus = (s) => { if (chat.pending) { chat.pending.status = s; renderPending(); } };
+  let confirmSeq = 0;
+  function askConfirm(t, args, signal) {
+    return new Promise((resolve) => {
+      if (signal.aborted) { resolve(false); return; }
+      const c = { id: "c" + ++confirmSeq, tool: t, args };
+      const onAbort = () => done(false);
+      const done = (v) => { chat.confirms = chat.confirms.filter((x) => x !== c); signal.removeEventListener("abort", onAbort); renderPending(); resolve(v); };
+      c.done = done;
+      signal.addEventListener("abort", onAbort);
+      chat.confirms.push(c);
+      setStatus("Aspetto la tua conferma…");
+    });
+  }
+  function workoutName(id) {
+    const c = state.data.calendario, w = c && Array.isArray(c.pianificato) ? c.pianificato.find((x) => String(x.id) === String(id)) : null;
+    return w ? `${w.nome} (${fDay(w.data)})` : `id ${id}`;
+  }
+  function confirmHtml(c) {
+    const a = c.args || {};
+    let title = "", meta = "", text = "";
+    switch (c.tool.name) {
+      case "crea_allenamento":
+        title = "Scrivo questo allenamento su Intervals?";
+        meta = [a.data ? fDay(a.data) : "", a.nome, TIPO[a.tipo] || (a.rulli ? "Rulli" : "Strada"), a.prova === false ? "piano vero" : "prova"].filter(Boolean).join(" · ");
+        text = a.testo || ""; break;
+      case "modifica_allenamento":
+        title = "Modifico questo allenamento?";
+        meta = [workoutName(a.id), a.data ? "→ " + fDay(a.data) : "", a.nome ? "nuovo nome: " + a.nome : ""].filter(Boolean).join(" · ");
+        text = a.testo || ""; break;
+      case "cancella_allenamento": title = "Cancello questo allenamento?"; meta = workoutName(a.id); break;
+      case "cancella_prove": title = "Cancello tutti gli allenamenti marcati Prova?"; meta = "Da 30 giorni fa a 13 mesi avanti, solo quelli creati dal coach."; break;
+      case "registra_carboidrati":
+        title = "Registro i carboidrati su questa uscita?";
+        meta = [`uscita ${a.id}`, isNum(a.grammi) ? `${num(a.grammi)} g totali` : "", isNum(a.grammi_ora) ? `${num(a.grammi_ora)} g/h` : ""].filter(Boolean).join(" · "); break;
+      case "salva_in_libreria":
+        title = "Salvo questo workout in libreria?";
+        meta = [a.nome, TIPO[a.tipo] || (a.rulli ? "Rulli" : "Strada"), Array.isArray(a.tag) && a.tag.length ? a.tag.map((x) => "[" + x + "]").join("") : ""].filter(Boolean).join(" · ");
+        text = a.testo || ""; break;
+      default: title = "Confermi la scrittura?"; meta = JSON.stringify(a);
+    }
+    return `<div class="confirm"><b>${esc(title)}</b>${meta ? `<div class="meta">${esc(meta)}</div>` : ""}${text ? `<pre>${esc(text)}</pre>` : ""}
+      <div class="confirm-actions"><button type="button" class="btn primary" data-confirm="${c.id}" data-ok="yes">Conferma</button><button type="button" class="btn" data-confirm="${c.id}" data-ok="no">Annulla</button><button type="button" class="icon-btn" data-confirm="${c.id}" data-ok="all">Conferma sempre in questa chat</button></div></div>`;
+  }
+  async function runTool(t, input, ctx) {
+    if (!mcp) throw new Error("Il connettore MasCoach non è disponibile in questa vista.");
+    const args = coerce(t.schema, input || {});
+    if (t.write && !chat.autoApprove) {
+      const ok = await askConfirm(t, args || {}, ctx.signal);
+      if (!ok) throw new Error("Non confermato dall'atleta: non è stato scritto nulla.");
+    }
+    setStatus(t.write ? "Scrivo su Intervals…" : "Leggo " + t.label + "…");
+    try {
+      const r = await mcp.callTool(SERVER, t.name, args, { signal: ctx.signal });
+      if (t.write) mcp.invalidate(SERVER).catch(() => {});
+      const p = r.payload, s = typeof p === "string" ? p : JSON.stringify(p);
+      if (s.length <= 24000) return p;
+      return s.slice(0, 20000) + " …[risultato troncato perché troppo lungo: chiedi un periodo più breve]";
+    } catch (e) {
+      throw new Error(e && e.code ? errInfo(e)[0] + (e.message ? " (" + e.message + ")" : "") : "Lettura non riuscita.");
+    } finally { setStatus("Sto pensando…"); }
+  }
+  const chatTools = () => CT.slice(0, chat.maxTools || CT.length).map((t) => ({ name: t.name, description: t.description, inputSchema: t.schema, execute: (input, ctx) => runTool(t, input, ctx) }));
+
+  function sampleErr(code) {
+    switch (code) {
+      case "not_granted": return "Non hai consentito a questa pagina di usare Claude. Ricarica la pagina per scegliere di nuovo.";
+      case "sampling_disabled": return "Claude non è disponibile per questo account.";
+      case "rate_limited": return "Troppe richieste, oppure hai raggiunto il limite d'uso. Riprova tra un po'.";
+      case "session_expired": return "La sessione di claude.ai è scaduta: accedi di nuovo.";
+      case "refused": return "Claude non ha risposto a questa domanda. Prova a riformularla.";
+      case "empty_completion": return "Nessuna risposta. Prova a chiedere in modo più semplice.";
+      case "prompt_too_large": return "La conversazione è diventata troppo lunga. Inizia una nuova chat.";
+      case "image_rejected": return "Immagine non accettata: usa un JPEG, PNG, WebP o GIF più piccolo.";
+      case "images_unavailable": return "In questa vista non si possono inviare immagini.";
+      case "not_declared": case "capability_disabled": case "capability_removed": return "La chat non è disponibile in questa vista.";
+      default: return "La risposta si è interrotta per un problema di connessione.";
+    }
+  }
+
+  // ── Markdown: paragraphs, lists, headings, tables, code (with Copy / Save Scheda), choice buttons ──
+  let BLOCKS = [];
+  function md(src) {
+    const inline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*\w])[*_]([^*_\s][^*_]*?)[*_](?=[^*\w]|$)/g, "$1<em>$2</em>");
+    const L = String(src).replace(/\r/g, "").split("\n");
+    let out = "", para = [], list = null;
+    const fp = () => { if (para.length) { out += `<p>${para.map(inline).join("<br>")}</p>`; para = []; } };
+    const cl = () => { if (list) { out += `</${list}>`; list = null; } };
+    const row = (s) => s.trim().replace(/^\||\|$/g, "").split("|").map((c) => inline(c.trim()));
+    for (let i = 0; i < L.length; i++) {
+      const t = L[i].trim();
+      let m;
+      if (t.startsWith("```")) {
+        fp(); cl();
+        const lang = t.slice(3).trim().toLowerCase(), buf = [];
+        i++;
+        while (i < L.length && !L[i].trim().startsWith("```")) buf.push(L[i++]);
+        if (lang === "scelta" || lang === "scelte") {
+          const lines = buf.map((x) => x.trim()).filter(Boolean), q = lines.shift() || "";
+          const opts = lines.map((o) => o.replace(/^([-*•]|[A-Da-d][).])\s*/, ""));
+          out += `<div class="choice"><p>${inline(q)}</p><div>${opts.map((o) => `<button type="button" class="btn" data-ask="${esc(o)}">${inline(o)}</button>`).join("")}</div></div>`;
+        } else {
+          const raw = buf.join("\n"), k = BLOCKS.push(raw) - 1;
+          const scheda = /^#\s*Scheda atleta/i.test(raw.trim());
+          out += `<div class="code"><pre>${esc(raw)}</pre><div class="code-actions"><button type="button" class="icon-btn" data-copy="${k}">Copia</button>${scheda ? `<button type="button" class="btn primary" data-scheda="${k}">Salva come Scheda atleta</button>` : ""}</div></div>`;
+        }
+        continue;
+      }
+      if (t.startsWith("|") && i + 1 < L.length && /^\|?\s*:?-{2,}/.test(L[i + 1].trim())) {
+        fp(); cl();
+        const head = row(t), rows = [];
+        i += 2;
+        while (i < L.length && L[i].trim().startsWith("|")) rows.push(row(L[i++]));
+        i--;
+        out += `<div class="tbl"><table><thead><tr>${head.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+        continue;
+      }
+      if (!t) { fp(); cl(); continue; }
+      if (/^(-{3,}|\*{3,}|═{3,})$/.test(t)) { fp(); cl(); out += "<hr>"; continue; }
+      if ((m = t.match(/^#{1,6}\s+(.*)$/))) { fp(); cl(); out += `<h4>${inline(m[1])}</h4>`; continue; }
+      if ((m = t.match(/^[-*•]\s+(.*)$/))) { fp(); if (list !== "ul") { cl(); out += "<ul>"; list = "ul"; } out += `<li>${inline(m[1])}</li>`; continue; }
+      if ((m = t.match(/^\d+[.)]\s+(.*)$/))) { fp(); if (list !== "ol") { cl(); out += "<ol>"; list = "ol"; } out += `<li>${inline(m[1])}</li>`; continue; }
+      cl(); para.push(t.replace(/^>\s?/, ""));
+    }
+    fp(); cl();
+    return out;
+  }
+
+  // ── Rendering ──
+  function renderPending() {
+    const el = $("chat-pending"), box = $("chat-msgs");
+    if (!el || !chat.pending) return;
+    const near = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    el.innerHTML = (chat.pending.text ? md(chat.pending.text) : "") +
+      chat.confirms.map(confirmHtml).join("") +
+      (chat.pending.status ? `<div class="thinking"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>${esc(chat.pending.status)}</div>` : "");
+    if (near || chat.confirms.length) box.scrollTop = box.scrollHeight;
+  }
+  function renderAttach() {
+    const el = $("chat-attach");
+    el.hidden = !chat.attach.length;
+    el.innerHTML = chat.attach.map((a, i) => `<span><img src="${a.url}" alt="${esc(a.file.name || "immagine")}"><button type="button" data-unattach="${i}" aria-label="Togli immagine">×</button></span>`).join("");
+  }
+  function renderChat() {
+    const box = $("chat-msgs");
+    BLOCKS = [];
+    $("chat-title").textContent = chat.view === "list" ? "Chat salvate" : chat.view === "scheda" ? "Scheda atleta" : chat.title || "Coach";
+    $("chat-list").setAttribute("aria-pressed", String(chat.view === "list"));
+    $("chat-scheda").setAttribute("aria-pressed", String(chat.view === "scheda"));
+    $("chat-form").hidden = chat.view !== "chat";
+    $("chat-foot").hidden = chat.view !== "chat";
+    $("chat-send").textContent = chat.busy ? "Stop" : "Invia";
+    $("chat-input").disabled = chat.off;
+    $("chat-send").disabled = chat.off;
+    $("chat-img").hidden = !chat.images || chat.off;
+    if (chat.view === "list") {
+      box.innerHTML = `<div class="suggest"><p>${store.db ? "Le chat sono salvate nel tuo account: le ritrovi da ogni dispositivo." : "Le chat sono salvate solo in questo browser."}</p>` +
+        (chat.index.length ? chat.index.map((c) => `<button type="button" class="chat-item${c.id === chat.id ? " current" : ""}" data-open="${esc(c.id)}">${esc(c.title || "Chat")}<small>${esc(new Date(c.updated).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }))}</small></button>`).join("") : `<div class="empty">Nessuna chat salvata.</div>`) + `</div>`;
+      return;
+    }
+    if (chat.view === "scheda") {
+      box.innerHTML = `<div class="scheda-view"><p>La Scheda atleta che il coach legge a ogni messaggio. Incollaci quella del tuo Progetto Claude, oppure chiedi al coach di farla con l'intervista e premi "Salva come Scheda atleta".</p>
+        <label class="sr-only" for="scheda-text">Testo della Scheda atleta</label>
+        <textarea id="scheda-text" spellcheck="false" placeholder="# Scheda atleta">${esc(chat.scheda)}</textarea>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn primary" id="scheda-save">Salva la Scheda</button><span class="hint" id="scheda-msg" style="color:var(--muted);font-size:12.5px">${store.db ? "Salvata nel tuo account." : "Salvata solo in questo browser."}</span></div></div>`;
+      return;
+    }
+    if (chat.off) { box.innerHTML = `<div class="notice">${esc(chat.notice || "La chat non è disponibile in questa vista.")}</div>`; return; }
+    let h = "";
+    if (!chat.turns.length && !chat.pending) {
+      h += `<div class="suggest"><p>Il coach usa il prompt di MasCoach e legge i dati dal connettore. Può anche scrivere su Intervals: ogni scrittura ti chiede conferma.${chat.scheda.trim() ? "" : " Non c'è ancora una Scheda atleta: puoi incollarla da Scheda o farla col coach."}${chat.tools ? "" : " In questa vista la chat non può usare gli strumenti: vede solo i dati di oggi."}${chat.prompt ? "" : " Il prompt del coach non si è caricato."}</p>${SUGGEST.map((s) => `<button type="button" data-ask="${esc(s)}">${esc(s)}</button>`).join("")}</div>`;
+    }
+    chat.turns.forEach((t) => { h += t.role === "user" ? `<div class="msg user">${esc(t.content)}</div>` : `<div class="msg bot">${md(t.content)}</div>`; });
+    if (chat.pending) h += `<div class="msg bot" id="chat-pending"></div>`;
+    if (chat.notice) h += `<div class="notice">${esc(chat.notice)}${chat.canRetry ? `<button type="button" class="btn" data-retry>Riprova</button>` : ""}</div>`;
+    box.innerHTML = h;
+    renderPending();
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // ── Sending ──
+  async function ask(images) {
+    if (!chat.sample || chat.busy || chat.off) return;
+    const gen = chat.gen;
+    chat.busy = true; chat.notice = null; chat.canRetry = false; chat.ctl = new AbortController(); chat.confirms = [];
+    chat.pending = { text: "", status: "Sto pensando…" };
+    renderChat();
+    const opts = {
+      signal: chat.ctl.signal,
+      onText: ({ text }) => { if (gen !== chat.gen || !chat.pending) return; chat.pending.text = text; chat.pending.status = ""; renderPending(); },
+    };
+    if (chat.model && (chat.model !== "inherit" || (chat.tiers && chat.tiers.includes("inherit")))) opts.modelTier = chat.model;
+    if (chat.tools && mcp) opts.tools = chatTools();
+    if (images && images.length) opts.images = images;
+    try {
+      const r = await chat.sample([{ role: "user", content: rules() }, ...history()], opts);
+      if (gen === chat.gen) chat.turns.push({ role: "assistant", content: r.text + (r.truncated ? "\n\n_(Risposta tagliata per lunghezza.)_" : "") });
+    } catch (e) {
+      if (gen === chat.gen) {
+        const code = (e && e.code) || "upstream_error";
+        if (code === "cancelled") { if (e.text) chat.turns.push({ role: "assistant", content: e.text + "\n\n_(Interrotta.)_" }); }
+        else if (code === "tools_unavailable") { chat.tools = false; chat.notice = "In questa vista la chat non può usare gli strumenti di MasCoach: risponde solo con i dati di oggi."; chat.canRetry = true; }
+        else if (PERMANENT.has(code)) { chat.off = true; chat.notice = sampleErr(code); }
+        else {
+          if (code !== "refused" && e.text) chat.turns.push({ role: "assistant", content: e.text + "\n\n_(Interrotta.)_" });
+          chat.notice = sampleErr(code);
+          chat.canRetry = code === "upstream_error" && !e.text;
+        }
+      }
+    } finally {
+      if (gen === chat.gen) { chat.pending = null; chat.confirms = []; }
+      chat.busy = false; chat.ctl = null;
+      saveChat(); renderChat();
+    }
+  }
+  function send(text) {
+    text = String(text || "").trim();
+    const files = chat.attach.map((a) => a.file);
+    if ((!text && !files.length) || chat.busy || chat.off || !chat.sample) return;
+    if (!chat.id) newChat();
+    const note = files.length ? `\n\n[${files.length === 1 ? "Un'immagine allegata" : files.length + " immagini allegate"}]` : "";
+    chat.turns.push({ role: "user", content: (text || "Guarda l'immagine allegata.") + note });
+    chat.attach.forEach((a) => URL.revokeObjectURL(a.url));
+    chat.attach = []; renderAttach();
+    ask(files);
+  }
+  function addFiles(list) {
+    if (!chat.images) return;
+    for (const f of Array.from(list || [])) {
+      if (chat.attach.length >= chat.images.maxCount) break;
+      if (!chat.images.mediaTypes.includes(f.type) || f.size > chat.images.maxInputBytes) continue;
+      chat.attach.push({ file: f, url: URL.createObjectURL(f) });
+    }
+    renderAttach();
+  }
+  function autosize() { const t = $("chat-input"); t.style.height = "auto"; t.style.height = Math.min(160, t.scrollHeight) + "px"; }
+  function closeChat() { $("chat").hidden = true; if (chat.sample && !chat.off) { $("chat-open").hidden = false; $("chat-open").focus(); } }
+  function submitInput() {
+    if (chat.busy) return;
+    const v = $("chat-input").value;
+    $("chat-input").value = ""; autosize(); send(v);
+  }
+
+  $("chat-open").addEventListener("click", () => { $("chat").hidden = false; $("chat-open").hidden = true; renderChat(); $("chat-input").focus(); });
+  $("chat-close").addEventListener("click", closeChat);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("chat").hidden) closeChat(); });
+  $("chat-new").addEventListener("click", () => { newChat(); renderChat(); $("chat-input").focus(); });
+  $("chat-list").addEventListener("click", () => { chat.view = chat.view === "list" ? "chat" : "list"; renderChat(); });
+  $("chat-scheda").addEventListener("click", () => { chat.view = chat.view === "scheda" ? "chat" : "scheda"; renderChat(); });
+  $("chat-send").addEventListener("click", () => { if (chat.busy) { if (chat.ctl) chat.ctl.abort(); return; } submitInput(); });
+  $("chat-form").addEventListener("submit", (e) => e.preventDefault());
+  $("chat-input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submitInput(); } });
+  $("chat-input").addEventListener("input", autosize);
+  $("chat-input").addEventListener("paste", (e) => { const f = e.clipboardData && e.clipboardData.files; if (f && f.length && chat.images) { e.preventDefault(); addFiles(f); } });
+  $("chat-img").addEventListener("click", () => $("chat-file").click());
+  $("chat-file").addEventListener("change", (e) => { addFiles(e.target.files); e.target.value = ""; });
+  $("chat-attach").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-unattach]");
+    if (!b) return;
+    const [a] = chat.attach.splice(Number(b.getAttribute("data-unattach")), 1);
+    if (a) URL.revokeObjectURL(a.url);
+    renderAttach();
+  });
+  $("chat-model").addEventListener("change", (e) => { chat.model = e.target.value; lsSet("mascoach-model", chat.model); });
+  $("chat-msgs").addEventListener("click", async (e) => {
+    const t = e.target;
+    const ask1 = t.closest("[data-ask]");
+    if (ask1) { send(ask1.getAttribute("data-ask")); return; }
+    if (t.closest("[data-retry]")) { chat.notice = null; ask(); return; }
+    const conf = t.closest("[data-confirm]");
+    if (conf) {
+      const c = chat.confirms.find((x) => x.id === conf.getAttribute("data-confirm")), ok = conf.getAttribute("data-ok");
+      if (!c) return;
+      if (ok === "all") chat.autoApprove = true;
+      c.done(ok !== "no");
+      return;
+    }
+    const cp = t.closest("[data-copy]");
+    if (cp) {
+      const text = BLOCKS[Number(cp.getAttribute("data-copy"))] || "";
+      try { await navigator.clipboard.writeText(text); cp.textContent = "Copiato"; }
+      catch (err) { const pre = cp.closest(".code").querySelector("pre"); const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); cp.textContent = "Selezionato: copia con Ctrl+C"; }
+      return;
+    }
+    const sv = t.closest("[data-scheda]");
+    if (sv) {
+      sv.disabled = true; sv.textContent = "Salvo…";
+      const ok = await saveScheda(BLOCKS[Number(sv.getAttribute("data-scheda"))] || "");
+      sv.textContent = ok ? "Scheda salvata" : "Salvata solo in questo browser";
+      return;
+    }
+    const op = t.closest("[data-open]");
+    if (op) { await loadChat(op.getAttribute("data-open")); chat.view = "chat"; chat.notice = null; renderChat(); return; }
+    if (t.id === "scheda-save") {
+      t.disabled = true;
+      const ok = await saveScheda($("scheda-text").value);
+      $("scheda-msg").textContent = ok ? "Scheda salvata." : "Non sono riuscito a salvarla nel tuo account: è salvata solo in questo browser.";
+      t.disabled = false;
+    }
+  });
+
+  async function initChat() {
+    let s = null;
+    try { s = await window.claude.use("sample"); } catch (e) { s = null; }
+    if (!s) return;
+    chat.sample = s;
+    try {
+      const lim = await s.limits();
+      chat.tools = !!(lim && lim.tools);
+      chat.maxTools = lim && lim.tools && lim.tools.maxCount ? lim.tools.maxCount : 0;
+      chat.images = (lim && lim.images) || null;
+      chat.tiers = (lim && lim.modelTiers) || null;
+    } catch (e) { chat.tools = false; }
+    if (chat.images) $("chat-file").accept = chat.images.mediaTypes.join(",");
+    const tiers = [["inherit", "Come l'app"], ["default", "Standard"], ["complex", "Avanzato"], ["quick", "Veloce"]].filter(([v]) => !chat.tiers || chat.tiers.includes(v));
+    const saved = lsGet("mascoach-model", "");
+    chat.model = tiers.some(([v]) => v === saved) ? saved : tiers.some(([v]) => v === "inherit") ? "inherit" : "default";
+    $("chat-model").innerHTML = tiers.map(([v, l]) => `<option value="${v}"${v === chat.model ? " selected" : ""}>${l}</option>`).join("");
+    try {
+      const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+      const uid = user ? await user.id() : null;
+      if (db && uid) { store.db = db; store.uid = uid; }
+    } catch (e) { store.db = null; }
+    try { const r = await fetch("coach-prompt.txt"); if (r.ok) chat.prompt = await r.text(); } catch (e) { chat.prompt = ""; }
+    await loadSaved();
+    const cur = lsGet("mascoach-chat-current", "");
+    if (cur && chat.index.some((c) => c.id === cur)) await loadChat(cur); else newChat();
+    $("chat-open").hidden = false;
+    renderChat();
+    renderAll();
+  }
+
+  function openChat(text, sendNow) {
+    if (!canChat()) return;
+    $("chat").hidden = false; $("chat-open").hidden = true; chat.view = "chat";
+    if (sendNow && !chat.busy) { send(text); renderChat(); return; }
+    renderChat();
+    const t = $("chat-input");
+    t.value = text; autosize(); t.focus(); t.setSelectionRange(t.value.length, t.value.length);
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest("[data-coach]");
+    if (b) openChat(b.getAttribute("data-coach"), b.getAttribute("data-send") === "1");
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+  renderAll();
+  (async () => {
+    try { mcp = window.claude && typeof window.claude.use === "function" ? await window.claude.use("mcp") : null; } catch (e) { mcp = null; }
+    if (!mcp) {
+      state.demo = true;
+      const d = demoData();
+      d.uscite = d.stato.uscite_ultimi_7_giorni.concat([{ id: "demo-gym", data: d.stato.ultimi_14_giorni[10].data, nome: "Esempio · Palestra", tipo: "WeightTraining", durata_min: 60, tss: 22, fc_media: 98, if: 0.45 }]);
+      Object.assign(state.data, d); renderAll(); return;
+    }
+    renderStatus();
+    for (const [key, t] of Object.entries(TOOLS)) {
+      mcp.watchTool(SERVER, t.tool, t.input, (ev) => onEvent(key, ev), { cache: { staleTime: 5 * 60 * 1000, gcTime: 24 * 60 * 60 * 1000 }, refetchInterval: 15 * 60 * 1000 });
+    }
+    initChat();
+  })();
+})();
+</script>
