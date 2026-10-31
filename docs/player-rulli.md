@@ -1,13 +1,13 @@
 # Player per rulli — specifica
 
-Versione 1 · 31 ottobre 2026 · stato: **analisi approvata, nessun codice ancora**.
-Le scelte marcate *da decidere* sono ancora aperte (§12).
+Versione 2 · 31 ottobre 2026 · stato: **analisi approvata, nessun codice ancora**.
+Decisioni prese e punti aperti in §12.
 
 ## 1. Obiettivo
 
 Dentro l'app MasCoach (Vercel) una sezione che esegue sui rulli gli allenamenti del calendario di Intervals.icu:
 comanda il rullo in **ERG** o **resistenza**, legge cardio (con RR e **DFA α1** dal vivo), potenza e cadenza,
-registra la seduta e la carica su **Intervals.icu e Strava**. Funziona anche **senza internet** durante la seduta.
+registra la seduta e la carica su **Intervals.icu**. Funziona anche **senza internet** durante la seduta.
 
 ## 2. Piattaforme e vincoli
 
@@ -18,7 +18,7 @@ registra la seduta e la carica su **Intervals.icu e Strava**. Funziona anche **s
 | iPhone / iPad (Safari), Firefox | ❌ | niente Web Bluetooth (su iOS solo browser di terze parti come Bluefy) |
 | Artefatto su claude.ai | ❌ | il Bluetooth è bloccato: l'artefatto ha solo il pulsante che apre il player nell'app |
 
-- Tutto il Bluetooth gira **nel browser** (Web Bluetooth). Vercel serve l'app e le API verso Intervals/Strava, niente altro.
+- Tutto il Bluetooth gira **nel browser** (Web Bluetooth). Vercel serve l'app e le API verso Intervals, niente altro.
 - **Collegamento a ogni seduta**: per sicurezza il browser chiede di scegliere ogni sensore da una finestra (un tocco a sensore).
   Il ricollegamento automatico (`getDevices()` + `watchAdvertisements()`) esiste ma è instabile e varia per sistema:
   lo si prova come comodità, mai come unica strada.
@@ -64,7 +64,7 @@ Dal rullo (Indoor Bike Data), oppure da pedali o sensore (Cycling Power / Cyclin
 ### 3.5 Esclusi
 
 Ventola Xiaomi (Wi-Fi, protocollo cifrato: non raggiungibile da una pagina web; eventualmente in futuro via Home Assistant).
-Garmin Edge (non serve). Modalità pendenza/simulazione e pedalata libera (non richieste).
+Garmin Edge (non serve). Modalità pendenza/simulazione e pedalata libera (non richieste). Caricamento su Strava (basta Intervals).
 
 ## 4. Allenamenti
 
@@ -73,7 +73,7 @@ Garmin Edge (non serve). Modalità pendenza/simulazione e pedalata libera (non r
 - **Watt**: le % sono sulla **FTP da rulli** (`indoor_ftp` delle impostazioni sport di Intervals); i watt assoluti restano tali;
   rampe come rampe (obiettivo aggiornato ogni secondo); ripetute espanse.
 - Passi con solo target di cadenza: mostrato in "Prossimo"/note, non comanda il rullo.
-- Passi con target FC o senza potenza: *da decidere* (§12).
+- Gli allenamenti hanno sempre obiettivi di potenza: niente obiettivi di FC. Uno step senza potenza mantiene l'obiettivo precedente.
 - **Pulsante "PEDALA"** (icona rulli + scritta): nel pop-up dell'allenamento del calendario (computer e telefono, `WeekList`),
   nella pagina Oggi e nell'artefatto (dall'artefatto apre l'app). Apre il player con quell'allenamento.
 
@@ -95,15 +95,16 @@ Tema Day / Night / Paper come l'app. Dall'alto in basso:
 
 Selettore e barra comandi restano fissi in basso; il resto scorre.
 **Gradini**: il rullo dichiara minimo, massimo e passo del livello; se la scala è molto fine (es. 0–100) si usano **10 gradini** uguali
-(da regolare dopo la prima prova sul rullo).
-Su PC stessa sequenza centrata; un'eventuale disposizione a due colonne si decide con un'anteprima (§12).
+(confermato: si regola dopo la prima prova sul rullo).
+**Su PC (bozza, da approvare)**: si usa tutta la larghezza. A sinistra griglia 2×2 e DFA α1 con il grafico degli ultimi 10 minuti;
+a destra profilo grande con la potenza dal vivo disegnata sopra e note; in basso una barra unica con strumenti collegati,
+selettore ERG / Resistenza e comandi.
 
 ### Comportamenti
 
 - **Pausa automatica** a cadenza 0 per più di 3 s (ferma tempo e registrazione), ripresa quando si pedala.
-- **Salta step** avanti/indietro; **allunga step** *da decidere* (§12).
-- **ERG che si stacca negli sprint**: negli step brevi molto sopra soglia il rullo passa in resistenza e torna ERG allo step dopo
-  (soglia *da decidere*, §12).
+- **Salta step** avanti/indietro. Uno step non si allunga.
+- **Nessun cambio automatico** tra ERG e resistenza: negli sprint si passa a mano con il selettore.
 - Avvisi sonori 3-2-1 prima del cambio step (e vibrazione su Android), disattivabili.
 - Schermo sempre acceso durante la seduta.
 
@@ -125,15 +126,12 @@ Su PC stessa sequenza centrata; un'eventuale disposizione a due colonne si decid
 - Salvataggio **sul dispositivo** (IndexedDB) ogni pochi secondi: se il browser si chiude, la seduta si recupera.
 - **Intervals.icu**: caricamento del FIT tramite una route dell'app (la chiave resta sul server). Intervals abbina l'uscita
   all'allenamento pianificato del giorno.
-- **Strava**: Intervals non pubblica su Strava, quindi caricamento diretto con le API Strava (upload FIT).
-  Serve una "app" Strava gratuita registrata dall'atleta, `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET` su Vercel e un'autorizzazione
-  una tantum (il token di rinnovo si salva lato server). Possibili doppioni se Intervals importa anche da Strava: *da verificare*.
 
 ## 8. Offline
 
 - App installabile con **service worker**: interfaccia del player disponibile senza rete.
 - Allenamenti dei prossimi 7 giorni e FTP da rulli scaricati in anticipo (IndexedDB) a ogni apertura con rete.
-- Sedute registrate in coda: caricamento su Intervals e Strava appena torna la rete, con stato visibile ("da caricare", "caricata").
+- Sedute registrate in coda: caricamento su Intervals appena torna la rete, con stato visibile ("da caricare", "caricata").
 - Il login dell'app dura 60 giorni: offline non serve rifarlo.
 
 ## 9. Architettura (indicativa)
@@ -144,7 +142,7 @@ Su PC stessa sequenza centrata; un'eventuale disposizione a due colonne si decid
 - `lib/player/`: motore della seduta (linea del tempo dei passi, obiettivi, pausa automatica, sprint, ±), indipendente dall'interfaccia.
 - `lib/physio/dfa.ts`: DFA α1 (puro, testato).
 - `lib/fit/`: scrittura del FIT.
-- Route: caricamento su Intervals, caricamento su Strava, ritorno dell'autorizzazione Strava.
+- Route: caricamento del FIT su Intervals.
 - Versione file unico (`npm run build:file`): Web Bluetooth richiede un contesto sicuro; *da verificare* da `file://`.
 
 ## 10. Prove
@@ -160,25 +158,27 @@ Su PC stessa sequenza centrata; un'eventuale disposizione a due colonne si decid
 | Fase | Contenuto | Fatto quando |
 |---|---|---|
 | 1. Collegamenti | collega il rullo (lettura FTMS), la fascia cardio (FC + RR), pedali facoltativi; metriche dal vivo; DFA α1 | i numeri si vedono su PC e Android, il DFA è plausibile |
-| 2. Controllo e player | ERG e resistenza, allenamento da Intervals, schermata §5, ± / salta / pausa automatica / sprint, suoni, pulsanti PEDALA | un allenamento del calendario si esegue dall'inizio alla fine in ERG e in resistenza |
-| 3. Registrazione | FIT con RR, salvataggio locale, caricamento Intervals e Strava | la seduta compare su Intervals (con DFA) e su Strava |
+| 2. Controllo e player | ERG e resistenza, allenamento da Intervals, schermata §5, ± / salta / pausa automatica, suoni, pulsanti PEDALA | un allenamento del calendario si esegue dall'inizio alla fine in ERG e in resistenza |
+| 3. Registrazione | FIT con RR, salvataggio locale, caricamento su Intervals | la seduta compare su Intervals (con DFA) |
 | 4. Offline | service worker, allenamenti scaricati, coda di caricamento | una seduta fatta senza rete si carica da sola dopo |
 | 5. Compatibilità estesa | Wahoo e Tacx legacy, altre fasce, rifinitura power match, layout PC | prove con altri rulli |
 
 Ogni fase si chiude con commit + push.
 
-## 12. Da decidere
+## 12. Decisioni e punti aperti
 
-1. Passi con target FC o senza potenza: in ERG cosa fa il rullo (resistenza a un gradino fisso? ERG al centro della zona?).
-2. "Allunga step": come (pressione lunga su avanti = +1 min? un tasto dedicato?).
-3. ERG che si stacca negli sprint: soglia (es. step ≤ 30 s sopra 150% FTP) e gradino di resistenza usato.
-4. Disposizione su PC (stessa colonna o due colonne): anteprima prima della fase 2.
-5. Numero di gradini della resistenza: dopo la prima prova sul rullo.
-6. Strava: doppioni con l'import di Intervals.
+Deciso il 31 ottobre 2026:
+
+1. Niente obiettivi di FC negli allenamenti.
+2. Uno step non si allunga (solo salta avanti/indietro).
+3. Nessun cambio automatico ERG → resistenza negli sprint: si fa a mano.
+4. Gradini della resistenza: si fissano dopo la prima prova sul rullo.
+5. Caricamento solo su Intervals.icu (niente Strava).
+
+Ancora aperto: approvare la bozza della schermata su PC (§5) prima della fase 2.
 
 ## 13. Cosa serve dall'atleta
 
 - Aggiornare il firmware del rullo (app del produttore).
 - H10: "dual Bluetooth" se è collegata anche a orologio o telefono.
-- Fase 3: registrare l'app su Strava (strava.com/settings/api) e autorizzare una volta.
 - Prove sul rullo a ogni fase.
