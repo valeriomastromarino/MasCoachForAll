@@ -58,6 +58,9 @@ Gli **RR** arrivano nello stesso dato quando la fascia li manda (flag RR, valori
 - Orologio Garmin con «Trasmetti frequenza cardiaca»: su Windows compare nell'elenco filtrato, su Android spesso no
   (Android filtra solo su ciò che il dispositivo annuncia). Pulsante «Mostra tutti i dispositivi» = `requestDevice({ acceptAllDevices, optionalServices })`;
   se il dispositivo scelto non ha il servizio `0x180D` il player lo dice. Dall'orologio di solito arriva solo la FC, senza RR.
+  Su Android si collega spesso solo dopo qualche tentativo: 3 tentativi automatici (pause 2 e 4 s), ogni passo con limite di 15 s e
+  mostrato mentre è in corso. Chrome su Android di solito non ricorda il permesso tra una visita e l'altra (`getDevices` vuoto):
+  l'app ricorda nome e tipo di elenco (`mascoach-ble-<tipo>-last`) e «Collega» apre direttamente l'elenco giusto.
 - Fasce che non mandano RR e sensori ottici: FC sì, DFA "non disponibile".
 
 ### 3.4 Cadenza

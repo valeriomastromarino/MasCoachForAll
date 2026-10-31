@@ -33,6 +33,7 @@ export function bluetoothProblem(): string | null {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const STEP_MS = 15000;
+const CONNECT_TRIES = 3;
 
 /** Rejects when a Bluetooth step never answers: some devices (Garmin watches on Android) accept the link and then go quiet. */
 function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
@@ -58,13 +59,31 @@ function missing(message: string) {
   };
 }
 const REMEMBER_KEY = (kind: DeviceKind) => `mascoach-ble-${kind}`;
+const LAST_KEY = (kind: DeviceKind) => `mascoach-ble-${kind}-last`;
 
-/** The device chosen last time for this kind, if the browser still allows it without the chooser. */
+/** The device picked last time and whether it was found in the full list ("Mostra tutti i dispositivi"). */
+export type LastChoice = { name: string | null; any: boolean };
+
+export function lastChoice(kind: DeviceKind): LastChoice | null {
+  try {
+    const v = localStorage.getItem(LAST_KEY(kind));
+    return v ? (JSON.parse(v) as LastChoice) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The device chosen last time for this kind, if the browser still allows it without the chooser.
+ * Chrome on Android often keeps no permission between visits (empty getDevices): then the chooser is needed again.
+ */
 export async function rememberedDevice(kind: DeviceKind): Promise<BluetoothDevice | null> {
   try {
+    if (typeof navigator.bluetooth?.getDevices !== "function") return null;
     const id = localStorage.getItem(REMEMBER_KEY(kind));
-    if (!id || typeof navigator.bluetooth?.getDevices !== "function") return null;
-    return (await navigator.bluetooth.getDevices()).find((d) => d.id === id) ?? null;
+    const name = lastChoice(kind)?.name;
+    const allowed = await navigator.bluetooth.getDevices();
+    return allowed.find((d) => d.id === id) ?? (name ? allowed.find((d) => d.name === name) : undefined) ?? null;
   } catch {
     return null;
   }
@@ -118,6 +137,11 @@ abstract class Link {
       this.set(this.status, chooserError(e));
       return;
     }
+    try {
+      localStorage.setItem(LAST_KEY(this.kind), JSON.stringify({ name: device.name ?? null, any } satisfies LastChoice));
+    } catch {
+      // Not remembered.
+    }
     await this.use(device);
   }
 
@@ -143,9 +167,10 @@ abstract class Link {
     }
     this.set("connecting", null);
     let error: unknown = null;
-    // Android often finds the services only at the second attempt: one more try on a clean link.
-    for (let attempt = 0; attempt < 2 && !this.closing; attempt++) {
-      if (attempt) await sleep(1500);
+    // Android often fails the first attempts (Garmin watches especially): retry on a clean link, giving Android
+    // a few seconds to release the previous one.
+    for (let attempt = 0; attempt < CONNECT_TRIES && !this.closing; attempt++) {
+      if (attempt) await sleep(2000 * attempt);
       try {
         await this.connect();
         return;

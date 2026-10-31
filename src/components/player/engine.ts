@@ -1,7 +1,7 @@
 // Everything that runs during a trainer session: sensors, the session clock, recording, DFA α1,
 // the trainer target (with power match when pedals are connected), sounds and the screen wake lock.
 // A plain class (browser only) that the player screen subscribes to; see usePlayer.ts.
-import { type DeviceKind, type DeviceStatus, HeartRateStrap, PowerMeter, rememberedDevice, Trainer } from "@/lib/ble/devices";
+import { type DeviceKind, type DeviceStatus, HeartRateStrap, lastChoice, PowerMeter, rememberedDevice, Trainer } from "@/lib/ble/devices";
 import type { IndoorBikeData } from "@/lib/ble/protocol";
 import { type DfaLive, dfaLive } from "@/lib/physio/dfa";
 import { newRecording, type Recording } from "@/lib/player/recording";
@@ -22,7 +22,16 @@ import { deleteRecording, saveRecording } from "@/lib/player/store";
 import type { PlayerWorkout } from "@/lib/player/timeline";
 import { uploadRecording } from "./upload";
 
-export type DeviceView = { status: DeviceStatus; name: string | null; error: string | null; detail: string | null; remembered: string | null };
+export type DeviceView = {
+  status: DeviceStatus;
+  name: string | null;
+  error: string | null;
+  detail: string | null;
+  /** Device "Collega" reaches without the chooser (this session's, or allowed by the browser). */
+  remembered: string | null;
+  /** Device picked last time, to look for in the chooser when the browser forgot it. */
+  last: string | null;
+};
 
 export type PlayerView = {
   session: SessionState;
@@ -167,7 +176,15 @@ export class PlayerEngine {
     if (kind === "trainer" && l.status === "connected") detail = this.trainer.features?.power === false ? "senza ERG" : "ERG";
     if (kind === "hr" && l.status === "connected") detail = this.hrStrap.sendsRr ? "RR" : "solo FC";
     if (l.status === "connecting" || l.status === "reconnecting") detail = l.step;
-    return { status: l.status, name: l.name, error: l.error, detail, remembered: this.remembered[kind]?.name ?? null };
+    const remembered = l.device ?? this.remembered[kind];
+    return {
+      status: l.status,
+      name: l.name,
+      error: l.error,
+      detail,
+      remembered: remembered ? (remembered.name ?? "dispositivo") : null,
+      last: lastChoice(kind)?.name ?? null,
+    };
   }
 
   private compute(): PlayerView {
@@ -337,10 +354,12 @@ export class PlayerEngine {
 
   connect(kind: DeviceKind) {
     this.unlockAudio();
-    const known = this.remembered[kind];
     const l = this.link(kind);
-    if (known && l.device === null) void l.use(known);
-    else void l.choose();
+    // Same device again without the chooser when possible (a failed attempt is retried on it);
+    // otherwise the chooser, in the full list if that is where the device was found last time.
+    const known = l.device ?? this.remembered[kind];
+    if (known) void l.use(known);
+    else void l.choose(lastChoice(kind)?.any ?? false);
   }
 
   /** Always opens the chooser (another device than the remembered one); `any` lists every nearby device. */

@@ -232,7 +232,14 @@ function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d:
   const info = DEVICE_INFO[kind];
   const ok = d.status === "connected";
   const busy = d.status === "connecting" || d.status === "reconnecting";
-  const text = ok && d.detail ? `${d.detail} · collegato` : busy && d.detail ? `${d.status === "reconnecting" ? "ricollego: " : ""}${d.detail}…` : STATUS_TEXT[d.status];
+  const text =
+    ok && d.detail
+      ? `${d.detail} · collegato`
+      : busy && d.detail
+        ? `${d.status === "reconnecting" ? "ricollego: " : ""}${d.detail}…`
+        : d.status === "off" && !d.remembered && d.last
+          ? `tocca Collega e scegli «${d.last}»`
+          : STATUS_TEXT[d.status];
   const color = ok ? "var(--good)" : d.status === "lost" ? "var(--critical)" : "var(--muted)";
   if (compact) {
     return (
@@ -269,7 +276,7 @@ function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d:
           disabled={busy}
           onClick={() => engine.connect(kind)}
         >
-          {busy ? "…" : d.remembered && d.status === "off" && !d.error ? "Ricollega" : "Collega"}
+          {busy ? "…" : !d.remembered ? "Collega" : d.error ? "Riprova" : "Ricollega"}
         </button>
       )}
     </div>
