@@ -163,6 +163,19 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+ * Side rail instead of the bottom bar only on screens wide AND tall enough to show all its icons:
+ * a phone in landscape (wide but ~360–430 px tall) keeps the bottom bar.
+ */
+@custom-variant rail (@media (min-width: 48rem) and (min-height: 36rem));
+
+html {
+  /* Nothing may make the page wider than the phone: a sideways drift drags the fixed bottom bar off screen. */
+  overflow-x: clip;
+  /* No double-tap zoom (taps on charts zoomed the page and pushed the bars out of view); pinch zoom still works. */
+  touch-action: manipulation;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

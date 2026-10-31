@@ -333,7 +333,7 @@ function Controls({ view, engine }: { view: PlayerView; engine: PlayerEngine }) 
   const running = s.status === "running";
   const step = s.mode === "erg" ? "5 W" : "un gradino";
   return (
-    <div className="flex items-center justify-between gap-2 lg:justify-end">
+    <div className="flex items-center justify-between gap-2 sm:justify-end">
       <RoundButton label={`Meno ${step}`} onClick={() => engine.adjust(-1)} disabled={done}><IconMinus size={22} /></RoundButton>
       <div className="flex items-center gap-1 rounded-full px-2" style={{ background: "var(--neutral-bg)" }}>
         <RoundButton label="Step precedente" onClick={() => engine.skip(-1)} disabled={done || s.status === "ready"}><IconPlayerSkipBack size={22} /></RoundButton>
@@ -365,7 +365,7 @@ function ExitSheet({ onSave, onStay, onDiscard }: { onSave: () => void; onStay: 
     <Sheet>
       <h2 className="text-base font-medium">Vuoi terminare l&apos;allenamento?</h2>
       <p className="mt-1 text-sm text-muted">La seduta registrata finora viene salvata e caricata su Intervals.icu.</p>
-      <div className="mt-4 grid gap-2">
+      <div className="mt-4 grid grid-cols-1 gap-2">
         <button className="rounded-xl px-4 py-2.5 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={onSave}>Termina e salva</button>
         <button className="rounded-xl px-4 py-2.5 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={onStay}>Continua a pedalare</button>
         {sure ? (
@@ -465,7 +465,7 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
       </main>
 
       <footer className="border-t px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:flex-row sm:items-center">
           <div className="player-wide-only flex min-w-0 flex-1 flex-wrap items-center gap-1">
             {(["trainer", "hr", "power"] as DeviceKind[]).map((k) => (
               <DeviceCard key={k} kind={k} d={view.devices[k]} engine={engine} compact />

@@ -126,7 +126,7 @@ export default function Potenza() {
               </p>
             </Card>
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Card title="Record del mese" subtitle={`Migliori potenze di ${fmtMonthName(data.records.month)} confrontate con il mese scorso`}>
                 <RecordsTable records={data.records} />
               </Card>
@@ -151,7 +151,7 @@ export default function Potenza() {
 
             <DurabilityCard mmp={data.mmp} />
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Card title="Tempo in zona settimana per settimana" subtitle="Ore in ciascuna zona di potenza Coggan, ultime 12 settimane">
                 <ZoneWeeksChart zoneWeeks={data.zoneWeeks} />
               </Card>

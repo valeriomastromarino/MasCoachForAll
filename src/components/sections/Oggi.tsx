@@ -16,7 +16,7 @@ export default function Oggi() {
         return (
           <>
             {/* Today's status and the key numbers on top; the calendar holds the week, the rides and the plan. */}
-            <div className="grid gap-4 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <ReadinessCard status={status} />
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-2">
                 <Stat label="Fitness" color="var(--fitness)" value={fmt(status.ctl)} hint={`ramp ${fmt(status.rampRate, 1)}/sett.`} />

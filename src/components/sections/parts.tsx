@@ -120,7 +120,7 @@ export function AutonomicPanel({ status }: { status: DashboardData["status"] }) 
   const col = rhrIdx === null ? null : 2 - rhrIdx;
   const recent = a.anomalyDates.slice(-6).reverse();
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-4">
         <div className="rounded-xl px-4 py-3" style={{ background: tone.bg }}>
           <div className="text-xs" style={{ color: tone.ink }}>

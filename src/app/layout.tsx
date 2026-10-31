@@ -37,10 +37,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Script id="mascoach-theme" strategy="beforeInteractive">
           {themeScript}
         </Script>
-        {/* The side rail sits right next to the centred page (not at the window edge); phones get a bottom bar. */}
-        <div className="mx-auto flex w-full max-w-[calc(72rem+5rem)] md:pl-4">
+        {/* The side rail sits right next to the centred page (not at the window edge); phones, also in landscape, get a bottom bar. */}
+        <div className="mx-auto flex w-full max-w-[calc(72rem+5rem)] rail:pl-4">
           <AppNav />
-          <div className="flex min-h-full min-w-0 flex-1 flex-col pb-24 md:pb-0">
+          <div className="flex min-h-full min-w-0 flex-1 flex-col pb-[calc(6rem+env(safe-area-inset-bottom))] rail:pb-0">
             <TopBar />
             {children}
           </div>

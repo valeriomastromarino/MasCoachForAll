@@ -7,7 +7,7 @@ export function PedalaLink({ id, className = "" }: { id: string; className?: str
   return (
     <Link
       href={`/rulli/${encodeURIComponent(id)}`}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${className}`}
       style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
     >
       <IconTrainer size={16} /> PEDALA

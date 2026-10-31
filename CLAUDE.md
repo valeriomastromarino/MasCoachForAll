@@ -62,6 +62,8 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 - API di scrittura su Intervals.icu: `PATCH /api/activity/[id]` (nome, tipo, descrizione, RPE `icu_rpe`), `POST /api/calendar/events` (da libreria), `PATCH|DELETE /api/calendar/events/[id]`
 - `src/components/calendar/` — computer: calendario a 4 settimane (2 prima, questa, 1 dopo) con trascinamento per spostare; telefono (sotto `sm`): `WeekList.tsx`, una settimana in verticale (la terza delle quattro caricate) con notte, gare/impegni, uscite e allenamenti per esteso. Pop-up per giorno, uscita e allenamento in entrambi
 - `src/components/nav/` — barra laterale a sole icone colorate (desktop) e barra in basso con "Altro" (telefono); elenco sezioni in `sections.ts`
+  La barra laterale compare solo su schermi larghi **e** alti (variante `rail:` in `globals.css`, ≥ 768 × 576 px): il telefono in orizzontale tiene la barra in basso. Mai usare `md:` per scegliere tra le due barre.
+- **Telefono, regole di layout**: le griglie hanno sempre una colonna di base (`grid-cols-1`), altrimenti un testo `truncate` allarga la pagina oltre lo schermo e la barra in basso scivola via; `html` ha `overflow-x: clip` e `touch-action: manipulation` (niente zoom col doppio tocco). Mappe Leaflet dentro un contenitore `isolate` (i loro controlli hanno z-index 1000). Altezze a tutto schermo in `dvh`, non `vh`.
 - `src/components/sections/` — una pagina per sezione dentro `SectionPage`; `parts.tsx` pezzi condivisi; `data/remote.ts` carica i dati una volta per tutte le sezioni
 - `src/components/brand/` — logo, selettore temi, barra in alto (slot `topbar-actions` per i pulsanti di pagina)
 

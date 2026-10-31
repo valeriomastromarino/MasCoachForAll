@@ -122,7 +122,7 @@ export default function RulliHome() {
           {problem}
         </p>
       )}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section className="card p-5">
           <h2 className="text-sm font-medium">Allenamenti dei prossimi giorni</h2>
           {!cal ? (

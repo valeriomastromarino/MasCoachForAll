@@ -32,12 +32,12 @@ function RailItem({ s, active }: { s: Section; active: boolean }) {
   );
 }
 
-/** Icon rail on tablets and computers: a card beside the page that stays in view while scrolling. */
+/** Icon rail on tablets and computers (wide and tall screens, see the `rail` variant): a card beside the page that stays in view while scrolling. */
 function SideRail({ pathname }: { pathname: string }) {
   return (
     <nav
       aria-label="Sezioni"
-      className="card sticky top-5 z-40 my-5 hidden h-[calc(100vh-2.5rem)] w-16 shrink-0 flex-col items-center gap-1.5 py-4 md:flex"
+      className="card sticky top-5 z-40 my-5 hidden h-[calc(100dvh-2.5rem)] w-16 shrink-0 flex-col items-center gap-1.5 py-4 rail:flex"
     >
       {SECTIONS.map((s, i) => (
         <div key={s.id} className="flex flex-col items-center">
@@ -53,7 +53,7 @@ function SideRail({ pathname }: { pathname: string }) {
   );
 }
 
-/** Bottom tab bar on phones: the five main sections under the thumb, the rest in "Altro". */
+/** Bottom tab bar on phones, also in landscape: the five main sections under the thumb, the rest in "Altro". */
 function BottomBar({ pathname }: { pathname: string }) {
   const [open, setOpen] = useState(false);
   const main = SECTIONS.filter((s) => s.primary);
@@ -63,10 +63,10 @@ function BottomBar({ pathname }: { pathname: string }) {
   return (
     <>
       {open && (
-        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setOpen(false)} style={{ background: "rgba(0,0,0,.35)" }}>
+        <div className="fixed inset-0 z-40 rail:hidden" onClick={() => setOpen(false)} style={{ background: "rgba(0,0,0,.35)" }}>
           <div
-            className="card absolute inset-x-3 p-2"
-            style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}
+            className="card absolute inset-x-3 overflow-y-auto p-2"
+            style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))", maxHeight: "calc(100dvh - 5.5rem - env(safe-area-inset-bottom))" }}
             onClick={(e) => e.stopPropagation()}
           >
             {more.map((s) => {
@@ -90,7 +90,7 @@ function BottomBar({ pathname }: { pathname: string }) {
       )}
       <nav
         aria-label="Sezioni"
-        className="fixed inset-x-0 bottom-0 z-40 flex gap-1 px-2 pt-1.5 md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 flex gap-1 px-2 pt-1.5 rail:hidden"
         style={{
           background: "var(--surface)",
           borderTop: "1px solid var(--border)",

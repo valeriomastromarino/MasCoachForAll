@@ -103,7 +103,7 @@ function RideBody({ ride }: { ride: RideDetail }) {
         </button>
       </div>
       {/* No height animation: Leaflet must measure the final size to fit the route. */}
-      <div style={{ height: expanded ? 560 : 260 }}>
+      <div className="isolate" style={{ height: expanded ? 560 : 260 }}>
         <RideMap points={ride.points} hoverIndex={hover} expanded={expanded} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] text-muted">
@@ -165,7 +165,7 @@ function RideBody({ ride }: { ride: RideDetail }) {
         <RideCharts ride={ride} onHover={setHover} />
       </Section>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Section title="Tempo in zona di potenza" subtitle={ride.ftp ? `Zone Coggan su FTP ${ride.ftp} W` : undefined}>
           <ZoneBars
             rows={ride.powerZones.map((z, i) => ({ id: z.id, label: z.name, secs: z.secs, color: `var(${ZONE_VARS[i]})` }))}

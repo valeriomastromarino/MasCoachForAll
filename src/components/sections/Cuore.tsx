@@ -41,7 +41,7 @@ export default function Cuore() {
               </p>
             </Card>
 
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               <Card title="Disaccoppiamento Pw:HR" subtitle="Quanto sale la FC a parità di potenza nella seconda metà delle uscite endurance oltre 90'">
                 {steady.length ? (
                   <>

@@ -42,7 +42,7 @@ export default function Recupero() {
               </div>
             </Card>
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <Card title="Sonno" subtitle="Ore dormite per notte dal Garmin, ultimi 60 giorni">
                 <SleepChart sleep={sleep} />
                 <p className="mt-2 text-xs text-muted">
