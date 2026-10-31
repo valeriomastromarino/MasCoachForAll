@@ -166,6 +166,7 @@ export class PlayerEngine {
     let detail: string | null = null;
     if (kind === "trainer" && l.status === "connected") detail = this.trainer.features?.power === false ? "senza ERG" : "ERG";
     if (kind === "hr" && l.status === "connected") detail = this.hrStrap.sendsRr ? "RR" : "solo FC";
+    if (l.status === "connecting" || l.status === "reconnecting") detail = l.step;
     return { status: l.status, name: l.name, error: l.error, detail, remembered: this.remembered[kind]?.name ?? null };
   }
 

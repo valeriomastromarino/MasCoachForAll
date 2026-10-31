@@ -232,7 +232,7 @@ function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d:
   const info = DEVICE_INFO[kind];
   const ok = d.status === "connected";
   const busy = d.status === "connecting" || d.status === "reconnecting";
-  const text = ok && d.detail ? `${d.detail} · collegato` : STATUS_TEXT[d.status];
+  const text = ok && d.detail ? `${d.detail} · collegato` : busy && d.detail ? `${d.status === "reconnecting" ? "ricollego: " : ""}${d.detail}…` : STATUS_TEXT[d.status];
   const color = ok ? "var(--good)" : d.status === "lost" ? "var(--critical)" : "var(--muted)";
   if (compact) {
     return (

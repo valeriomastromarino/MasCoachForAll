@@ -32,6 +32,31 @@ export function bluetoothProblem(): string | null {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const STEP_MS = 15000;
+
+/** Rejects when a Bluetooth step never answers: some devices (Garmin watches on Android) accept the link and then go quiet. */
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+/** A missing service gets a clear message; time-outs and other errors pass through. */
+function missing(message: string) {
+  return (e: unknown): never => {
+    throw e instanceof DOMException && e.name === "NotFoundError" ? new Error(message) : e;
+  };
+}
 const REMEMBER_KEY = (kind: DeviceKind) => `mascoach-ble-${kind}`;
 
 /** The device chosen last time for this kind, if the browser still allows it without the chooser. */
@@ -55,6 +80,8 @@ abstract class Link {
   device: BluetoothDevice | null = null;
   status: DeviceStatus = "off";
   error: string | null = null;
+  /** The connection step in progress, shown while connecting: tells where a device gets stuck. */
+  step: string | null = null;
   private closing = false;
 
   constructor(
@@ -115,21 +142,50 @@ abstract class Link {
       // Not remembered: next time the chooser is needed anyway.
     }
     this.set("connecting", null);
-    try {
-      await this.connect();
-    } catch (e) {
-      this.set("off", e instanceof Error ? e.message : String(e));
+    let error: unknown = null;
+    // Android often finds the services only at the second attempt: one more try on a clean link.
+    for (let attempt = 0; attempt < 2 && !this.closing; attempt++) {
+      if (attempt) await sleep(1500);
+      try {
+        await this.connect();
+        return;
+      } catch (e) {
+        error = e;
+        this.dropLink();
+      }
     }
+    if (!this.closing) this.set("off", error instanceof Error ? error.message : String(error));
   }
 
   private async connect() {
-    const server = await this.device!.gatt!.connect();
-    await this.setup(server);
+    try {
+      const server = await this.stage("mi collego", this.device!.gatt!.connect(), 20000);
+      await this.setup(server);
+    } finally {
+      this.step = null;
+    }
     this.set("connected", null);
   }
 
+  /** Runs one connection step with a label and a time limit. */
+  protected stage<T>(label: string, p: Promise<T>, ms = STEP_MS): Promise<T> {
+    this.step = label;
+    this.changed();
+    return withTimeout(p, ms, `Fermo su «${label}»: nessuna risposta in ${Math.round(ms / 1000)} s.`);
+  }
+
+  /** Closes a half-open link, which would block the next attempt. */
+  private dropLink() {
+    try {
+      this.device?.gatt?.disconnect();
+    } catch {
+      // Already gone.
+    }
+  }
+
   private onDropped = () => {
-    if (this.closing) return;
+    // Drops while connecting or retrying are handled by those loops.
+    if (this.closing || this.status !== "connected") return;
     this.set("reconnecting");
     void this.reconnect();
   };
@@ -143,6 +199,7 @@ abstract class Link {
         return;
       } catch {
         // Try again: the trainer may still be out of range or busy.
+        this.dropLink();
       }
     }
     if (!this.closing) this.set("lost", "Connessione persa: ricollega il dispositivo.");
@@ -189,12 +246,9 @@ export class Trainer extends Link {
   }
 
   protected async setup(server: BluetoothRemoteGATTServer) {
-    let svc: BluetoothRemoteGATTService;
-    try {
-      svc = await server.getPrimaryService(UUID.ftms);
-    } catch {
-      throw new Error("Il rullo non espone FTMS: aggiorna il firmware con l'app del produttore.");
-    }
+    const svc = await this.stage("cerco il servizio FTMS", server.getPrimaryService(UUID.ftms)).catch(
+      missing("Il rullo non espone FTMS: aggiorna il firmware con l'app del produttore."),
+    );
     try {
       this.features = parseFtmsFeatures(await (await svc.getCharacteristic(UUID.ftmsFeature)).readValue());
     } catch {
@@ -212,7 +266,7 @@ export class Trainer extends Link {
       const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
       if (v) this.onData(parseIndoorBikeData(v));
     });
-    await data.startNotifications();
+    await this.stage("attivo i dati del rullo", data.startNotifications());
 
     this.control = await svc.getCharacteristic(UUID.controlPoint);
     this.control.addEventListener("characteristicvaluechanged", (e) => {
@@ -223,7 +277,7 @@ export class Trainer extends Link {
         this.waiting = null;
       }
     });
-    await this.control.startNotifications();
+    await this.stage("prendo il comando del rullo", this.control.startNotifications());
     await this.command(ftmsCommand.requestControl());
     await this.command(ftmsCommand.start());
     // After a reconnection, put the last target back.
@@ -326,13 +380,10 @@ export class HeartRateStrap extends Link {
   }
 
   protected async setup(server: BluetoothRemoteGATTServer) {
-    let svc: BluetoothRemoteGATTService;
-    try {
-      svc = await server.getPrimaryService(UUID.heartRate);
-    } catch {
-      throw new Error(`${this.name ?? "Il dispositivo"} non manda la frequenza cardiaca via Bluetooth: su un orologio Garmin attiva «Trasmetti frequenza cardiaca».`);
-    }
-    const ch = await svc.getCharacteristic(UUID.heartRateMeasurement);
+    const svc = await this.stage("cerco il servizio cardio", server.getPrimaryService(UUID.heartRate)).catch(
+      missing(`${this.name ?? "Il dispositivo"} non manda la frequenza cardiaca via Bluetooth: su un orologio Garmin attiva «Trasmetti frequenza cardiaca».`),
+    );
+    const ch = await this.stage("apro la misura del cuore", svc.getCharacteristic(UUID.heartRateMeasurement));
     ch.addEventListener("characteristicvaluechanged", (e) => {
       const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
       if (!v) return;
@@ -343,7 +394,7 @@ export class HeartRateStrap extends Link {
       }
       this.onBeat(m.heartRate, m.rr);
     });
-    await ch.startNotifications();
+    await this.stage("attivo i dati del cuore", ch.startNotifications());
   }
 }
 
@@ -364,18 +415,15 @@ export class PowerMeter extends Link {
   }
 
   protected async setup(server: BluetoothRemoteGATTServer) {
-    let svc: BluetoothRemoteGATTService;
-    try {
-      svc = await server.getPrimaryService(UUID.cyclingPower);
-    } catch {
-      throw new Error(`${this.name ?? "Il dispositivo"} non manda la potenza via Bluetooth.`);
-    }
+    const svc = await this.stage("cerco il servizio potenza", server.getPrimaryService(UUID.cyclingPower)).catch(
+      missing(`${this.name ?? "Il dispositivo"} non manda la potenza via Bluetooth.`),
+    );
     const ch = await svc.getCharacteristic(UUID.cyclingPowerMeasurement);
     ch.addEventListener("characteristicvaluechanged", (e) => {
       const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
       if (v) this.onPower(...this.read(parseCyclingPower(v)));
     });
-    await ch.startNotifications();
+    await this.stage("attivo i dati di potenza", ch.startNotifications());
   }
 
   private read(m: CyclingPowerMeasurement): [number, number | null] {
