@@ -168,6 +168,10 @@ export default function RulliHome() {
               <li>Chrome o Edge su Windows o Android, con il Bluetooth acceso. Su iPhone non funziona.</li>
               <li>Chiudi le altre app che comandano il rullo (My E-Training, Zwift…): il rullo accetta un solo controllore.</li>
               <li>Il DFA α1 serve una fascia toracica che manda gli RR (es. Polar H10).</li>
+              <li>
+                Orologio Garmin come fascia: sull&apos;orologio attiva «Trasmetti frequenza cardiaca»; se nel player non compare, tocca «Mostra tutti
+                i dispositivi». Dall&apos;orologio di solito arriva solo la FC, senza RR (niente DFA α1).
+              </li>
               <li>La seduta parte quando pedali, va in pausa quando smetti e alla fine si carica su Intervals.icu.</li>
             </ul>
           </section>

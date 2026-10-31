@@ -45,6 +45,12 @@ export async function rememberedDevice(kind: DeviceKind): Promise<BluetoothDevic
   }
 }
 
+function chooserError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/adapter|bluetooth.*(off|not available|unavailable)/i.test(msg)) return "Il Bluetooth è spento o non disponibile: accendilo e riprova.";
+  return msg;
+}
+
 abstract class Link {
   device: BluetoothDevice | null = null;
   status: DeviceStatus = "off";
@@ -70,18 +76,29 @@ abstract class Link {
     this.changed();
   }
 
-  /** Opens the browser's chooser (must run inside a tap) and connects to the chosen device. */
-  async choose(): Promise<void> {
+  /**
+   * Opens the browser's chooser (must run inside a tap) and connects to the chosen device.
+   * `any` lists every nearby device: Android only matches what a device advertises, and some (Garmin watches
+   * broadcasting heart rate) offer the service without advertising it, so they never show in the filtered list.
+   */
+  async choose(any = false): Promise<void> {
     let device: BluetoothDevice;
     try {
-      device = await navigator.bluetooth.requestDevice(this.options());
+      device = await navigator.bluetooth.requestDevice(any ? this.anyDevice() : this.options());
     } catch (e) {
-      // Closing the chooser is not an error.
-      if (e instanceof DOMException && e.name === "NotFoundError") return;
-      this.set(this.status, e instanceof Error ? e.message : String(e));
+      // Closing the chooser is not an error (Chrome reports it as NotFoundError too, with "cancelled").
+      if (e instanceof DOMException && e.name === "NotFoundError" && /cancel/i.test(e.message)) return;
+      this.set(this.status, chooserError(e));
       return;
     }
     await this.use(device);
+  }
+
+  /** Every device, with access to the same services as the filtered chooser. */
+  private anyDevice(): RequestDeviceOptions {
+    const o = this.options();
+    const services = [...("filters" in o ? (o.filters ?? []).flatMap((f) => f.services ?? []) : []), ...(o.optionalServices ?? [])];
+    return { acceptAllDevices: true, optionalServices: services };
   }
 
   /** Connects to a device already allowed (e.g. from rememberedDevice). */
@@ -309,7 +326,13 @@ export class HeartRateStrap extends Link {
   }
 
   protected async setup(server: BluetoothRemoteGATTServer) {
-    const ch = await (await server.getPrimaryService(UUID.heartRate)).getCharacteristic(UUID.heartRateMeasurement);
+    let svc: BluetoothRemoteGATTService;
+    try {
+      svc = await server.getPrimaryService(UUID.heartRate);
+    } catch {
+      throw new Error(`${this.name ?? "Il dispositivo"} non manda la frequenza cardiaca via Bluetooth: su un orologio Garmin attiva «Trasmetti frequenza cardiaca».`);
+    }
+    const ch = await svc.getCharacteristic(UUID.heartRateMeasurement);
     ch.addEventListener("characteristicvaluechanged", (e) => {
       const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
       if (!v) return;
@@ -341,7 +364,13 @@ export class PowerMeter extends Link {
   }
 
   protected async setup(server: BluetoothRemoteGATTServer) {
-    const ch = await (await server.getPrimaryService(UUID.cyclingPower)).getCharacteristic(UUID.cyclingPowerMeasurement);
+    let svc: BluetoothRemoteGATTService;
+    try {
+      svc = await server.getPrimaryService(UUID.cyclingPower);
+    } catch {
+      throw new Error(`${this.name ?? "Il dispositivo"} non manda la potenza via Bluetooth.`);
+    }
+    const ch = await svc.getCharacteristic(UUID.cyclingPowerMeasurement);
     ch.addEventListener("characteristicvaluechanged", (e) => {
       const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
       if (v) this.onPower(...this.read(parseCyclingPower(v)));

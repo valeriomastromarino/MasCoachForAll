@@ -55,6 +55,9 @@ altrimenti la potenza del rullo. Con i pedali come fonte, in ERG il player **cor
 Qualsiasi fascia con il servizio standard Heart Rate `0x180D` (caratteristica `0x2A37`).
 Gli **RR** arrivano nello stesso dato quando la fascia li manda (flag RR, valori in 1/1024 s): servono per il DFA.
 - Polar H10: ok. Se è già collegata a orologio o telefono via Bluetooth, attivare "dual Bluetooth" dall'app Polar.
+- Orologio Garmin con «Trasmetti frequenza cardiaca»: su Windows compare nell'elenco filtrato, su Android spesso no
+  (Android filtra solo su ciò che il dispositivo annuncia). Pulsante «Mostra tutti i dispositivi» = `requestDevice({ acceptAllDevices, optionalServices })`;
+  se il dispositivo scelto non ha il servizio `0x180D` il player lo dice. Dall'orologio di solito arriva solo la FC, senza RR.
 - Fasce che non mandano RR e sensori ottici: FC sì, DFA "non disponibile".
 
 ### 3.4 Cadenza

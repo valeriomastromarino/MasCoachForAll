@@ -342,8 +342,10 @@ export class PlayerEngine {
     else void l.choose();
   }
 
-  choose(kind: DeviceKind) {
-    void this.link(kind).choose();
+  /** Always opens the chooser (another device than the remembered one); `any` lists every nearby device. */
+  choose(kind: DeviceKind, any = false) {
+    this.unlockAudio();
+    void this.link(kind).choose(any);
   }
 
   disconnect(kind: DeviceKind) {

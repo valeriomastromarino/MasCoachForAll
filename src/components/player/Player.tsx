@@ -253,7 +253,12 @@ function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d:
       <span style={{ color: info.color }} aria-hidden>{info.icon}</span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm">{d.name ?? info.label}</div>
-        <div className="truncate text-xs" style={{ color }}>{d.error && !ok ? d.error : text}</div>
+        <div className={`text-xs ${d.error && !ok ? "" : "truncate"}`} style={{ color }}>{d.error && !ok ? d.error : text}</div>
+        {!ok && !busy && (
+          <button className="mt-0.5 text-xs text-muted underline underline-offset-2" onClick={() => engine.choose(kind, true)}>
+            Non lo trovi? Mostra tutti i dispositivi
+          </button>
+        )}
       </div>
       {ok ? (
         <button className="text-xs text-muted" onClick={() => engine.disconnect(kind)}>Scollega</button>
