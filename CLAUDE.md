@@ -85,5 +85,5 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 
 1. ✅ Dashboard, archivio uscite, dettaglio uscita, analisi test, temi e logo
 2. Creazione allenamenti (editor + Claude) e invio a Intervals.icu / Garmin — serve una chiave API Anthropic
-3. Player per rulli: Elite Justo in ERG via Web Bluetooth FTMS, Polar H10 con RR e DFA α1 (Chrome su Windows/Android)
+3. Player per rulli: rulli FTMS in ERG e resistenza via Web Bluetooth, fascia cardio con RR e DFA α1 (Chrome su Windows/Android) — **specifica in `docs/player-rulli.md`**, codice non ancora iniziato
 4. Coach Claude con chat: pianificazione e adattamento su HRV e carico — ✅ prima versione via connettore MCP in Claude (abbonamento, senza chiave API); chat dentro l'app quando ci sarà una chiave Anthropic

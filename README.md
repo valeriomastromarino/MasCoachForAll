@@ -58,5 +58,5 @@ Test: `npx vitest run`.
 
 1. ✅ Dashboard di analisi, archivio uscite con filtri e test, dettaglio uscita (mappa OpenStreetMap, grafici, DFA α1, sforzi)
 2. Creazione allenamenti (editor) e invio a Intervals.icu / dispositivo
-3. Player per rulli: ERG via Bluetooth FTMS, fascia cardio con RR e DFA alpha 1
+3. Player per rulli: ERG via Bluetooth FTMS, fascia cardio con RR e DFA alpha 1 — specifica in [docs/player-rulli.md](docs/player-rulli.md)
 4. ✅ Coach Claude via connettore MCP (abbonamento Claude, senza chiave API); chat dentro l'app più avanti
