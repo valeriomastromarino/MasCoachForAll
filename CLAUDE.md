@@ -52,7 +52,12 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 - `src/lib/physio/durability.ts` — durability: migliori sforzi dopo 2 h e 3 h confrontati con il profilo da fresco
 - `src/lib/api/handlers.ts` — **tutta la logica di `/api/*`** (`handleApi`), usata dalle route Next (`respond.ts`) e dal file unico; i componenti chiamano sempre `apiFetch` (`components/data/transport.ts`), mai `fetch` diretto
 - `src/app/api/` — route sottili che passano a `handleApi`: `dashboard`, `durability` (stream potenza delle uscite > 2 h, 84 gg), `activities` (archivio a blocchi di 365 gg), `activity/[id]` (dettaglio + stream)
-- Pagine (sezioni): `/` Oggi · `/forma` · `/potenza` · `/cuore` · `/recupero` · `/attivita` Uscite · `/test` · `/impostazioni` (tema) · `/coach` (pulsanti che aprono Claude con la richiesta pronta; indirizzo del Progetto in `localStorage`) · `/allenamenti` segnaposto
+- Pagine (sezioni): `/` Oggi · `/forma` · `/potenza` · `/cuore` · `/recupero` · `/attivita` Uscite · `/test` · `/rulli` Rulli · `/impostazioni` (tema) · `/coach` (pulsanti che aprono Claude con la richiesta pronta; indirizzo del Progetto in `localStorage`) · `/allenamenti` segnaposto
+- **Player per rulli** (`docs/player-rulli.md`): `/rulli` (allenamenti dei prossimi 7 giorni, "Prova del rullo" `/rulli/prova`, sedute rimaste sul dispositivo) e `/rulli/[id]` (schermata a tutto schermo, pulsante PEDALA nel pop-up dell'allenamento).
+  `lib/ble/protocol.ts` (FTMS, cardio con RR, potenza: byte puri e testati) + `devices.ts` (Web Bluetooth, ricollegamento automatico, comandi FTMS uno alla volta, resistenza come pendenza se il rullo non accetta il livello) ·
+  `lib/player/`: `timeline.ts` (passi da `workout_doc` con `_power` in watt: gli eventi letti con `resolve=true` dall'elenco, il singolo evento non li risolve), `session.ts` (macchina a stati: parte quando pedali, pausa automatica dopo 3 s, ERG ±5 W sullo step corrente, gradini), `fit.ts` (FIT con messaggi HRV = RR; verificato con `@garmin/fitsdk` nei test), `store.ts` (IndexedDB) ·
+  `components/player/engine.ts` (orologio 1 s, registrazione, DFA ogni 5 s, power match con i pedali, wake lock, suoni) + `Player.tsx` · `upload.ts` sta in `components/player` perché il file unico sostituisce `../data/transport`.
+  API: `GET /api/rulli/workout/:id`, `POST /api/rulli/upload` (FIT in base64 → `POST /athlete/{id}/activities` con `paired_event_id`). DFA α1 dal vivo in `lib/physio/dfa.ts`.
 - `src/lib/calendar.ts` + `workout.ts` — calendario della home (uscite + eventi WORKOUT), libreria allenamenti, profilo a blocchi dai `workout_doc.steps`
 - API di scrittura su Intervals.icu: `PATCH /api/activity/[id]` (nome, tipo, descrizione, RPE `icu_rpe`), `POST /api/calendar/events` (da libreria), `PATCH|DELETE /api/calendar/events/[id]`
 - `src/components/calendar/` — computer: calendario a 4 settimane (2 prima, questa, 1 dopo) con trascinamento per spostare; telefono (sotto `sm`): `WeekList.tsx`, una settimana in verticale (la terza delle quattro caricate) con notte, gare/impegni, uscite e allenamenti per esteso. Pop-up per giorno, uscita e allenamento in entrambi
@@ -85,5 +90,5 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 
 1. ✅ Dashboard, archivio uscite, dettaglio uscita, analisi test, temi e logo
 2. Creazione allenamenti (editor + Claude) e invio a Intervals.icu / Garmin — serve una chiave API Anthropic
-3. Player per rulli: rulli FTMS in ERG e resistenza via Web Bluetooth, fascia cardio con RR e DFA α1 (Chrome su Windows/Android) — **specifica in `docs/player-rulli.md`**, codice non ancora iniziato
+3. Player per rulli: rulli FTMS in ERG e resistenza via Web Bluetooth, fascia cardio con RR e DFA α1 (Chrome su Windows/Android) — **specifica in `docs/player-rulli.md`** — ✅ fasi 1–3 (collegamenti, player, registrazione e caricamento); da fare: fase 4 (service worker per aprire il player senza rete) e 5 (Wahoo/Tacx legacy)
 4. Coach Claude con chat: pianificazione e adattamento su HRV e carico — ✅ prima versione via connettore MCP in Claude (abbonamento, senza chiave API); chat dentro l'app quando ci sarà una chiave Anthropic

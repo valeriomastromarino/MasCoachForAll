@@ -12,16 +12,21 @@ import {
   createEvent,
   deleteEvent,
   fetchActivities,
+  fetchAthlete,
   fetchEvents,
   fetchHistory,
   fetchIntervals,
   fetchLibrary,
+  fetchResolvedWorkout,
   fetchRide,
   fetchWatts,
   intervalsConfigured,
   moveEvent,
   updateActivity,
+  uploadActivity,
 } from "../intervals/client";
+import { DEMO_WORKOUT_ID, demoWorkout, indoorFtp, playerWorkout } from "../player/load";
+import type { PlayerWorkout } from "../player/timeline";
 import {
   combineDurability,
   DURABILITY_DURATIONS,
@@ -42,6 +47,8 @@ export type DurabilityData = {
   rides: { id: string; date: string; name: string; hours: number }[];
   marks: DurabilityMark[];
 };
+
+export type TrainerWorkoutData = { workout: PlayerWorkout };
 
 export type ApiResult = { status: number; json: unknown };
 
@@ -280,6 +287,31 @@ async function history(q: URLSearchParams): Promise<ApiResult> {
   return ok(buildHistory({ from, today, ...raw }) satisfies HistoryData);
 }
 
+// ── Trainer player ──────────────────────────────────────────────────────────────────────────────────
+
+async function trainerWorkout(id: string): Promise<ApiResult> {
+  const today = toIsoDate(new Date());
+  if (id === DEMO_WORKOUT_ID || !intervalsConfigured()) {
+    const ftp = intervalsConfigured() ? indoorFtp(await fetchAthlete().catch(() => null)) : indoorFtp(demoData(1).athlete);
+    return ok({ workout: demoWorkout(ftp, today) } satisfies TrainerWorkoutData);
+  }
+  const [event, athlete] = await Promise.all([fetchResolvedWorkout(id), fetchAthlete().catch(() => null)]);
+  if (!event.workout_doc?.steps?.length) return fail(422, "Questo allenamento non ha passi strutturati su Intervals.icu");
+  return ok({ workout: playerWorkout(event, indoorFtp(athlete)) } satisfies TrainerWorkoutData);
+}
+
+/** FIT file of a trainer session (base64), uploaded to Intervals.icu and paired with its planned workout. */
+async function trainerUpload(body: { fit?: string; name?: string; externalId?: string; eventId?: string | null } | null): Promise<ApiResult> {
+  if (!intervalsConfigured()) return fail(400, "Con i dati demo la seduta non si carica: scarica il file FIT");
+  if (!body?.fit || !body.externalId) return fail(400, "Richiesta non valida");
+  const bin = atob(body.fit);
+  const file = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  const pairedEventId = body.eventId && body.eventId !== DEMO_WORKOUT_ID ? body.eventId : null;
+  const id = await uploadActivity(file, { name: (body.name ?? "Rulli").slice(0, 200), externalId: body.externalId, pairedEventId });
+  dashboardCache = null;
+  return ok({ id });
+}
+
 // ── Dispatch ────────────────────────────────────────────────────────────────────────────────────────
 
 /** Forget everything remembered (used when the Intervals.icu key changes). */
@@ -308,6 +340,8 @@ export async function handleApi(method: string, path: string, body: unknown = nu
       if (method === "GET") return await ride(id);
       if (method === "PATCH") return await patchRide(id, body as Record<string, unknown> | null);
     }
+    if (method === "GET" && p.startsWith("/api/rulli/workout/")) return await trainerWorkout(seg(/^\/api\/rulli\/workout\/([^/]+)$/));
+    if (method === "POST" && p === "/api/rulli/upload") return await trainerUpload(body as Parameters<typeof trainerUpload>[0]);
     if (p === "/api/calendar/events" && method === "POST") return await addWorkout(body as { workoutId?: number; date?: string } | null);
     if (p.startsWith("/api/calendar/events/")) {
       const id = seg(/^\/api\/calendar\/events\/([^/]+)$/);

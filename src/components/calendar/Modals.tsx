@@ -8,6 +8,7 @@ import { isTestName } from "@/lib/activities";
 import type { CalendarActivity, CalendarWorkout } from "@/lib/calendar";
 import { forgetRide, prefetchRide } from "../data/rides";
 import { fmt, fmtDuration } from "../format";
+import { PedalaLink } from "../player/PedalaLink";
 import { CATEGORY_STYLE, CoachBadge, dayLabel, Description, Modal, SectionTitle, send, tint, WorkoutProfile } from "./shared";
 import { apiFetch } from "../data/transport";
 
@@ -66,6 +67,7 @@ export function WorkoutModal({ w, onClose, onChanged }: { w: CalendarWorkout; on
       {w.description ? <Description text={w.description} /> : <p className="text-sm text-muted">Nessuna descrizione su Intervals.icu.</p>}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
+        {w.blocks.length > 0 && moveTo === null && <PedalaLink id={w.id} />}
         {moveTo === null ? (
           <button className="card flex items-center gap-1.5 px-3 py-1.5 text-xs" onClick={() => setMoveTo(w.date)} disabled={busy}>
             <IconCalendarEvent size={15} /> Sposta

@@ -5,9 +5,9 @@ export function usePathname(): string {
   return usePath();
 }
 
-/** Only dynamic route of the app: /attivita/[id]. */
+/** Dynamic routes of the app: /attivita/[id] and /rulli/[id]. */
 export function useParams<T extends Record<string, string>>(): T {
-  const m = usePath().match(/^\/attivita\/([^/]+)$/);
+  const m = usePath().match(/^\/(?:attivita|rulli)\/([^/]+)$/);
   return (m ? { id: m[1] } : {}) as unknown as T;
 }
 

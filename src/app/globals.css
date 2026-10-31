@@ -207,3 +207,26 @@ body {
     animation: none;
   }
 }
+
+/* Trainer player: one column on phones; on computers metrics and DFA on the left, profile and notes on the right. */
+.player-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "metrics" "profile" "dfa" "notes" "devices";
+}
+@media (min-width: 1024px) {
+  .player-grid {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+    grid-template-areas: "metrics profile" "dfa notes";
+    align-items: start;
+  }
+  .player-flow-only {
+    display: none !important;
+  }
+}
+@media (max-width: 1023px) {
+  .player-wide-only {
+    display: none !important;
+  }
+}

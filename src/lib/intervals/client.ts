@@ -208,6 +208,47 @@ export async function deleteEvent(eventId: string): Promise<void> {
   await icu(`/athlete/${athleteId()}/events/${encodeURIComponent(eventId)}`, {}, { method: "DELETE" });
 }
 
+// ── Trainer player ──────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A planned workout with its targets resolved in watts. Only the list endpoint resolves them (resolve=true),
+ * so read the event first for its day, then that day's events.
+ */
+export async function fetchResolvedWorkout(eventId: string): Promise<IcuEvent> {
+  const event = await fetchEvent(eventId);
+  const day = event.start_date_local.slice(0, 10);
+  const list = await icu<IcuEvent[]>(`/athlete/${athleteId()}/events`, { oldest: day, newest: day, resolve: "true" }).catch(() => []);
+  return list.find((e) => String(e.id) === String(eventId)) ?? event;
+}
+
+export async function fetchAthlete(): Promise<IcuAthlete> {
+  return icu<IcuAthlete>(`/athlete/${athleteId()}`);
+}
+
+/** Uploads a FIT file as a new activity, paired with the planned workout. Returns the new activity id. */
+export async function uploadActivity(
+  file: Uint8Array,
+  opts: { name: string; externalId: string; pairedEventId: string | null },
+): Promise<string | null> {
+  const url = new URL(`${BASE}/athlete/${athleteId()}/activities`);
+  url.searchParams.set("name", opts.name);
+  url.searchParams.set("external_id", opts.externalId);
+  url.searchParams.set("device_name", "MasCoach");
+  if (opts.pairedEventId) url.searchParams.set("paired_event_id", opts.pairedEventId);
+  const form = new FormData();
+  form.append("file", new Blob([file as BlobPart], { type: "application/octet-stream" }), `${opts.externalId}.fit`);
+  const res = await fetch(url, {
+    method: "POST",
+    signal: AbortSignal.timeout(60_000),
+    headers: { Authorization: `Basic ${btoa(`API_KEY:${apiKey()}`)}`, Accept: "application/json" },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`Intervals.icu ${res.status} sul caricamento: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+  invalidate("calendar:");
+  const created = (await res.json().catch(() => [])) as { id?: string }[];
+  return created[0]?.id ?? null;
+}
+
 /** Power stream only, for the durability analysis of long rides. */
 export async function fetchWatts(activityId: string): Promise<(number | null)[]> {
   const streams = await icu<RawStream[]>(`/activity/${encodeURIComponent(activityId)}/streams.json`, { types: "watts" });

@@ -10,6 +10,8 @@ import SettingsPage from "@/app/impostazioni/page";
 import OggiPage from "@/app/page";
 import PotenzaPage from "@/app/potenza/page";
 import RecuperoPage from "@/app/recupero/page";
+import PlayerPage from "@/app/rulli/[id]/page";
+import RulliPage from "@/app/rulli/page";
 import TestPage from "@/app/test/page";
 import { TopBar } from "@/components/brand/TopBar";
 import { AppNav } from "@/components/nav/AppNav";
@@ -26,10 +28,12 @@ const PAGES: Record<string, () => React.ReactNode> = {
   "/test": TestPage,
   "/allenamenti": AllenamentiPage,
   "/coach": CoachPage,
+  "/rulli": RulliPage,
 };
 
 function Page({ path }: { path: string }) {
   if (path.startsWith("/attivita/")) return <ActivityPage />;
+  if (path.startsWith("/rulli/")) return <PlayerPage />;
   if (path === "/impostazioni")
     return (
       <>

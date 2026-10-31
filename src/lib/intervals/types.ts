@@ -80,7 +80,8 @@ export type IcuEvent = {
   moving_time?: number | null;
   description?: string | null;
   indoor?: boolean | null;
-  workout_doc?: { steps?: RawStep[] | null } | null;
+  /** `ftp`: the FTP Intervals.icu used to resolve the targets (indoor FTP for VirtualRide). */
+  workout_doc?: { steps?: RawStep[] | null; ftp?: number | null } | null;
   /** Set by the app that created the event; MasCoach Coach uses "mascoach-coach-…" / "mascoach-prova-…". */
   external_id?: string | null;
   tags?: string[] | null;

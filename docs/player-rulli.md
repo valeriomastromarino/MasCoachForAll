@@ -1,6 +1,6 @@
 # Player per rulli — specifica
 
-Versione 2 · 31 ottobre 2026 · stato: **analisi approvata, nessun codice ancora**.
+Versione 3 · 31 ottobre 2026 · stato: **fasi 1–3 scritte (da provare sul rullo vero)**, fasi 4–5 da fare.
 Decisioni prese e punti aperti in §12.
 
 ## 1. Obiettivo
@@ -157,10 +157,10 @@ selettore ERG / Resistenza e comandi.
 
 | Fase | Contenuto | Fatto quando |
 |---|---|---|
-| 1. Collegamenti | collega il rullo (lettura FTMS), la fascia cardio (FC + RR), pedali facoltativi; metriche dal vivo; DFA α1 | i numeri si vedono su PC e Android, il DFA è plausibile |
-| 2. Controllo e player | ERG e resistenza, allenamento da Intervals, schermata §5, ± / salta / pausa automatica, suoni, pulsanti PEDALA | un allenamento del calendario si esegue dall'inizio alla fine in ERG e in resistenza |
-| 3. Registrazione | FIT con RR, salvataggio locale, caricamento su Intervals | la seduta compare su Intervals (con DFA) |
-| 4. Offline | service worker, allenamenti scaricati, coda di caricamento | una seduta fatta senza rete si carica da sola dopo |
+| ✅ 1. Collegamenti | collega il rullo (lettura FTMS), la fascia cardio (FC + RR), pedali facoltativi; metriche dal vivo; DFA α1 | i numeri si vedono su PC e Android, il DFA è plausibile |
+| ✅ 2. Controllo e player | ERG e resistenza, allenamento da Intervals, schermata §5, ± / salta / pausa automatica, suoni, pulsanti PEDALA | un allenamento del calendario si esegue dall'inizio alla fine in ERG e in resistenza |
+| ✅ 3. Registrazione | FIT con RR, salvataggio locale, caricamento su Intervals | la seduta compare su Intervals (con DFA) |
+| 4. Offline | service worker, allenamenti scaricati (già fatti: salvataggio sul dispositivo e coda di caricamento) | una seduta fatta senza rete si carica da sola dopo |
 | 5. Compatibilità estesa | Wahoo e Tacx legacy, altre fasce, rifinitura power match, layout PC | prove con altri rulli |
 
 Ogni fase si chiude con commit + push.
@@ -175,7 +175,14 @@ Deciso il 31 ottobre 2026:
 4. Gradini della resistenza: si fissano dopo la prima prova sul rullo.
 5. Caricamento solo su Intervals.icu (niente Strava).
 
-Ancora aperto: approvare la bozza della schermata su PC (§5) prima della fase 2.
+Bozza della schermata su PC approvata il 31 ottobre.
+
+Scelte fatte scrivendo il codice (da confermare sul rullo):
+- La seduta **parte quando inizi a pedalare** (o con Play) e si registra solo il tempo pedalato.
+- −/+ in ERG valgono **solo per lo step in corso** (allo step successivo si torna all'obiettivo del piano).
+- Il gradino di partenza della resistenza è il 3; con una scala 0–100 i gradini sono 10.
+- Un rullo che rifiuta il livello di resistenza riceve una pendenza fissa (0–10% sui gradini).
+- Se il caricamento non riesce (niente rete, dati demo) la seduta resta sul dispositivo: `/rulli` la ricarica appena c'è rete, o si scarica il FIT.
 
 ## 13. Cosa serve dall'atleta
 

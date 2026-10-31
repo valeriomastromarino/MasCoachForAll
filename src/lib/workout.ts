@@ -2,14 +2,19 @@
 import { COGGAN_POWER_ZONES } from "./physio/power";
 import { isNum } from "./physio/stats";
 
-type Target = { units?: string; value?: number; start?: number; end?: number } | null | undefined;
+export type Target = { units?: string; value?: number; start?: number; end?: number } | null | undefined;
 
 export type RawStep = {
   duration?: number | null;
   reps?: number | null;
   steps?: RawStep[] | null;
+  /** Section title ("Sweet spot 3x" → "Sweet spot"). */
+  text?: string | null;
   power?: Target;
+  /** Power resolved in watts by Intervals.icu (events read with resolve=true). */
+  _power?: Target;
   hr?: Target;
+  cadence?: Target;
   ramp?: boolean;
   warmup?: boolean;
   cooldown?: boolean;
