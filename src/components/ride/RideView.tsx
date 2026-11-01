@@ -87,7 +87,7 @@ function RideBody({ ride }: { ride: RideDetail }) {
     ["Pw:HR", fmt(s.decoupling, 1, "%")],
     ["EF", fmt(s.ef, 2)],
     ["Bilanciamento S/D", s.lrLeft !== null ? `${fmt(s.lrLeft)} / ${fmt(100 - s.lrLeft)}` : "–"],
-    ["Carboidrati", s.carbs !== null ? `~${fmt(s.carbs)} g` : "–"],
+    ["Carboidrati assunti", s.carbs !== null ? `${fmt(s.carbs)} g` : "–"],
   ];
 
   const map = ride.hasRoute && (

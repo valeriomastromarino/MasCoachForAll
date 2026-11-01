@@ -860,7 +860,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; }
     { name: "uscite", label: "le uscite", schema: obj({ da: dateP("Primo giorno AAAA-MM-GG"), a: dateP("Ultimo giorno AAAA-MM-GG (default oggi)") }),
       description: "Elenco delle uscite in un periodo (default ultime 4 settimane, massimo un anno per richiesta, anche negli anni passati): durata, NP, IF, TSS, FC, disaccoppiamento, EF, test." },
     { name: "dettaglio_uscita", label: "il dettaglio dell'uscita", schema: obj({ id: { type: "string", description: "id dell'uscita (da uscite o calendario)" } }, ["id"]),
-      description: "Analisi di una uscita: riepilogo, tempo nelle zone, migliori sforzi e, se è un test, il risultato (FTP stimata, soglie)." },
+      description: "Analisi di una uscita: riepilogo, tempo nelle zone, migliori sforzi, il riassunto del DFA α1 (se registrato con la fascia) e, se è un test, il risultato (FTP stimata, soglie)." },
     { name: "profilo_potenza", label: "il profilo di potenza", schema: obj({ con_durability: { type: "boolean", description: "Includi la durability (default no)" } }),
       description: "Curva di potenza degli ultimi 84 giorni, potenza critica (CP, W'), modelli di Intervals, record del mese, eFTP, zone di potenza e FC. Con con_durability=true aggiunge il calo di potenza dopo 2 h e 3 h (più lento da calcolare)." },
     { name: "storico", label: "lo storico", schema: obj({ anni: { type: "integer", minimum: 1, maximum: 4, description: "Quanti anni indietro (default 4)" } }),
@@ -868,7 +868,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; }
     { name: "w_balance", label: "il W′ balance", schema: obj({ id: { type: "string", description: "id dell'uscita (da uscite o calendario); senza, elenco delle uscite" }, giorni: { type: "integer", minimum: 7, maximum: 120, description: "Senza id: quanti giorni indietro (default 28)" } }),
       description: "Senza id: svuotamento massimo del W′ in ogni uscita degli ultimi giorni (default 28). Con id: W′bal di una uscita (modello di Skiba, calcolato da Intervals.icu): minimo in J e %, minuti sotto 50% e 25%, ogni svuotamento sotto il 50% con il tempo per tornare all'80%, e una serie in % del W′. Il W′ impostato è in stato_di_oggi e profilo_potenza (w_prime_impostato_J)." },
     { name: "fueling_log", label: "i carboidrati delle uscite", schema: obj({ da: dateP("Primo giorno AAAA-MM-GG"), a: dateP("Ultimo giorno AAAA-MM-GG (default oggi)"), minimo_minuti: { type: "integer", minimum: 30, maximum: 600, description: "Durata minima delle uscite (default 90)" } }),
-      description: "Uscite lunghe di un periodo (default ultime 4 settimane, sopra i 90 minuti): durata, kJ, NP, IF, disaccoppiamento, RPE, carboidrati assunti (g e g/h, se registrati) e carboidrati consumati stimati da Intervals." },
+      description: "Uscite lunghe di un periodo (default ultime 4 settimane, sopra i 90 minuti): durata, kJ, NP, IF, disaccoppiamento, RPE, carboidrati assunti (g e g/h, solo se registrati: la stima dei consumati di Intervals non si dà)." },
     { name: "libreria_allenamenti", label: "la libreria", schema: obj({}),
       description: "Gli allenamenti salvati nella libreria di Intervals.icu, per cartella, con il loro testo." },
     { name: "crea_allenamento", write: true, schema: obj({

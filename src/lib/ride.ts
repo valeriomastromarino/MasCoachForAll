@@ -44,7 +44,7 @@ export type RawRideDetail = {
   decoupling?: number | null;
   icu_efficiency_factor?: number | null;
   avg_lr_balance?: number | null;
-  carbs_used?: number | null;
+  carbs_ingested?: number | null;
   icu_zone_times?: { id: string; secs: number }[] | null;
   icu_hr_zone_times?: number[] | null;
   icu_hr_zones?: number[] | null;
@@ -103,6 +103,7 @@ export type RideDetail = {
     decoupling: number | null;
     ef: number | null;
     lrLeft: number | null;
+    /** Carbohydrate eaten, only when the athlete entered it: never Intervals' estimate of what was burnt. */
     carbs: number | null;
   };
   powerZones: { id: string; name: string; secs: number }[];
@@ -263,7 +264,7 @@ export function buildRide(raw: RawRideDetail, streams: RawStream[]): RideDetail 
       decoupling: num(raw.decoupling),
       ef: num(raw.icu_efficiency_factor),
       lrLeft: lr,
-      carbs: num(raw.carbs_used),
+      carbs: num(raw.carbs_ingested),
     },
     powerZones: COGGAN_POWER_ZONES.map((z) => ({ id: z.id, name: z.name, secs: zt.get(z.id) ?? 0 })),
     hrZones: (raw.icu_hr_zone_times ?? []).map((secs, i) => ({

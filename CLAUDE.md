@@ -27,7 +27,7 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
   Gli allenamenti del coach hanno `external_id` `mascoach-coach-…` o `mascoach-prova-…` (`lib/coach/marks.ts`) e tag "MasCoach Coach": etichetta nel calendario,
   e il coach può modificare/cancellare solo i suoi. `prova` è il default di `crea_allenamento`.
   `eventi` e `calendario.gare_impegni_note`: gare A/B/C, vacanze, malattia, note, inizio stagione, obiettivi settimanali (`calendarEvents` in `lib/calendar.ts`).
-  `w_balance` (W′bal di Intervals: per uscita o elenco degli svuotamenti), `fueling_log` + `registra_carboidrati` (`carbs_ingested` delle uscite),
+  `w_balance` (W′bal di Intervals: per uscita o elenco degli svuotamenti), `fueling_log` + `registra_carboidrati` (`carbs_ingested` delle uscite; la stima `carbs_used` di Intervals non si dà mai: senza carboidrati assunti registrati non c'è il dato),
   `salva_in_libreria` (cartella "MasCoach Coach"; se Intervals legge male il testo il workout viene tolto). W′ impostato in `stato_di_oggi`.
   **Formato passi**: le ripetute "Titolo 3x" vanno precedute da una riga vuota, altrimenti Intervals le ignora (`parseWarning` lo segnala).
   `dettaglio_uscita` aggiunge `dfa_a1` (riassunto del DFA α1 dell'uscita: `lib/physio/dfaSummary.ts`; la serie punto per punto resta fuori).

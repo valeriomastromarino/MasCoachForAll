@@ -67,7 +67,7 @@ export function demoRide(id: string): { raw: RawRideDetail; streams: RawStream[]
       decoupling: 3.4,
       icu_efficiency_factor: 1.44,
       avg_lr_balance: 50.8,
-      carbs_used: 260,
+      carbs_ingested: 260,
       icu_zone_times: [
         { id: "Z1", secs: 600 },
         { id: "Z2", secs: 3500 },

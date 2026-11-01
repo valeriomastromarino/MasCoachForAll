@@ -206,7 +206,14 @@ async function dettaglioUscita(args: Args) {
   const ride = await api<RideDetail>(`/api/activity/${encodeURIComponent(id)}`);
   // DFA α1 summary for any ride recorded with a chest strap (the stream itself stays out).
   const dfa = summarizeDfa(ride.points, ride.bucketSecs);
-  return { ...ride, points: undefined, ...(dfa ? { dfa_a1: dfa } : {}) };
+  // Carbohydrate: only what the athlete entered (carbs_ingested), never Intervals' estimate of what was burnt.
+  const { carbs, ...summary } = ride.summary;
+  return {
+    ...ride,
+    summary: { ...summary, ...(carbs !== null ? { carboidrati_assunti_g: carbs } : {}) },
+    points: undefined,
+    ...(dfa ? { dfa_a1: dfa } : {}),
+  };
 }
 
 async function profiloPotenza(args: Args) {
@@ -404,8 +411,8 @@ async function fuelingLog(args: Args) {
   const rides = (await rawRides(da, a)).filter((x) => (x.moving_time ?? 0) >= minMin * 60);
   return {
     nota:
-      "carboidrati_assunti_g li inserisce l'atleta (su Intervals o con registra_carboidrati); null = non registrati. " +
-      "carboidrati_consumati_stima_g è una stima di Intervals.icu dal lavoro svolto.",
+      "carboidrati_assunti_g li inserisce l'atleta (su Intervals o con registra_carboidrati); null = non registrati: " +
+      "in quel caso il dato non c'è, la stima dei carboidrati consumati di Intervals.icu non viene mai data.",
     uscite: rides.map((x) => {
       const hours = (x.moving_time ?? 0) / 3600;
       return {
@@ -420,7 +427,6 @@ async function fuelingLog(args: Args) {
         rpe: x.icu_rpe && x.icu_rpe > 0 ? x.icu_rpe : null,
         carboidrati_assunti_g: x.carbs_ingested ?? null,
         carboidrati_assunti_g_h: x.carbs_ingested != null && hours > 0 ? Math.round(x.carbs_ingested / hours) : null,
-        carboidrati_consumati_stima_g: x.carbs_used ?? null,
       };
     }),
   };
@@ -762,7 +768,7 @@ export const COACH_TOOLS: CoachTool[] = [
     title: "Carboidrati nelle uscite",
     description:
       "Uscite lunghe di un periodo (default ultime 4 settimane, sopra i 90 minuti): durata, kJ, NP, IF, disaccoppiamento, RPE, " +
-      "carboidrati assunti (g e g/h, se registrati) e carboidrati consumati stimati da Intervals.",
+      "carboidrati assunti (g e g/h, solo se registrati: la stima dei consumati di Intervals non si dà).",
     inputSchema: {
       type: "object",
       properties: {
