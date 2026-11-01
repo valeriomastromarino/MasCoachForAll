@@ -43,8 +43,8 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 
 - `src/lib/physio/` — motore fisiologico (puro, testato):
   `power.ts` (Coggan: zone, NP, IF, TSS) · `pmc.ts` (CTL/ATL/TSB; forma = CTL − ATL **dello stesso giorno**, carico di oggi compreso, come Intervals.icu; zone sul numero mostrato: ottimale da −10 a −30, alto rischio sotto −30) ·
-  `baseline.ts` + `hrv.ts` + `autonomic.ts` (Altini: ln rMSSD, baseline 7 gg vs range 60 gg, HRV letta insieme alla FC a riposo, notti anomale) ·
-  `readiness.ts` (stato di oggi) · `criticalPower.ts` (Monod 2P 3–20', flag se sforzi lunghi non massimali) ·
+  `baseline.ts` + `hrv.ts` + `autonomic.ts` (Altini: ln rMSSD, baseline 7 gg vs range 60 gg ± 1 SD, HRV letta insieme alla FC a riposo, notti anomale) ·
+  `readiness.ts` (stato di oggi, regole del prompt v7.8: sonno < 6 h in 2 notti su 3, forma di ieri in "alto rischio" = TSB/CTL < −30% (TSB < −15 se CTL < 35), niente doppia conta con il pattern stress, tetto giallo con pattern stabile; la forma mostrata resta quella di Intervals) · `criticalPower.ts` (Monod 2P 3–20', flag se sforzi lunghi non massimali) ·
   `distribution.ts` (Seiler 3 zone) · `hrZones.ts` (Friel) · `fitnessTest.ts` (test: rampa = frazione del MAP personale 0,72–0,80 dal flesso + flesso FC corretto per il ritardo (pendenza × 1–1,5 min) → valore con intervallo e validazione; 95% 20' / 90% 8', flessione FC Dmax, soglie DFA α1 0,75/0,5)
 - `src/lib/intervals/` — client API Intervals.icu (chiave solo lato server) e tipi
 - `src/lib/dashboard.ts`, `ride.ts`, `activities.ts` — trasformano i dati grezzi per le pagine

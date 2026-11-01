@@ -7,7 +7,7 @@
 // Garmin's overnight HRV (what Intervals.icu stores in `hrv`) is a different measurement from a morning
 // spot check: never mix the two in the same baseline.
 import { band, type BaselinePoint, rollingBaseline } from "./baseline";
-import { isNum, mean, sd } from "./stats";
+import { isNum, sd } from "./stats";
 
 export type HrvDay = { date: string; rmssd: number | null };
 
@@ -32,9 +32,10 @@ export type HrvAnalysis = {
     status: HrvStatus;
     /** Last night far below normal: an acute stressor worth acting on today. */
     acuteDrop: boolean;
-    /** Coefficient of variation of ln rMSSD over 7 days, %. Rising CV = less stable autonomic state. */
-    cv7: number | null;
-    cv7Prev: number | null;
+    /** SD of ln rMSSD over the last 7 days (≥ 4 valid nights). Far above sd60 = less stable autonomic state. */
+    sd7: number | null;
+    /** The athlete's own SD of ln rMSSD over the last 60 days (≥ 21 valid nights). */
+    sd60: number | null;
   };
 };
 
@@ -61,9 +62,9 @@ export function analyzeHrv(days: HrvDay[]): HrvAnalysis {
 
   const last = base.length - 1;
   const t = base[last];
-  const cv = (end: number) => {
-    const w = lns.slice(Math.max(0, end - 6), end + 1).filter(isNum);
-    return w.length >= 4 ? (sd(w) / mean(w)) * 100 : null;
+  const sdWindow = (size: number, min: number) => {
+    const w = lns.slice(Math.max(0, last - size + 1), last + 1).filter(isNum);
+    return w.length >= min ? sd(w) : null;
   };
 
   return {
@@ -75,8 +76,8 @@ export function analyzeHrv(days: HrvDay[]): HrvAnalysis {
       high: t?.high ?? null,
       status: hrvStatus(t),
       acuteDrop: t?.z !== null && t?.z !== undefined && t.z <= -HRV_ACUTE_SD,
-      cv7: last >= 0 ? cv(last) : null,
-      cv7Prev: last >= 7 ? cv(last - 7) : null,
+      sd7: last >= 0 ? sdWindow(7, 4) : null,
+      sd60: last >= 0 ? sdWindow(60, 21) : null,
     },
   };
 }

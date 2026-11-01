@@ -78,12 +78,12 @@ export function ReadinessCard({ status }: { status: DashboardData["status"] }) {
 // Altini's HRV × resting-HR reading as a 3×3 grid: rows = HRV band, columns = resting-HR band.
 const MATRIX: { pattern: AutonomicPattern; label: string }[][] = [
   [
-    { pattern: "adattamento", label: "Adattamento" },
+    { pattern: "adattamento_positivo", label: "Adattamento" },
     { pattern: "hrv_alto", label: "HRV alta" },
     { pattern: "discordante", label: "Discordante" },
   ],
   [
-    { pattern: "adattamento", label: "Adattamento" },
+    { pattern: "adattamento_positivo", label: "Adattamento" },
     { pattern: "stabile", label: "Equilibrio" },
     { pattern: "fc_alta", label: "FC alta" },
   ],
@@ -96,7 +96,7 @@ const MATRIX: { pattern: AutonomicPattern; label: string }[][] = [
 
 const CELL_TONE: Record<AutonomicPattern, { bg: string; ink: string }> = {
   stabile: { bg: "var(--good-bg)", ink: "var(--good)" },
-  adattamento: { bg: "var(--good-bg)", ink: "var(--good)" },
+  adattamento_positivo: { bg: "var(--good-bg)", ink: "var(--good)" },
   hrv_alto: { bg: "var(--good-bg)", ink: "var(--good)" },
   hrv_basso: { bg: "var(--warning-bg)", ink: "var(--warning)" },
   fc_alta: { bg: "var(--warning-bg)", ink: "var(--warning)" },

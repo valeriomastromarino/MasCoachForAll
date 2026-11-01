@@ -573,7 +573,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; }
         <div class="val num">${num(h.media_7gg_ms)}<small>ms</small></div>
         ${gauge(h.media_7gg_ms, hr[0], hr[1], "var(--hrv-band)")}
         <div class="sub num">normale ${num(hr[0])}–${num(hr[1])} · stanotte ${num(tonight.rmssd_ms)}</div>
-        <div><span class="chip ${hrvCls}">${esc(h.calo_acuto_stanotte ? "calo acuto stanotte" : h.stato || "—")}</span> <span class="sub num">CV ${num(h.cv_7gg_pct, 1)}%</span></div>
+        <div><span class="chip ${hrvCls}">${esc(h.calo_acuto_stanotte ? "calo acuto stanotte" : h.stato || "—")}</span> <span class="sub num">SD ${num(h.sd_7gg, 2)}</span></div>
       </div>
       <div class="card tile">
         <div class="eyebrow" style="color:var(--rhr-ink)">FC a riposo</div>
@@ -808,7 +808,7 @@ footer { color: var(--faint); font-size: 12px; text-align: center; }
         atleta: { ftp_impostata_W: 240, ftp_rulli_W: 230, fc_soglia: 160, fc_max: 182, peso_kg: 72, w_prime_impostato_J: 19000 },
         prontezza: { level: "verde", headline: "Pronto", advice: "Esempio: puoi svolgere l'allenamento previsto.", reasons: ["Esempio: HRV nella norma e FC a riposo stabile."] },
         carico: { fitness_ctl: last.ctl, fatica_atl: last.atl, forma_tsb: last.tsb, zona_forma: "grigia", ramp_rate: 0.8 },
-        hrv_altini: { media_7gg_ms: last.hrv_media_7gg_ms, range_normale_ms: [58, 70], stato: "nella norma", calo_acuto_stanotte: false, cv_7gg_pct: 4.2 },
+        hrv_altini: { media_7gg_ms: last.hrv_media_7gg_ms, range_normale_ms: [58, 70], stato: "nella norma", calo_acuto_stanotte: false, sd_7gg: 0.06, sd_60gg: 0.09 },
         fc_riposo: { oggi: last.fc_riposo, media_7gg: last.fc_riposo_media, range_normale: [45.5, 48.5] },
         sistema_nervoso_autonomo: { title: "Equilibrio", explanation: "Esempio: HRV e FC a riposo nel loro range abituale.", severity: 0, anomalyToday: false, anomalyStreak: 0 },
         sonno_stanotte_ore: last.sonno_ore,

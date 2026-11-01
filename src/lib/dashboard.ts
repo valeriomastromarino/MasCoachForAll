@@ -72,6 +72,9 @@ export type DashboardData = {
     ctl: number | null;
     atl: number | null;
     tsb: number | null;
+    /** CTL and form (CTL − ATL) of yesterday: what the readiness score judges "alto rischio" on. */
+    ctlYesterday: number | null;
+    tsbYesterday: number | null;
     rampRate: number | null;
     formZone: FormZone | null;
     hrv: HrvAnalysis["today"];
@@ -181,17 +184,25 @@ export function buildDashboard(raw: RawData, displayDays = 120): DashboardData {
   const todayWellness = wellnessByDate.get(today);
   const sleepSecs = num(todayWellness?.sleepSecs);
   const sleepHours = sleepSecs !== null ? sleepSecs / 3600 : null;
+  const sleepNights = [-2, -1, 0].map((o) => {
+    const secs = num(wellnessByDate.get(addDays(today, o))?.sleepSecs);
+    return secs !== null ? secs / 3600 : null;
+  });
 
   const last = pmc[pmc.length - 1];
   const ctl = last?.ctl ?? null;
   const tsb = last?.tsb ?? null;
+  const dayBefore = pmc[pmc.length - 2];
+  const ctlYesterday = dayBefore?.ctl ?? null;
+  const tsbYesterday = dayBefore?.tsb ?? null;
 
   const readiness = assessReadiness({
     hrv: hrvAnalysis.today,
     autonomic,
-    ctl,
     tsb,
-    sleepHours,
+    ctlYesterday,
+    tsbYesterday,
+    sleepNights,
   });
 
   const settings = rideSettings(raw.athlete.sportSettings);
@@ -256,6 +267,8 @@ export function buildDashboard(raw: RawData, displayDays = 120): DashboardData {
       ctl,
       atl: last?.atl ?? null,
       tsb,
+      ctlYesterday,
+      tsbYesterday,
       rampRate: isNum(rampRate(pmc)) ? rampRate(pmc) : null,
       formZone: tsb !== null ? formZone(tsb) : null,
       hrv: hrvAnalysis.today,

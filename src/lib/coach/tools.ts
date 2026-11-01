@@ -99,17 +99,19 @@ async function statoDiOggi() {
       fitness_ctl: r1(s.ctl),
       fatica_atl: r1(s.atl),
       forma_tsb: r1(s.tsb),
+      forma_tsb_ieri: r1(s.tsbYesterday),
+      fitness_ctl_ieri: r1(s.ctlYesterday),
       zona_forma: s.formZone,
       ramp_rate: r1(s.rampRate),
     },
     hrv_altini: {
-      nota: "rMSSD notturna da Garmin, in ln; media 7 giorni confrontata con il range normale dei 60 giorni.",
+      nota: "rMSSD notturna da Garmin, in ln; media 7 giorni confrontata con il range normale dei 60 giorni (± 1 SD). sd_7gg e sd_60gg sono la deviazione standard di ln-rMSSD sugli ultimi 7 e 60 giorni.",
       media_7gg_ms: ms(s.hrv.baseline7),
       range_normale_ms: [ms(s.hrv.low), ms(s.hrv.high)],
       stato: s.hrv.status,
       calo_acuto_stanotte: s.hrv.acuteDrop,
-      cv_7gg_pct: r1(s.hrv.cv7),
-      cv_7gg_settimana_prima_pct: r1(s.hrv.cv7Prev),
+      sd_7gg: s.hrv.sd7 === null ? null : Math.round(s.hrv.sd7 * 1000) / 1000,
+      sd_60gg: s.hrv.sd60 === null ? null : Math.round(s.hrv.sd60 * 1000) / 1000,
     },
     fc_riposo: {
       oggi: s.rhr.today,
@@ -274,8 +276,8 @@ function eventRow(e: CalendarEvent) {
 /** Races, holidays, illness, notes, season start and week targets, up to two years ahead. */
 async function eventi(args: Args) {
   requireIntervals();
-  const da = date(args, "da", today());
-  const a = date(args, "a", addDays(da, 365));
+  const da = date(args, "da", addDays(today(), -365));
+  const a = date(args, "a", addDays(today(), 365));
   if (da > a) throw new Error('"da" deve venire prima di "a"');
   if (a > addDays(da, 730)) throw new Error("Massimo due anni per richiesta");
   return calendarEvents(await fetchEvents(da, a), da, a).map(eventRow);
@@ -720,13 +722,13 @@ export const COACH_TOOLS: CoachTool[] = [
     title: "Gare, impegni e note",
     description:
       "Tutto quello che sul calendario di Intervals non è un allenamento: gare A/B/C, vacanze e impegni, malattia, infortuni, note, " +
-      "inizio stagione, obiettivi della settimana (TSS, ore, km). Default da oggi a 12 mesi, massimo 2 anni. " +
+      "inizio stagione, obiettivi della settimana (TSS, ore, km). Default 12 mesi indietro e 12 avanti, massimo 2 anni per richiesta. " +
       "Usalo prima di pianificare una settimana, un blocco o la stagione.",
     inputSchema: {
       type: "object",
       properties: {
-        da: { type: "string", format: "date", description: "Primo giorno AAAA-MM-GG (default oggi)" },
-        a: { type: "string", format: "date", description: "Ultimo giorno AAAA-MM-GG (default da + 12 mesi)" },
+        da: { type: "string", format: "date", description: "Primo giorno AAAA-MM-GG (default 12 mesi fa)" },
+        a: { type: "string", format: "date", description: "Ultimo giorno AAAA-MM-GG (default tra 12 mesi)" },
       },
       additionalProperties: false,
     },
@@ -857,7 +859,7 @@ export const COACH_TOOLS: CoachTool[] = [
     title: "Salva in libreria",
     description:
       'Salva un workout nella libreria di Intervals.icu, nella cartella "MasCoach Coach" (creata la prima volta), con i tag indicati ' +
-      "(es. THRESHOLD, GRANFONDO, K2). Non lo mette sul calendario. Chiedi prima conferma. " +
+      "(es. Soglia, Granfondo, K2). Non lo mette sul calendario. Chiedi prima conferma. " +
       WORKOUT_FORMAT,
     inputSchema: {
       type: "object",
@@ -866,7 +868,7 @@ export const COACH_TOOLS: CoachTool[] = [
         testo: { type: "string", description: "Passi in formato Intervals.icu" },
         tipo: { type: "string", enum: BIKE_TYPES, description: "Ride (default), VirtualRide, GravelRide, MountainBikeRide" },
         rulli: { type: "boolean", description: "Pensato per i rulli (default no; sì se tipo è VirtualRide)" },
-        tag: { type: "array", items: { type: "string" }, description: 'Tag del workout, es. ["THRESHOLD", "GRANFONDO", "K2"]' },
+        tag: { type: "array", items: { type: "string" }, description: 'Tag del workout, es. ["Soglia", "Granfondo", "K2"]' },
       },
       required: ["nome", "testo"],
       additionalProperties: false,

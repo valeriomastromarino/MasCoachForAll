@@ -17,7 +17,7 @@ import { isNum } from "./stats";
 
 export type AutonomicPattern =
   | "stabile"
-  | "adattamento"
+  | "adattamento_positivo"
   | "hrv_alto"
   | "stress"
   | "hrv_basso"
@@ -50,7 +50,7 @@ const TEXT: Record<AutonomicPattern, { title: string; explanation: string; sever
     explanation: "HRV e FC a riposo sono nei tuoi range normali: il sistema nervoso autonomo sta gestendo bene il carico.",
     severity: 0,
   },
-  adattamento: {
+  adattamento_positivo: {
     title: "Adattamento positivo",
     explanation: "FC a riposo più bassa del solito con HRV stabile o alta: stai assorbendo bene l'allenamento.",
     severity: 0,
@@ -105,7 +105,7 @@ function classify(hrv: BaselinePoint | undefined, rhr: BaselinePoint | undefined
   if (h === "sotto") return "hrv_basso";
   if (h === "sopra" && r === "sopra") return "discordante";
   if (r === "sopra") return "fc_alta";
-  if (r === "sotto") return "adattamento";
+  if (r === "sotto") return "adattamento_positivo";
   if (h === "sopra") return "hrv_alto";
   return "stabile";
 }

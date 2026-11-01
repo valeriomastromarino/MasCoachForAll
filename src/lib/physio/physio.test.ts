@@ -6,7 +6,7 @@ import { assessAutonomic } from "./autonomic";
 import { analyzeHrv } from "./hrv";
 import { computePmc, formZone, rampRate } from "./pmc";
 import { normalizedPower, powerZones, tss } from "./power";
-import { assessReadiness } from "./readiness";
+import { assessReadiness, highRiskForm } from "./readiness";
 
 describe("power (Coggan)", () => {
   it("builds the 7 zones for FTP 250", () => {
@@ -149,7 +149,7 @@ describe("HRV + resting HR (Altini)", () => {
       dates.map((_, i) => ln(i)),
       dates.map((_, i) => (i >= N - 7 ? 41 : hr(i))),
     );
-    expect(a.pattern).toBe("adattamento");
+    expect(a.pattern).toBe("adattamento_positivo");
   });
 });
 
@@ -200,19 +200,19 @@ describe("Seiler distribution", () => {
 });
 
 describe("readiness", () => {
-  const base = { ln: 4.1, baseline7: 4.1, low: 4.0, high: 4.2, acuteDrop: false, cv7: 3, cv7Prev: 3 };
+  const base = { ln: 4.1, baseline7: 4.1, low: 4.0, high: 4.2, acuteDrop: false, sd7: 0.08, sd60: 0.1 };
   const calm = { pattern: "stabile" as const, explanation: "ok", severity: 0 as const, anomalyToday: false, anomalyStreak: 0 };
+  const stress = { pattern: "stress" as const, explanation: "stress", severity: 2 as const, anomalyToday: false, anomalyStreak: 0 };
+  const fine = { tsb: -5, ctlYesterday: 60, tsbYesterday: -5, sleepNights: [7.5, 7, 7.2] };
   it("is green when all is normal", () => {
-    const r = assessReadiness({ hrv: { ...base, status: "nella norma" }, autonomic: calm, ctl: 60, tsb: -5, sleepHours: 7.5 });
+    const r = assessReadiness({ hrv: { ...base, status: "nella norma" }, autonomic: calm, ...fine });
     expect(r.level).toBe("verde");
   });
   it("is red with a stress response and repeated anomalies", () => {
     const r = assessReadiness({
       hrv: { ...base, status: "sotto la norma", acuteDrop: true },
-      autonomic: { pattern: "stress", explanation: "stress", severity: 2, anomalyToday: true, anomalyStreak: 2 },
-      ctl: 60,
-      tsb: -30,
-      sleepHours: 7,
+      autonomic: { ...stress, anomalyToday: true, anomalyStreak: 2 },
+      ...fine,
     });
     expect(r.level).toBe("rosso");
   });
@@ -220,10 +220,56 @@ describe("readiness", () => {
     const r = assessReadiness({
       hrv: { ...base, status: "sotto la norma" },
       autonomic: { ...calm, pattern: "hrv_basso", severity: 1 },
-      ctl: 60,
-      tsb: -5,
-      sleepHours: 7.5,
+      ...fine,
     });
     expect(r.level).toBe("giallo");
+  });
+  it("counts short sleep only when it happens in two of the last three nights", () => {
+    const hrvDown = { hrv: { ...base, status: "sotto la norma" as const }, autonomic: { ...calm, pattern: "hrv_basso" as const, severity: 1 as const } };
+    const once = assessReadiness({ ...hrvDown, ...fine, sleepNights: [7, 5.5, 7] });
+    const twice = assessReadiness({ ...hrvDown, ...fine, sleepNights: [5.5, 7, 5] });
+    expect(once.reasons.some((x) => x.includes("ultime 3 notti"))).toBe(false);
+    expect(twice.reasons.some((x) => x.includes("ultime 3 notti"))).toBe(true);
+    expect(twice.level).toBe("giallo"); // 1 (pattern) + 1 (sleep) = 2
+    const twiceAndForm = assessReadiness({ ...hrvDown, ...fine, sleepNights: [5.5, 7, 5], ctlYesterday: 60, tsbYesterday: -25 });
+    expect(twiceAndForm.level).toBe("rosso"); // 1 + 1 + 1
+  });
+  it("judges high risk on yesterday's form: share of CTL, or absolute at low CTL", () => {
+    expect(highRiskForm(60, -19)).toBe(true); // -31.7 %
+    expect(highRiskForm(60, -17)).toBe(false); // -28.3 %
+    expect(highRiskForm(30, -16)).toBe(true); // low CTL: TSB < -15
+    expect(highRiskForm(30, -10)).toBe(false);
+    expect(highRiskForm(null, -30)).toBe(false);
+  });
+  it("does not add the form on top of a stress pattern, but keeps the sleep", () => {
+    const risky = { ...fine, ctlYesterday: 60, tsbYesterday: -30 };
+    const noSleep = assessReadiness({ hrv: { ...base, status: "sotto la norma" }, autonomic: stress, ...risky });
+    expect(noSleep.level).toBe("giallo"); // 2, form not counted
+    const withSleep = assessReadiness({
+      hrv: { ...base, status: "sotto la norma" },
+      autonomic: stress,
+      ...risky,
+      sleepNights: [5, 5.5, 7],
+    });
+    expect(withSleep.level).toBe("rosso"); // 2 + 1
+  });
+  it("caps a stable pattern with a single acute signal at yellow", () => {
+    const r = assessReadiness({
+      hrv: { ...base, status: "nella norma", acuteDrop: true },
+      autonomic: calm,
+      tsb: -35,
+      ctlYesterday: 60,
+      tsbYesterday: -30,
+      sleepNights: [5, 5, 7],
+    });
+    expect(r.level).toBe("giallo"); // 1 + 1 + 1 would be red
+  });
+  it("adds a point when the 7-day SD is far above the 60-day SD and HRV is down", () => {
+    const hrvDown = { ...base, status: "sotto la norma" as const };
+    const hrvBasso = { ...calm, pattern: "hrv_basso" as const, severity: 1 as const };
+    const steady = assessReadiness({ hrv: { ...hrvDown, sd7: 0.1 }, autonomic: hrvBasso, ...fine });
+    const unstable = assessReadiness({ hrv: { ...hrvDown, sd7: 0.2 }, autonomic: hrvBasso, ...fine });
+    expect(steady.reasons.some((x) => x.includes("instabile"))).toBe(false);
+    expect(unstable.reasons.some((x) => x.includes("instabile"))).toBe(true);
   });
 });

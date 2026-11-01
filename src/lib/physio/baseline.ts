@@ -9,8 +9,8 @@ export const BASELINE_DEFAULTS = {
   /** Minimum valid days needed inside each window. */
   minShort: 4,
   minLong: 21,
-  /** Normal range half-width in SDs of daily values (≈ smallest worthwhile change scaled for a 7-day mean). */
-  rangeSd: 0.5,
+  /** Normal range half-width in SDs of the daily values over the long window (1 SD, as the coach prompt states). */
+  rangeSd: 1,
 };
 
 export type BaselineOptions = typeof BASELINE_DEFAULTS;

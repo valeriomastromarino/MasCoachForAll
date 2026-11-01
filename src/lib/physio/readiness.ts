@@ -1,5 +1,6 @@
 // Daily readiness: autonomic markers first (HRV and resting HR read together, Altini), then sleep and
 // training-load context (TSB). The load metrics explain *why*, the body's response decides *what to do*.
+// The rules follow the coach prompt (§5.5): the coach reads the level, it never recomputes it.
 import type { AutonomicAssessment } from "./autonomic";
 import type { HrvAnalysis } from "./hrv";
 import { formZone } from "./pmc";
@@ -13,14 +14,27 @@ export type Readiness = {
   reasons: string[];
 };
 
+/** Below this CTL the TSB/CTL ratio explodes, so "high risk" uses the absolute TSB instead. */
+const LOW_CTL = 35;
+
+/** "Alto rischio" for the readiness score: yesterday's form (CTL − ATL), as a share of CTL or, at low CTL, absolute. */
+export function highRiskForm(ctlYesterday: number | null, tsbYesterday: number | null): boolean {
+  if (ctlYesterday === null || tsbYesterday === null) return false;
+  return ctlYesterday >= LOW_CTL ? tsbYesterday / ctlYesterday < -0.3 : tsbYesterday < -15;
+}
+
 export function assessReadiness(input: {
   hrv: HrvAnalysis["today"];
   autonomic: Pick<AutonomicAssessment, "pattern" | "explanation" | "severity" | "anomalyToday" | "anomalyStreak">;
-  ctl: number | null;
+  /** Form shown in the app (today's CTL − ATL), only for the explanation. */
   tsb: number | null;
-  sleepHours: number | null;
+  /** Yesterday's CTL and form (CTL − ATL): what the score judges "alto rischio" on. */
+  ctlYesterday: number | null;
+  tsbYesterday: number | null;
+  /** Hours slept in the last three nights, newest last; null = no data. */
+  sleepNights: (number | null)[];
 }): Readiness {
-  const { hrv, autonomic, tsb, sleepHours } = input;
+  const { hrv, autonomic, tsb, ctlYesterday, tsbYesterday, sleepNights } = input;
   const reasons: string[] = [autonomic.explanation];
   let score: number = autonomic.severity; // higher = more caution
 
@@ -37,24 +51,32 @@ export function assessReadiness(input: {
     reasons.push("L'HRV di stanotte è molto più bassa del solito.");
   }
 
-  if (hrv.cv7 !== null && hrv.cv7Prev !== null && hrv.cv7 > hrv.cv7Prev * 1.5 && hrv.status === "sotto la norma") {
+  if (hrv.sd7 !== null && hrv.sd60 !== null && hrv.sd7 > hrv.sd60 * 1.5 && hrv.status === "sotto la norma") {
     score += 1;
-    reasons.push("HRV più instabile della settimana scorsa e in calo: tipico segnale di fatica che si accumula.");
+    reasons.push("HRV più instabile del solito (SD a 7 giorni oltre 1,5 volte quella a 60 giorni) e in calo: segnale di fatica che si accumula.");
   }
 
-  if (sleepHours !== null && sleepHours < 6) {
+  const shortNights = sleepNights.filter((h) => h !== null && h < 6).length;
+  if (shortNights >= 2) {
     score += 1;
-    reasons.push(`Sonno breve stanotte (${sleepHours.toFixed(1)} h).`);
+    reasons.push(`Sonno sotto le 6 h in ${shortNights} delle ultime 3 notti.`);
   }
 
-  if (tsb !== null) {
-    const zone = formZone(tsb);
-    if (zone === "alto rischio") {
-      score += 1;
-      reasons.push(`Forma (TSB ${tsb.toFixed(0)}) in zona ad alto rischio: la fatica supera di molto la fitness.`);
-    } else {
-      reasons.push(`Forma (TSB ${tsb.toFixed(0)}): zona ${zone}.`);
-    }
+  const highRisk = highRiskForm(ctlYesterday, tsbYesterday);
+  // With a stress pattern low HRV and a negative form come from the same load: counting both would double it.
+  if (highRisk && autonomic.pattern !== "stress") {
+    score += 1;
+    reasons.push(`Forma di ieri (TSB ${tsbYesterday!.toFixed(0)}) in zona ad alto rischio: la fatica supera di molto la fitness.`);
+  } else if (highRisk) {
+    reasons.push(`Forma di ieri (TSB ${tsbYesterday!.toFixed(0)}) in zona ad alto rischio, già legata allo stress: non aggiunge punti.`);
+  } else if (tsb !== null) {
+    reasons.push(`Forma (TSB ${tsb.toFixed(0)}): zona ${formZone(tsb)}.`);
+  }
+
+  // A calm pattern with a single acute signal never goes past yellow.
+  if (score >= 3 && autonomic.pattern === "stabile" && autonomic.anomalyStreak < 2) {
+    score = 2;
+    reasons.push("Pattern stabile con un solo segnale acuto: il livello massimo è giallo.");
   }
 
   if (autonomic.pattern === "dati_insufficienti" && score === 0) {
