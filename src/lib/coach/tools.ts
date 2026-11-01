@@ -22,6 +22,7 @@ import {
   updateEvent,
 } from "../intervals/client";
 import type { IcuActivity, IcuEvent } from "../intervals/types";
+import { summarizeDfa } from "../physio/dfaSummary";
 import type { RideDetail } from "../ride";
 import { type CoachMark, coachMarkOf, coachTags, newCoachExternalId } from "./marks";
 
@@ -203,7 +204,9 @@ async function dettaglioUscita(args: Args) {
   if (!id) throw new Error('Serve "id" (lo trovi con uscite o calendario)');
   // The point-by-point streams are for the charts: the coach gets the summary.
   const ride = await api<RideDetail>(`/api/activity/${encodeURIComponent(id)}`);
-  return { ...ride, points: undefined };
+  // DFA α1 summary for any ride recorded with a chest strap (the stream itself stays out).
+  const dfa = summarizeDfa(ride.points, ride.bucketSecs);
+  return { ...ride, points: undefined, ...(dfa ? { dfa_a1: dfa } : {}) };
 }
 
 async function profiloPotenza(args: Args) {
@@ -676,7 +679,7 @@ export const COACH_TOOLS: CoachTool[] = [
   {
     name: "dettaglio_uscita",
     title: "Dettaglio uscita",
-    description: "Analisi di una uscita: riepilogo, tempo nelle zone, migliori sforzi e, se è un test, il risultato (FTP stimata, soglie).",
+    description: "Analisi di una uscita: riepilogo, tempo nelle zone, migliori sforzi, il riassunto del DFA α1 (se registrato con la fascia: minuti sopra 0,75 / tra 0,75 e 0,5 / sotto 0,5, watt e FC vicino alle soglie, serie ogni ~5 minuti) e, se è un test, il risultato (FTP stimata, soglie).",
     inputSchema: {
       type: "object",
       properties: { id: { type: "string", description: "id dell'uscita (da uscite o calendario)" } },

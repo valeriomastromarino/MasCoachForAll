@@ -30,6 +30,7 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
   `w_balance` (W′bal di Intervals: per uscita o elenco degli svuotamenti), `fueling_log` + `registra_carboidrati` (`carbs_ingested` delle uscite),
   `salva_in_libreria` (cartella "MasCoach Coach"; se Intervals legge male il testo il workout viene tolto). W′ impostato in `stato_di_oggi`.
   **Formato passi**: le ripetute "Titolo 3x" vanno precedute da una riga vuota, altrimenti Intervals le ignora (`parseWarning` lo segnala).
+  `dettaglio_uscita` aggiunge `dfa_a1` (riassunto del DFA α1 dell'uscita: `lib/physio/dfaSummary.ts`; la serie punto per punto resta fuori).
   `storico` (fino a 4 anni, `lib/history.ts` via `GET /api/history?years=`): anni e mesi con ore, TSS, CTL, eFTP, migliori watt per anno, HRV/FC/sonno e notti anomale Altini, elenco test.
 - `prompt-coach/` — prompt del coach per il Progetto Claude: `MasCoach_prompt.txt` contiene `{{NOME}}`, che
   `node scripts/prompt-pronto.mjs` sostituisce con il nome dell'atleta in `prompt-coach/prompt-pronto.txt` (escluso da git).
