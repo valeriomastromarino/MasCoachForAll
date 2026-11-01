@@ -51,3 +51,6 @@ prompt-coach/prompt-pronto.txt
 
 # Artefatto claude.ai: indirizzo personale
 artefatto/indirizzo.txt
+
+# Android
+*.apk

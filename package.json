@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "build:file": "vite build --config standalone/vite.config.mts",
-    "check": "next typegen && tsc --noEmit && eslint src standalone && vitest run"
+    "check": "next typegen && tsc --noEmit && eslint src standalone && vitest run",
+    "build:apk": "node scripts/build-apk.mjs"
   },
   "dependencies": {
     "@tabler/icons-react": "^3.50.0",
@@ -17,7 +18,10 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-leaflet": "^5.0.0",
-    "recharts": "^3.10.1"
+    "recharts": "^3.10.1",
+    "@capacitor-community/bluetooth-le": "^8.3.0",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
   },
   "devDependencies": {
     "@garmin/fitsdk": "^21.218.0",
@@ -35,6 +39,7 @@
     "typescript": "^5",
     "vite": "^8.3.5",
     "vite-plugin-singlefile": "^2.3.4",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "@capacitor/cli": "^8.6.0"
   }
 }

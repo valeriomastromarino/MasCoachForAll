@@ -1,7 +1,7 @@
 // Everything that runs during a trainer session: sensors, the session clock, recording, DFA α1,
 // the trainer target (with power match when pedals are connected), sounds and the screen wake lock.
 // A plain class (browser only) that the player screen subscribes to; see usePlayer.ts.
-import { type DeviceKind, type DeviceStatus, HeartRateStrap, lastChoice, PowerMeter, rememberedDevice, Trainer } from "@/lib/ble/devices";
+import { type DeviceKind, type DeviceStatus, type GattDevice, HeartRateStrap, lastChoice, PowerMeter, rememberedDevice, Trainer } from "@/lib/ble/devices";
 import type { IndoorBikeData } from "@/lib/ble/protocol";
 import { type DfaLive, dfaLive } from "@/lib/physio/dfa";
 import { newRecording, type Recording } from "@/lib/player/recording";
@@ -87,7 +87,7 @@ export class PlayerEngine {
   private sound = true;
   private finished: Recording | null = null;
   private uploading = false;
-  private remembered: Record<DeviceKind, BluetoothDevice | null> = { trainer: null, hr: null, power: null };
+  private remembered: Record<DeviceKind, GattDevice | null> = { trainer: null, hr: null, power: null };
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private audio: AudioContext | null = null;

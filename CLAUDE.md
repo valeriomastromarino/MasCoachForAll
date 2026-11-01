@@ -22,6 +22,11 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 - **Versione online (Vercel)**: stessa app Next.js, variabili `INTERVALS_API_KEY`, `INTERVALS_ATHLETE_ID`, `APP_PASSWORD`, `MCP_SECRET`.
   `src/proxy.ts` + `lib/auth/session.ts`: senza cookie di accesso le pagine vanno a `/login` e `/api/*` risponde 401; cookie firmato con la password, 60 giorni.
   Senza `APP_PASSWORD`: aperta in locale, bloccata su Vercel. `app/manifest.ts` + `public/icons/` rendono l'app installabile da Chrome su Android.
+- **App Android** (`android/`, Capacitor 8 + `@capacitor-community/bluetooth-le`): contiene la **versione file unico**, quindi funziona anche senza rete; il Bluetooth è quello nativo di Android.
+  `npm run build:apk` → `MasCoach.apk` nella cartella del progetto (build:file + `cap sync` + Gradle con il JDK di Android Studio; `android/local.properties` lo scrive lo script). Si installa a mano (APK debug, senza Play Store).
+  Il Bluetooth sta in `lib/ble/radio.ts`: due trasporti con la stessa interfaccia (`Gatt`: need/read/notify/write), Web Bluetooth nel browser e plugin nativo nell'app (`Capacitor.isNativePlatform()`);
+  `devices.ts` (Trainer, HeartRateStrap, PowerMeter) non conosce quale usa. L'app ricorda il dispositivo per indirizzo (`BleClient.getDevices`), Chrome su Android no.
+  **Non chiamare un file `transport.ts` fuori da `components/data/`**: l'alias di Vite del file unico sostituisce ogni import `./transport`.
 - **Connettore per Claude (MCP)**: `POST /api/mcp/<MCP_SECRET>` (fuori dal login, segreto ≥ 24 caratteri; senza segreto risponde 404).
   `lib/coach/mcp.ts` (JSON-RPC senza sessioni) + `lib/coach/tools.ts` (attrezzi in italiano: letture via `handleApi`, scritture su Intervals).
   Gli allenamenti del coach hanno `external_id` `mascoach-coach-…` o `mascoach-prova-…` (`lib/coach/marks.ts`) e tag "MasCoach Coach": etichetta nel calendario,

@@ -1,6 +1,6 @@
-// Web Bluetooth links to the trainer (FTMS), the heart-rate strap and a power meter (e.g. pedals).
-// Runs in the browser only (Chrome / Edge on Windows and Android). A dropped link reconnects by itself
-// with the device already chosen; choosing a device always needs a tap (the browser shows its chooser).
+// Bluetooth links to the trainer (FTMS), the heart-rate strap and a power meter (e.g. pedals).
+// The radio itself is in radio.ts: Web Bluetooth in Chrome / Edge, Android's own Bluetooth in the app.
+// A dropped link reconnects by itself with the device already chosen; choosing a device always needs a tap.
 import {
   type ControlResponse,
   type CyclingPowerMeasurement,
@@ -18,17 +18,16 @@ import {
   resistanceSteps,
   UUID,
 } from "./protocol";
+import { ChooserCancelled, type Gatt, type GattDevice, ServiceMissing, transport } from "./radio";
+
+export type { GattDevice } from "./radio";
 
 export type DeviceKind = "trainer" | "hr" | "power";
 export type DeviceStatus = "off" | "connecting" | "connected" | "reconnecting" | "lost";
 
 /** Why Bluetooth cannot work here, or null when it can. */
 export function bluetoothProblem(): string | null {
-  if (typeof navigator === "undefined" || !("bluetooth" in navigator)) {
-    return "Questo browser non ha il Bluetooth per le pagine web: usa Chrome o Edge su Windows o Android.";
-  }
-  if (typeof window !== "undefined" && !window.isSecureContext) return "Il Bluetooth funziona solo con un indirizzo https.";
-  return null;
+  return transport().problem();
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -55,7 +54,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 /** A missing service gets a clear message; time-outs and other errors pass through. */
 function missing(message: string) {
   return (e: unknown): never => {
-    throw e instanceof DOMException && e.name === "NotFoundError" ? new Error(message) : e;
+    throw e instanceof ServiceMissing ? new Error(message) : e;
   };
 }
 const REMEMBER_KEY = (kind: DeviceKind) => `mascoach-ble-${kind}`;
@@ -74,16 +73,12 @@ export function lastChoice(kind: DeviceKind): LastChoice | null {
 }
 
 /**
- * The device chosen last time for this kind, if the browser still allows it without the chooser.
- * Chrome on Android often keeps no permission between visits (empty getDevices): then the chooser is needed again.
+ * The device chosen last time for this kind, if it can be reached without the chooser.
+ * The app always can; Chrome on Android often keeps no permission between visits (empty getDevices).
  */
-export async function rememberedDevice(kind: DeviceKind): Promise<BluetoothDevice | null> {
+export async function rememberedDevice(kind: DeviceKind): Promise<GattDevice | null> {
   try {
-    if (typeof navigator.bluetooth?.getDevices !== "function") return null;
-    const id = localStorage.getItem(REMEMBER_KEY(kind));
-    const name = lastChoice(kind)?.name;
-    const allowed = await navigator.bluetooth.getDevices();
-    return allowed.find((d) => d.id === id) ?? (name ? allowed.find((d) => d.name === name) : undefined) ?? null;
+    return await transport().known(localStorage.getItem(REMEMBER_KEY(kind)), lastChoice(kind)?.name ?? null);
   } catch {
     return null;
   }
@@ -91,12 +86,15 @@ export async function rememberedDevice(kind: DeviceKind): Promise<BluetoothDevic
 
 function chooserError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
-  if (/adapter|bluetooth.*(off|not available|unavailable)/i.test(msg)) return "Il Bluetooth è spento o non disponibile: accendilo e riprova.";
+  if (/adapter|bluetooth.*(off|not available|unavailable|not enabled|disabled)/i.test(msg)) return "Il Bluetooth è spento o non disponibile: accendilo e riprova.";
+  if (/permission/i.test(msg)) return "Serve il permesso «Dispositivi nelle vicinanze»: concedilo nelle impostazioni dell'app.";
   return msg;
 }
 
 abstract class Link {
-  device: BluetoothDevice | null = null;
+  device: GattDevice | null = null;
+  /** The open link, while connected. */
+  protected gatt: Gatt | null = null;
   status: DeviceStatus = "off";
   error: string | null = null;
   /** The connection step in progress, shown while connecting: tells where a device gets stuck. */
@@ -112,9 +110,10 @@ abstract class Link {
     return this.device?.name ?? null;
   }
 
-  protected abstract options(): RequestDeviceOptions;
+  /** The service the device is found by, and others it should be allowed to use. */
+  protected abstract services(): { main: number; extra: number[] };
   /** Subscribes to the characteristics after (re)connection. */
-  protected abstract setup(server: BluetoothRemoteGATTServer): Promise<void>;
+  protected abstract setup(g: Gatt): Promise<void>;
 
   protected set(status: DeviceStatus, error: string | null = this.error) {
     this.status = status;
@@ -123,17 +122,17 @@ abstract class Link {
   }
 
   /**
-   * Opens the browser's chooser (must run inside a tap) and connects to the chosen device.
+   * Opens the chooser (must run inside a tap) and connects to the chosen device.
    * `any` lists every nearby device: Android only matches what a device advertises, and some (Garmin watches
    * broadcasting heart rate) offer the service without advertising it, so they never show in the filtered list.
    */
   async choose(any = false): Promise<void> {
-    let device: BluetoothDevice;
+    let device: GattDevice;
     try {
-      device = await navigator.bluetooth.requestDevice(any ? this.anyDevice() : this.options());
+      const { main, extra } = this.services();
+      device = await transport().choose(main, extra, any);
     } catch (e) {
-      // Closing the chooser is not an error (Chrome reports it as NotFoundError too, with "cancelled").
-      if (e instanceof DOMException && e.name === "NotFoundError" && /cancel/i.test(e.message)) return;
+      if (e instanceof ChooserCancelled) return;
       this.set(this.status, chooserError(e));
       return;
     }
@@ -145,21 +144,11 @@ abstract class Link {
     await this.use(device);
   }
 
-  /** Every device, with access to the same services as the filtered chooser. */
-  private anyDevice(): RequestDeviceOptions {
-    const o = this.options();
-    const services = [...("filters" in o ? (o.filters ?? []).flatMap((f) => f.services ?? []) : []), ...(o.optionalServices ?? [])];
-    return { acceptAllDevices: true, optionalServices: services };
-  }
-
   /** Connects to a device already allowed (e.g. from rememberedDevice). */
-  async use(device: BluetoothDevice): Promise<void> {
+  async use(device: GattDevice): Promise<void> {
     if (this.device && this.device !== device) this.disconnect();
     this.closing = false;
-    if (this.device !== device) {
-      this.device = device;
-      device.addEventListener("gattserverdisconnected", this.onDropped);
-    }
+    this.device = device;
     try {
       localStorage.setItem(REMEMBER_KEY(this.kind), device.id);
     } catch {
@@ -184,8 +173,9 @@ abstract class Link {
 
   private async connect() {
     try {
-      const server = await this.stage("mi collego", this.device!.gatt!.connect(), 20000);
-      await this.setup(server);
+      const g = await this.stage("mi collego", transport().connect(this.device!, this.onDropped), 25000);
+      this.gatt = g;
+      await this.setup(g);
     } finally {
       this.step = null;
     }
@@ -201,11 +191,8 @@ abstract class Link {
 
   /** Closes a half-open link, which would block the next attempt. */
   private dropLink() {
-    try {
-      this.device?.gatt?.disconnect();
-    } catch {
-      // Already gone.
-    }
+    this.gatt = null;
+    if (this.device) transport().disconnect(this.device);
   }
 
   private onDropped = () => {
@@ -232,11 +219,7 @@ abstract class Link {
 
   disconnect() {
     this.closing = true;
-    try {
-      this.device?.gatt?.disconnect();
-    } catch {
-      // Already gone.
-    }
+    this.dropLink();
     this.set("off", null);
   }
 }
@@ -252,7 +235,6 @@ export class Trainer extends Link {
   levels: number[] = resistanceSteps(null);
   /** Resistance is set as a fixed grade when the trainer does not take a resistance level. */
   resistanceAsGrade = false;
-  private control: BluetoothRemoteGATTCharacteristic | null = null;
   private waiting: { op: number; resolve: (r: ControlResponse | null) => void } | null = null;
   private chain: Promise<unknown> = Promise.resolve();
   private desired: TrainerTarget | null = null;
@@ -266,43 +248,41 @@ export class Trainer extends Link {
     super("trainer", changed);
   }
 
-  protected options(): RequestDeviceOptions {
-    return { filters: [{ services: [UUID.ftms] }], optionalServices: [UUID.deviceInfo, UUID.cyclingPower] };
+  protected services() {
+    return { main: UUID.ftms, extra: [UUID.deviceInfo, UUID.cyclingPower] };
   }
 
-  protected async setup(server: BluetoothRemoteGATTServer) {
-    const svc = await this.stage("cerco il servizio FTMS", server.getPrimaryService(UUID.ftms)).catch(
+  protected async setup(g: Gatt) {
+    await this.stage("cerco il servizio FTMS", g.need(UUID.ftms)).catch(
       missing("Il rullo non espone FTMS: aggiorna il firmware con l'app del produttore."),
     );
     try {
-      this.features = parseFtmsFeatures(await (await svc.getCharacteristic(UUID.ftmsFeature)).readValue());
+      this.features = parseFtmsFeatures(await g.read(UUID.ftms, UUID.ftmsFeature));
     } catch {
       this.features = null;
     }
     try {
-      this.range = parseResistanceRange(await (await svc.getCharacteristic(UUID.resistanceRange)).readValue());
+      this.range = parseResistanceRange(await g.read(UUID.ftms, UUID.resistanceRange));
     } catch {
       this.range = null;
     }
     this.levels = resistanceSteps(this.range);
 
-    const data = await svc.getCharacteristic(UUID.indoorBikeData);
-    data.addEventListener("characteristicvaluechanged", (e) => {
-      const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
-      if (v) this.onData(parseIndoorBikeData(v));
-    });
-    await this.stage("attivo i dati del rullo", data.startNotifications());
+    await this.stage(
+      "attivo i dati del rullo",
+      g.notify(UUID.ftms, UUID.indoorBikeData, (v) => this.onData(parseIndoorBikeData(v))),
+    );
 
-    this.control = await svc.getCharacteristic(UUID.controlPoint);
-    this.control.addEventListener("characteristicvaluechanged", (e) => {
-      const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
-      const r = v ? parseControlResponse(v) : null;
-      if (r && this.waiting && r.op === this.waiting.op) {
-        this.waiting.resolve(r);
-        this.waiting = null;
-      }
-    });
-    await this.stage("prendo il comando del rullo", this.control.startNotifications());
+    await this.stage(
+      "prendo il comando del rullo",
+      g.notify(UUID.ftms, UUID.controlPoint, (v) => {
+        const r = parseControlResponse(v);
+        if (r && this.waiting && r.op === this.waiting.op) {
+          this.waiting.resolve(r);
+          this.waiting = null;
+        }
+      }),
+    );
     await this.command(ftmsCommand.requestControl());
     await this.command(ftmsCommand.start());
     // After a reconnection, put the last target back.
@@ -313,8 +293,8 @@ export class Trainer extends Link {
   /** Sends one control point command and waits for its answer (null on timeout). Commands run one at a time. */
   private command(bytes: Uint8Array): Promise<ControlResponse | null> {
     const run = async () => {
-      const cp = this.control;
-      if (!cp) return null;
+      const g = this.gatt;
+      if (!g) return null;
       const answer = new Promise<ControlResponse | null>((resolve) => {
         this.waiting = { op: bytes[0], resolve };
         setTimeout(() => {
@@ -325,7 +305,7 @@ export class Trainer extends Link {
         }, 3000);
       });
       try {
-        await cp.writeValueWithResponse(bytes as BufferSource);
+        await g.write(UUID.ftms, UUID.controlPoint, bytes);
       } catch {
         this.waiting = null;
         return null;
@@ -400,26 +380,25 @@ export class HeartRateStrap extends Link {
     super("hr", changed);
   }
 
-  protected options(): RequestDeviceOptions {
-    return { filters: [{ services: [UUID.heartRate] }] };
+  protected services() {
+    return { main: UUID.heartRate, extra: [] };
   }
 
-  protected async setup(server: BluetoothRemoteGATTServer) {
-    const svc = await this.stage("cerco il servizio cardio", server.getPrimaryService(UUID.heartRate)).catch(
+  protected async setup(g: Gatt) {
+    await this.stage("cerco il servizio cardio", g.need(UUID.heartRate)).catch(
       missing(`${this.name ?? "Il dispositivo"} non manda la frequenza cardiaca via Bluetooth: su un orologio Garmin attiva «Trasmetti frequenza cardiaca».`),
     );
-    const ch = await this.stage("apro la misura del cuore", svc.getCharacteristic(UUID.heartRateMeasurement));
-    ch.addEventListener("characteristicvaluechanged", (e) => {
-      const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
-      if (!v) return;
-      const m = parseHeartRate(v);
-      if (m.rr.length && !this.sendsRr) {
-        this.sendsRr = true;
-        this.set(this.status);
-      }
-      this.onBeat(m.heartRate, m.rr);
-    });
-    await this.stage("attivo i dati del cuore", ch.startNotifications());
+    await this.stage(
+      "attivo i dati del cuore",
+      g.notify(UUID.heartRate, UUID.heartRateMeasurement, (v) => {
+        const m = parseHeartRate(v);
+        if (m.rr.length && !this.sendsRr) {
+          this.sendsRr = true;
+          this.set(this.status);
+        }
+        this.onBeat(m.heartRate, m.rr);
+      }),
+    );
   }
 }
 
@@ -435,20 +414,18 @@ export class PowerMeter extends Link {
     super("power", changed);
   }
 
-  protected options(): RequestDeviceOptions {
-    return { filters: [{ services: [UUID.cyclingPower] }] };
+  protected services() {
+    return { main: UUID.cyclingPower, extra: [] };
   }
 
-  protected async setup(server: BluetoothRemoteGATTServer) {
-    const svc = await this.stage("cerco il servizio potenza", server.getPrimaryService(UUID.cyclingPower)).catch(
+  protected async setup(g: Gatt) {
+    await this.stage("cerco il servizio potenza", g.need(UUID.cyclingPower)).catch(
       missing(`${this.name ?? "Il dispositivo"} non manda la potenza via Bluetooth.`),
     );
-    const ch = await svc.getCharacteristic(UUID.cyclingPowerMeasurement);
-    ch.addEventListener("characteristicvaluechanged", (e) => {
-      const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
-      if (v) this.onPower(...this.read(parseCyclingPower(v)));
-    });
-    await this.stage("attivo i dati di potenza", ch.startNotifications());
+    await this.stage(
+      "attivo i dati di potenza",
+      g.notify(UUID.cyclingPower, UUID.cyclingPowerMeasurement, (v) => this.onPower(...this.read(parseCyclingPower(v)))),
+    );
   }
 
   private read(m: CyclingPowerMeasurement): [number, number | null] {
