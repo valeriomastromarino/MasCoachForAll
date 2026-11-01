@@ -135,16 +135,14 @@ export function buildDashboard(raw: RawData, displayDays = 120): DashboardData {
   let pmc: DashboardData["pmc"];
   if (haveIcuPmc) {
     let prev = { ctl: 0, atl: 0 };
+    // Form is the day's own CTL − ATL (end of day, today's load included), as Intervals.icu shows it.
     pmc = days.map((date) => {
       const w = wellnessByDate.get(date);
       const ctl = num(w?.ctl) ?? prev.ctl;
       const atl = num(w?.atl) ?? prev.atl;
-      const point = { date, ctl, atl, tsb: prev.ctl - prev.atl, load: loadByDate.get(date) ?? 0 };
       prev = { ctl, atl };
-      return point;
+      return { date, ctl, atl, tsb: ctl - atl, load: loadByDate.get(date) ?? 0 };
     });
-    // First day has no "yesterday": use same-day values.
-    if (pmc.length) pmc[0].tsb = pmc[0].ctl - pmc[0].atl;
   } else {
     pmc = computePmc(days.map((date) => ({ date, load: loadByDate.get(date) ?? 0 })));
   }

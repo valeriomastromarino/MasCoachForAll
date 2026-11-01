@@ -8,8 +8,8 @@ export const CTL_DAYS = 42;
 export const ATL_DAYS = 7;
 
 /**
- * Computes CTL/ATL day by day. TSB is "form going into the day", i.e. yesterday's CTL − ATL,
- * which is the convention used by TrainingPeaks and Intervals.icu.
+ * Computes CTL/ATL day by day. TSB is the day's own CTL − ATL (end of day, that day's load included):
+ * what Intervals.icu shows as Form. After a hard ride it is already low; TrainingPeaks uses the day before.
  * `days` must be consecutive and sorted; missing days should be passed with load 0.
  */
 export function computePmc(days: DailyLoad[], seed = { ctl: 0, atl: 0 }): PmcPoint[] {
@@ -18,10 +18,9 @@ export function computePmc(days: DailyLoad[], seed = { ctl: 0, atl: 0 }): PmcPoi
   let ctl = seed.ctl;
   let atl = seed.atl;
   return days.map(({ date, load }) => {
-    const tsb = ctl - atl;
     ctl = ctl + (load - ctl) * kCtl;
     atl = atl + (load - atl) * kAtl;
-    return { date, load, ctl, atl, tsb };
+    return { date, load, ctl, atl, tsb: ctl - atl };
   });
 }
 

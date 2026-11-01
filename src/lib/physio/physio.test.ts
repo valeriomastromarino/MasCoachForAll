@@ -47,9 +47,11 @@ describe("PMC", () => {
     expect(last.tsb).toBeCloseTo(0, 0);
   });
 
-  it("TSB is form going into the day (uses yesterday's values)", () => {
+  it("TSB is the day's own CTL − ATL, that day's load included (as Intervals.icu)", () => {
     const pmc = computePmc([{ date: "d", load: 100 }], { ctl: 50, atl: 70 });
-    expect(pmc[0].tsb).toBe(-20);
+    expect(pmc[0].tsb).toBeCloseTo(pmc[0].ctl - pmc[0].atl, 10);
+    expect(pmc[0].tsb).toBeLessThan(-20 + 8); // the 100-TSS day pushes ATL up faster than CTL
+    expect(pmc[0].tsb).toBeGreaterThan(-20 - 8);
   });
 
   it("ramp rate is the 7-day CTL change", () => {
