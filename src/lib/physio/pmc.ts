@@ -32,13 +32,11 @@ export function rampRate(points: { ctl: number }[]): number {
 
 export type FormZone = "transizione" | "fresco" | "grigia" | "ottimale" | "alto rischio";
 
-/** TSB bands as used in Intervals.icu / common coaching practice. */
-export function formZone(tsb: number, ctl: number): FormZone {
-  // Expressed relative to CTL so it scales with the athlete's fitness.
-  const rel = ctl > 0 ? tsb / ctl : 0;
-  if (rel > 0.2) return "transizione";
-  if (rel > 0.05) return "fresco";
-  if (rel > -0.1) return "grigia";
-  if (rel > -0.3) return "ottimale";
+/** Form bands on the TSB number shown in the app: optimal −10 to −30, high risk below −30 (the athlete's choice). */
+export function formZone(tsb: number): FormZone {
+  if (tsb > 20) return "transizione";
+  if (tsb > 5) return "fresco";
+  if (tsb > -10) return "grigia";
+  if (tsb >= -30) return "ottimale";
   return "alto rischio";
 }

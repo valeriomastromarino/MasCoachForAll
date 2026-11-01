@@ -257,7 +257,7 @@ export function buildDashboard(raw: RawData, displayDays = 120): DashboardData {
       atl: last?.atl ?? null,
       tsb,
       rampRate: isNum(rampRate(pmc)) ? rampRate(pmc) : null,
-      formZone: ctl !== null && tsb !== null ? formZone(tsb, ctl) : null,
+      formZone: tsb !== null ? formZone(tsb) : null,
       hrv: hrvAnalysis.today,
       rhr,
       autonomic,

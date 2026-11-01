@@ -20,7 +20,7 @@ export function assessReadiness(input: {
   tsb: number | null;
   sleepHours: number | null;
 }): Readiness {
-  const { hrv, autonomic, ctl, tsb, sleepHours } = input;
+  const { hrv, autonomic, tsb, sleepHours } = input;
   const reasons: string[] = [autonomic.explanation];
   let score: number = autonomic.severity; // higher = more caution
 
@@ -47,8 +47,8 @@ export function assessReadiness(input: {
     reasons.push(`Sonno breve stanotte (${sleepHours.toFixed(1)} h).`);
   }
 
-  if (tsb !== null && ctl !== null) {
-    const zone = formZone(tsb, ctl);
+  if (tsb !== null) {
+    const zone = formZone(tsb);
     if (zone === "alto rischio") {
       score += 1;
       reasons.push(`Forma (TSB ${tsb.toFixed(0)}) in zona ad alto rischio: la fatica supera di molto la fitness.`);

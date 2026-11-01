@@ -59,12 +59,13 @@ describe("PMC", () => {
     expect(rampRate(pts)).toBe(14);
   });
 
-  it("form zones scale with CTL", () => {
-    expect(formZone(-15, 60)).toBe("ottimale");
-    expect(formZone(-20, 60)).toBe("alto rischio");
-    expect(formZone(-20, 100)).toBe("ottimale");
-    expect(formZone(10, 60)).toBe("fresco");
-    expect(formZone(15, 60)).toBe("transizione");
+  it("form zones: optimal −10 to −30, high risk below −30", () => {
+    expect(formZone(-13)).toBe("ottimale");
+    expect(formZone(-30)).toBe("ottimale");
+    expect(formZone(-31)).toBe("alto rischio");
+    expect(formZone(-9)).toBe("grigia");
+    expect(formZone(10)).toBe("fresco");
+    expect(formZone(25)).toBe("transizione");
   });
 });
 

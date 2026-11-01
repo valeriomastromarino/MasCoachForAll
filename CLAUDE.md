@@ -42,7 +42,7 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 ## Struttura
 
 - `src/lib/physio/` — motore fisiologico (puro, testato):
-  `power.ts` (Coggan: zone, NP, IF, TSS) · `pmc.ts` (CTL/ATL/TSB; forma = CTL − ATL **dello stesso giorno**, carico di oggi compreso, come Intervals.icu; la zona la misura in % di CTL) ·
+  `power.ts` (Coggan: zone, NP, IF, TSS) · `pmc.ts` (CTL/ATL/TSB; forma = CTL − ATL **dello stesso giorno**, carico di oggi compreso, come Intervals.icu; zone sul numero mostrato: ottimale da −10 a −30, alto rischio sotto −30) ·
   `baseline.ts` + `hrv.ts` + `autonomic.ts` (Altini: ln rMSSD, baseline 7 gg vs range 60 gg, HRV letta insieme alla FC a riposo, notti anomale) ·
   `readiness.ts` (stato di oggi) · `criticalPower.ts` (Monod 2P 3–20', flag se sforzi lunghi non massimali) ·
   `distribution.ts` (Seiler 3 zone) · `hrZones.ts` (Friel) · `fitnessTest.ts` (test: rampa = frazione del MAP personale 0,72–0,80 dal flesso + flesso FC corretto per il ritardo (pendenza × 1–1,5 min) → valore con intervallo e validazione; 95% 20' / 90% 8', flessione FC Dmax, soglie DFA α1 0,75/0,5)
