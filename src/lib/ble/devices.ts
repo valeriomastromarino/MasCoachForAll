@@ -87,6 +87,7 @@ export async function rememberedDevice(kind: DeviceKind): Promise<GattDevice | n
 function chooserError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   if (/adapter|bluetooth.*(off|not available|unavailable|not enabled|disabled)/i.test(msg)) return "Il Bluetooth è spento o non disponibile: accendilo e riprova.";
+  if (/location/i.test(msg)) return "Android 11 e precedenti cercano i dispositivi Bluetooth solo con la posizione accesa: attivala (e concedi il permesso) e riprova.";
   if (/permission/i.test(msg)) return "Serve il permesso «Dispositivi nelle vicinanze»: concedilo nelle impostazioni dell'app.";
   return msg;
 }
@@ -100,6 +101,8 @@ abstract class Link {
   /** The connection step in progress, shown while connecting: tells where a device gets stuck. */
   step: string | null = null;
   private closing = false;
+  /** Grows at every disconnect, so a reconnection loop knows it belongs to a link already closed. */
+  private epoch = 0;
 
   constructor(
     readonly kind: DeviceKind,
@@ -202,22 +205,26 @@ abstract class Link {
     void this.reconnect();
   };
 
+  /** Keeps trying until it works or the user disconnects: mid-ride a strap that blinks out must come back by itself. */
   private async reconnect() {
-    for (let attempt = 0; attempt < 12 && !this.closing; attempt++) {
+    const epoch = this.epoch;
+    for (let attempt = 0; !this.closing && this.epoch === epoch; attempt++) {
       await sleep(Math.min(1000 * 2 ** attempt, 8000));
-      if (this.closing) return;
+      // A disconnect followed by a new connection while waiting must not leave two loops running.
+      if (this.closing || this.epoch !== epoch) return;
       try {
         await this.connect();
         return;
       } catch {
-        // Try again: the trainer may still be out of range or busy.
+        // Try again: the device may still be out of range or busy.
         this.dropLink();
+        if (attempt === 11) this.set("reconnecting", "Non riesco a ricollegarmi: continuo a provare. Controlla che il dispositivo sia acceso e vicino.");
       }
     }
-    if (!this.closing) this.set("lost", "Connessione persa: ricollega il dispositivo.");
   }
 
   disconnect() {
+    this.epoch++;
     this.closing = true;
     this.dropLink();
     this.set("off", null);

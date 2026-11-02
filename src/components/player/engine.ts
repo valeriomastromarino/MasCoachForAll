@@ -3,6 +3,7 @@
 // A plain class (browser only) that the player screen subscribes to; see usePlayer.ts.
 import { type DeviceKind, type DeviceStatus, type GattDevice, HeartRateStrap, lastChoice, PowerMeter, rememberedDevice, Trainer } from "@/lib/ble/devices";
 import type { IndoorBikeData } from "@/lib/ble/protocol";
+import { keepScreenOn, sessionService } from "@/lib/native";
 import { type DfaLive, dfaLive } from "@/lib/physio/dfa";
 import { newRecording, type Recording } from "@/lib/player/recording";
 import {
@@ -57,6 +58,8 @@ export type PlayerView = {
 
 const FRESH_MS = 3000;
 const MATCH_WINDOW = 30;
+/** Longest stall played back in one go (seconds); a longer one means the app was frozen and the clock restarts. */
+const MAX_CATCH_UP = 1800;
 const SOUND_KEY = "mascoach-rulli-suoni";
 const KINDS: DeviceKind[] = ["trainer", "hr", "power"];
 
@@ -84,6 +87,9 @@ export class PlayerEngine {
   private dfaHistory: { t: number; a: number }[] = [];
   private match = { t: [] as number[], p: [] as number[] };
   private ticks = 0;
+  /** Epoch ms up to which the session clock has been played. */
+  private lastAt = Date.now();
+  private serviceOn = false;
   private sound = true;
   private finished: Recording | null = null;
   private uploading = false;
@@ -211,9 +217,11 @@ export class PlayerEngine {
   // ── Lifecycle ──
 
   open() {
+    this.lastAt = Date.now();
     this.timer = setInterval(() => this.step(), 1000);
     document.addEventListener("visibilitychange", this.keepAwake);
     window.addEventListener("beforeunload", this.warnUnload);
+    keepScreenOn(true);
     void this.keepAwake();
     void this.reuseRemembered();
   }
@@ -222,37 +230,94 @@ export class PlayerEngine {
     if (this.timer) clearInterval(this.timer);
     document.removeEventListener("visibilitychange", this.keepAwake);
     window.removeEventListener("beforeunload", this.warnUnload);
+    keepScreenOn(false);
+    this.setService(false);
     void this.wakeLock?.release().catch(() => {});
+    this.wakeLock = null;
     for (const k of KINDS) this.link(k).disconnect();
-    if (this.rec?.status === "recording") void saveRecording(this.rec);
+    // Leaving the screen with a ride in progress must not strand it: close and upload what was ridden.
+    const rec = this.rec;
+    if (rec?.status === "recording") {
+      if (rec.samples.length < 5) void deleteRecording(rec.id);
+      else {
+        const last = rec.pauses[rec.pauses.length - 1];
+        if (last && last.to === null) last.to = rec.samples[rec.samples.length - 1].t;
+        rec.status = "finished";
+        void saveRecording(rec).then(() => uploadRecording(rec));
+      }
+    }
   }
 
   /** Devices chosen last time: try them straight away (works when the browser kept the permission). */
   private async reuseRemembered() {
     for (const kind of KINDS) this.remembered[kind] = await rememberedDevice(kind);
     this.emit();
-    for (const kind of ["trainer", "hr"] as DeviceKind[]) {
+    for (const kind of KINDS) {
       const d = this.remembered[kind];
       if (d && this.link(kind).status === "off") void this.link(kind).use(d);
     }
   }
 
+  /** Screen wake lock of the browser (the app also sets the native flag, see keepScreenOn). Asked again if the system took it back. */
   private keepAwake = async () => {
     try {
-      if (document.visibilityState === "visible") this.wakeLock = await navigator.wakeLock?.request("screen");
+      if (document.visibilityState !== "visible" || this.wakeLock) return;
+      const lock = await navigator.wakeLock?.request("screen");
+      if (!lock) return;
+      this.wakeLock = lock;
+      lock.addEventListener("release", () => {
+        if (this.wakeLock === lock) this.wakeLock = null;
+      });
     } catch {
       // Not allowed (battery saver…): nothing to do.
     }
   };
 
+  /** Background service of the app while a ride is in progress. */
+  private setService(on: boolean) {
+    if (this.serviceOn === on) return;
+    this.serviceOn = on;
+    sessionService(on);
+  }
+
   private warnUnload = (e: BeforeUnloadEvent) => {
     if (this.rec?.status === "recording") e.preventDefault();
   };
 
-  // ── The session clock (once a second) ──
+  // ── The session clock ──
 
+  /**
+   * Runs once a second, but counts the real time passed: when Android slows the page down (screen off, another app in
+   * front) the timer fires late and the missed seconds are played back, so the workout and the recording stay on the clock.
+   */
   private step() {
     const now = Date.now();
+    let missed = Math.max(1, Math.round((now - this.lastAt) / 1000));
+    if (missed > MAX_CATCH_UP) missed = MAX_CATCH_UP;
+    this.lastAt = missed >= MAX_CATCH_UP ? now : this.lastAt + missed * 1000;
+
+    const startedDone = this.session.status === "done";
+    let lastRec: Recording | null = null;
+    for (let i = 0; i < missed && this.session.status !== "done"; i++) {
+      lastRec = this.tickOnce(now, now - (missed - 1 - i) * 1000, i === missed - 1) ?? lastRec;
+    }
+
+    // The service starts with the first pedal stroke and stays through pauses (a stop at a red light of the trainer…).
+    if (this.moving) this.setService(true);
+    else if (this.session.status === "done") this.setService(false);
+    this.ticks++;
+    if (this.ticks % 5 === 0) {
+      this.dfa = this.rr.length ? dfaLive(this.rr) : null;
+      if (this.dfa?.alpha1 != null && this.moving) this.dfaHistory = [...this.dfaHistory, { t: this.session.elapsed, a: this.dfa.alpha1 }].slice(-120);
+    }
+    if (this.rec?.status === "recording" && this.ticks % 10 === 0) void saveRecording(this.rec);
+    this.drive();
+    this.emit();
+    if (!startedDone && this.session.status === "done" && lastRec?.status === "recording") void this.finish();
+  }
+
+  /** One second of the session. `at` is when that second happened (earlier than `now` while catching up). */
+  private tickOnce(now: number, at: number, live: boolean): Recording | null {
     const steps = this.workout.steps;
     const r = this.readings(now);
     const pedalling = r.cadence !== null ? r.cadence > 0 : (r.power ?? 0) > 15;
@@ -261,31 +326,31 @@ export class PlayerEngine {
 
     const moving = next.status === "running" && !next.autoPaused;
     // Recording starts with the first second actually ridden (pressing play alone does not start it).
-    if (moving && !this.rec) this.rec = newRecording(this.workout.id, this.workout.name, now);
+    if (moving && !this.rec) this.rec = newRecording(this.workout.id, this.workout.name, at);
     const rec = this.rec;
     if (rec?.status === "recording") {
       const last = rec.pauses[rec.pauses.length - 1];
-      if (this.moving && !moving && next.status !== "done") rec.pauses.push({ from: now, to: null });
-      if (!this.moving && moving && last && last.to === null) last.to = now;
+      if (this.moving && !moving && next.status !== "done") rec.pauses.push({ from: at, to: null });
+      if (!this.moving && moving && last && last.to === null) last.to = at;
       if (moving || (this.moving && next.status === "done")) {
         if (next.stepIndex !== this.lastStep && rec.samples.length) rec.laps.push(rec.samples.length);
         this.lastStep = next.stepIndex;
         this.distance += (r.speed ?? 0) / 3.6;
-        rec.samples.push({ t: now, power: r.power, hr: r.hr, cadence: r.cadence, speed: r.speed, distance: this.distance, target: next.mode === "erg" ? ergTarget(next, steps) : null });
+        rec.samples.push({ t: at, power: r.power, hr: r.hr, cadence: r.cadence, speed: r.speed, distance: this.distance, target: next.mode === "erg" ? ergTarget(next, steps) : null });
         this.trace = [...this.trace, { pos: next.pos, w: r.power ?? 0 }];
       }
     }
     this.moving = moving;
 
-    // Countdown to the next step.
-    if (moving) {
+    // Countdown to the next step (only for the current second: no burst of beeps after a delay).
+    if (moving && live) {
       const left = Math.round(stepRemaining(next, steps));
       if (next.stepIndex < steps.length - 1 && left >= 1 && left <= 3) this.beep(660, 90);
       if (next.stepIndex !== prev.stepIndex) this.beep(990, 250);
     }
 
     // Power match: trainer power / pedal power over the last 30 s of riding.
-    if (this.pedals.status === "connected" && r.trainerPower && this.pmPower && r.trainerPower > 50 && this.pmPower > 50 && now - this.pmAt < FRESH_MS) {
+    if (live && this.pedals.status === "connected" && r.trainerPower && this.pmPower && r.trainerPower > 50 && this.pmPower > 50 && now - this.pmAt < FRESH_MS) {
       this.match.t.push(r.trainerPower);
       this.match.p.push(this.pmPower);
       if (this.match.t.length > MATCH_WINDOW) {
@@ -295,15 +360,7 @@ export class PlayerEngine {
     }
 
     this.session = next;
-    this.ticks++;
-    if (this.ticks % 5 === 0) {
-      this.dfa = this.rr.length ? dfaLive(this.rr) : null;
-      if (this.dfa?.alpha1 != null && moving) this.dfaHistory = [...this.dfaHistory, { t: next.elapsed, a: this.dfa.alpha1 }].slice(-120);
-    }
-    if (rec?.status === "recording" && this.ticks % 10 === 0) void saveRecording(rec);
-    this.drive();
-    this.emit();
-    if (next.status === "done" && prev.status !== "done" && rec?.status === "recording") void this.finish();
+    return rec;
   }
 
   /** Sends the right target to the trainer for the current mode. */

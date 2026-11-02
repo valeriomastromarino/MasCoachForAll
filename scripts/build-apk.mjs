@@ -19,7 +19,11 @@ writeFileSync(path.join(root, "android", "local.properties"), `sdk.dir=${escaped
 run("npm run build:file");
 run("npx cap sync android");
 const gradle = path.join(root, "android", process.platform === "win32" ? "gradlew.bat" : "gradlew");
-run(`"${gradle}" assembleDebug`, path.join(root, "android"));
+// Minutes since 1970 grow with every build (fits Android's version code); the name carries the date.
+const now = new Date();
+const versionCode = Math.floor(now.getTime() / 60000);
+const versionName = `1.0.${now.toISOString().slice(0, 10).replaceAll("-", "")}`;
+run(`"${gradle}" assembleDebug -PmcVersionCode=${versionCode} -PmcVersionName=${versionName}`, path.join(root, "android"));
 
 const apk = path.join(root, "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk");
 const out = path.join(root, "MasCoach.apk");

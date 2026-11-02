@@ -9,8 +9,35 @@ export function IntervalsKeyCard() {
   const field = "w-full rounded-xl px-3 py-2 text-sm outline-none";
   const fieldStyle = { background: "var(--background)", border: "1px solid var(--border)" };
 
-  const save = () => {
-    saveCredentials(key.trim(), athlete.trim() || null);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Asks Intervals.icu once before saving: a wrong key or ID would otherwise show up as errors scattered over every page.
+  const save = async () => {
+    const k = key.trim();
+    const a = athlete.trim();
+    setChecking(true);
+    setError(null);
+    try {
+      const res = await fetch(`https://intervals.icu/api/v1/athlete/${encodeURIComponent(a || "0")}`, {
+        headers: { Authorization: `Basic ${btoa(`API_KEY:${k}`)}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (res.status === 401 || res.status === 403) {
+        setError("Intervals.icu non accetta questa chiave (o questo ID atleta). Ricopiala da Settings → Developer Settings.");
+        return;
+      }
+      if (!res.ok) {
+        setError(`Intervals.icu ha risposto ${res.status}: riprova tra poco.`);
+        return;
+      }
+    } catch {
+      setError("Non riesco a contattare Intervals.icu: controlla la connessione e riprova.");
+      return;
+    } finally {
+      setChecking(false);
+    }
+    saveCredentials(k, a || null);
     // Start clean with the new account: everything in memory belongs to the old one.
     window.location.hash = "/";
     window.location.reload();
@@ -57,13 +84,18 @@ export function IntervalsKeyCard() {
             ID atleta (facoltativo, es. i12345)
             <input value={athlete} onChange={(e) => setAthlete(e.target.value)} className={`mt-1 ${field}`} style={fieldStyle} />
           </label>
+          {error && (
+            <p className="mt-3 rounded-xl px-3 py-2 text-xs" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }} role="alert">
+              {error}
+            </p>
+          )}
           <button
             className="mt-4 rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50"
             style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
-            disabled={!key.trim()}
-            onClick={save}
+            disabled={!key.trim() || checking}
+            onClick={() => void save()}
           >
-            Salva e carica i miei dati
+            {checking ? "Controllo la chiave…" : "Salva e carica i miei dati"}
           </button>
         </>
       )}

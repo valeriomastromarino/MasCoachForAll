@@ -18,9 +18,10 @@ import {
   IconVolumeOff,
   IconX,
 } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { bluetoothProblem, type DeviceKind } from "@/lib/ble/devices";
+import { guardBack } from "@/lib/native";
 import { DFA_VT1, DFA_VT2, dfaZone } from "@/lib/physio/dfa";
 import { workoutNotes } from "@/lib/player/notes";
 import { summarize } from "@/lib/player/recording";
@@ -187,7 +188,7 @@ function DfaCard({ view }: { view: PlayerView }) {
       <div className="relative mt-3 h-2 rounded-full" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--critical) 45%, transparent) ${pct(DFA_VT2)}%, color-mix(in srgb, var(--warning) 45%, transparent) ${pct(DFA_VT2)}% ${pct(DFA_VT1)}%, color-mix(in srgb, var(--hrv) 45%, transparent) ${pct(DFA_VT1)}%)` }}>
         {a !== null && !message && <span className="absolute -top-1.5 h-5 w-1 rounded" style={{ left: `calc(${pct(a)}% - 2px)`, background: "var(--foreground)" }} />}
       </div>
-      <div className="num relative mt-1 h-4 text-[10px] text-muted">
+      <div className="num relative mt-1 h-4 text-xs text-muted">
         <span className="absolute -translate-x-1/2" style={{ left: `${pct(DFA_VT2)}%` }}>0,5 VT2</span>
         <span className="absolute -translate-x-1/2" style={{ left: `${pct(DFA_VT1)}%` }}>0,75 VT1</span>
       </div>
@@ -204,7 +205,7 @@ function DfaCard({ view }: { view: PlayerView }) {
               vectorEffect="non-scaling-stroke"
             />
           </svg>
-          <div className="flex justify-between text-[10px] text-muted">
+          <div className="flex justify-between text-xs text-muted">
             <span>−10′</span>
             <span>ora</span>
           </div>
@@ -267,7 +268,7 @@ function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d:
           </button>
         )}
       </div>
-      {ok ? (
+      {ok || d.status === "reconnecting" ? (
         <button className="text-xs text-muted" onClick={() => engine.disconnect(kind)}>Scollega</button>
       ) : (
         <button
@@ -445,6 +446,20 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
   const showFinish = s.status === "done";
 
   const close = () => (view.recording ? setAsking(true) : onExit());
+
+  // Android's Back button does what the X does: ask before ending a ride, close an open sheet first.
+  const recording = view.recording;
+  useEffect(
+    () =>
+      guardBack(() => {
+        if (showFinish) onExit();
+        else if (asking) setAsking(false);
+        else if (recording) setAsking(true);
+        else onExit();
+        return true;
+      }),
+    [asking, showFinish, recording, onExit],
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>

@@ -36,6 +36,7 @@ export interface BleTransport {
 // ── Web Bluetooth ───────────────────────────────────────────────────────────────────────────────────
 
 const dropHandlers = new WeakMap<BluetoothDevice, () => void>();
+const valueHandlers = new WeakMap<BluetoothRemoteGATTCharacteristic, (e: Event) => void>();
 
 function wrapWeb(d: BluetoothDevice): GattDevice {
   return { id: d.id, name: d.name ?? null, raw: d };
@@ -62,10 +63,15 @@ function webSession(server: BluetoothRemoteGATTServer): Gatt {
     },
     async notify(service, c, on) {
       const ch = await characteristic(service, c);
-      ch.addEventListener("characteristicvaluechanged", (e) => {
+      // The browser keeps the same characteristic object across reconnections: drop the old listener or every beat arrives twice.
+      const old = valueHandlers.get(ch);
+      if (old) ch.removeEventListener("characteristicvaluechanged", old);
+      const handler = (e: Event) => {
         const v = (e.target as BluetoothRemoteGATTCharacteristic).value;
         if (v) on(v);
-      });
+      };
+      valueHandlers.set(ch, handler);
+      ch.addEventListener("characteristicvaluechanged", handler);
       await ch.startNotifications();
     },
     async write(service, c, bytes) {

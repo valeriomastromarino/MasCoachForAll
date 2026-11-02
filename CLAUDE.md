@@ -27,6 +27,9 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
   Il Bluetooth sta in `lib/ble/radio.ts`: due trasporti con la stessa interfaccia (`Gatt`: need/read/notify/write), Web Bluetooth nel browser e plugin nativo nell'app (`Capacitor.isNativePlatform()`);
   `devices.ts` (Trainer, HeartRateStrap, PowerMeter) non conosce quale usa. L'app ricorda il dispositivo per indirizzo (`BleClient.getDevices`), Chrome su Android no.
   **Non chiamare un file `transport.ts` fuori da `components/data/`**: l'alias di Vite del file unico sostituisce ogni import `./transport`.
+  **Parte nativa** (`android/app/src/main/java/it/mascoach/app/`): plugin `MasCoachNative` (schermo acceso, servizio in primo piano `SessionService` di tipo connectedDevice durante la seduta, colore delle barre di sistema col tema, condivisione del FIT perché il WebView non scarica blob) e `lib/native.ts` (no-op nel browser; `guardBack` per il tasto Indietro, gestito in `standalone/main.tsx` con `@capacitor/app`).
+  Non usare plugin Capacitor in Kotlin (es. `@capacitor/filesystem`): chiedono un JDK 21 che non c'è. `build:apk` passa un `versionCode` crescente.
+  Il motore del player conta il tempo reale: se il timer arriva in ritardo (schermo spento) i secondi persi si rigiocano; chiudendo il player la seduta si salva e si carica, quelle interrotte si chiudono in `uploadPending` all'apertura di Rulli.
 - **Connettore per Claude (MCP)**: `POST /api/mcp/<MCP_SECRET>` (fuori dal login, segreto ≥ 24 caratteri; senza segreto risponde 404).
   `lib/coach/mcp.ts` (JSON-RPC senza sessioni) + `lib/coach/tools.ts` (attrezzi in italiano: letture via `handleApi`, scritture su Intervals).
   Gli allenamenti del coach hanno `external_id` `mascoach-coach-…` o `mascoach-prova-…` (`lib/coach/marks.ts`) e tag "MasCoach Coach": etichetta nel calendario,
