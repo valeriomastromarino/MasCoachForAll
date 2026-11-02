@@ -3,7 +3,7 @@
 import { RecoveryCharts } from "../charts";
 import { fmt, fmtDay, fmtDuration } from "../format";
 import { SleepChart, WeightChart } from "../trendCharts";
-import { AutonomicPanel, Card, Stat } from "./parts";
+import { AutonomicPanel, Card, Stat, StatGroup } from "./parts";
 import { SectionPage } from "./SectionPage";
 
 export default function Recupero() {
@@ -18,19 +18,24 @@ export default function Recupero() {
         const lastWeight = weightTrend.at(-1);
         return (
           <>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <Stat label="HRV 7 gg" color="var(--hrv)" value={fmt(hrv7, 0, " ms")} hint={status.hrv.status} />
-              <Stat
-                label="FC a riposo"
-                color="var(--rhr)"
-                value={fmt(status.rhr.today, 0, " bpm")}
-                hint={status.rhr.baseline7 !== null ? `media 7 gg ${fmt(status.rhr.baseline7, 1)}` : undefined}
-              />
-              <Stat
-                label="Sonno, media 7 notti"
-                color="var(--sleep)"
-                value={lastSleep?.avg7 != null ? fmtDuration(lastSleep.avg7 * 3600) : "–"}
-                hint={score7 !== null ? `punteggio medio ${fmt(score7)}` : undefined}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+              <StatGroup
+                title="Recupero"
+                items={[
+                  { label: "HRV 7 gg", color: "var(--hrv)", value: fmt(hrv7, 0, " ms"), hint: status.hrv.status },
+                  {
+                    label: "FC a riposo",
+                    color: "var(--rhr)",
+                    value: fmt(status.rhr.today, 0, " bpm"),
+                    hint: status.rhr.baseline7 !== null ? `media 7 gg ${fmt(status.rhr.baseline7, 1)}` : undefined,
+                  },
+                  {
+                    label: "Sonno 7 notti",
+                    color: "var(--sleep)",
+                    value: lastSleep?.avg7 != null ? fmtDuration(lastSleep.avg7 * 3600) : "–",
+                    hint: score7 !== null ? `punteggio ${fmt(score7)}` : undefined,
+                  },
+                ]}
               />
               <Stat label="Peso" value={fmt(lastWeight?.kg, 1, " kg")} hint={lastWeight ? `pesata del ${fmtDay(lastWeight.date)}` : "nessuna pesata"} />
             </div>

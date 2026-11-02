@@ -95,7 +95,7 @@ async function statoDiOggi() {
       peso_kg: r1(d.athlete.weight),
       w_prime_impostato_J: d.athlete.wPrime,
     },
-    prontezza: s.readiness,
+    prontezza: { level: s.readiness.level, headline: s.readiness.headline, advice: s.readiness.advice, reasons: s.readiness.reasons },
     carico: {
       fitness_ctl: r1(s.ctl),
       fatica_atl: r1(s.atl),

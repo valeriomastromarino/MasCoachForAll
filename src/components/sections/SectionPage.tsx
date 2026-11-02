@@ -60,11 +60,11 @@ export function SectionHeading({ id }: { id: SectionId }) {
 }
 
 /** Frame of a dashboard section: heading, shared data loading and error handling. */
-export function SectionPage({ id, children }: { id: SectionId; children: (data: DashboardData) => React.ReactNode }) {
+export function SectionPage({ id, heading = true, children }: { id: SectionId; heading?: boolean; children: (data: DashboardData) => React.ReactNode }) {
   const { data, error } = useDashboard();
   return (
     <main className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6">
-      <SectionHeading id={id} />
+      {heading && <SectionHeading id={id} />}
       {data && <TopBarActions data={data} />}
       {error && !data ? (
         <div className="card max-w-xl p-5">

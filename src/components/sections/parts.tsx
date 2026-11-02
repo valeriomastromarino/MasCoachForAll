@@ -2,6 +2,7 @@
 
 // Building blocks shared by the section pages (Oggi, Forma, Potenza, Cuore, Recupero).
 import Link from "next/link";
+import type { ActivityRow } from "@/lib/activities";
 import type { DashboardData } from "@/lib/dashboard";
 import type { AutonomicPattern } from "@/lib/physio/autonomic";
 import type { ReadinessLevel } from "@/lib/physio/readiness";
@@ -42,7 +43,52 @@ const LEVEL_STYLE: Record<ReadinessLevel, { ink: string; bg: string; icon: strin
   grigio: { ink: "var(--muted)", bg: "var(--neutral-bg)", icon: "?" },
 };
 
-export function ReadinessCard({ status }: { status: DashboardData["status"] }) {
+/** Several figures of one theme in a single card: fitness, fatigue and form, or HRV, resting HR and sleep. */
+export function StatGroup({ title, items }: { title: string; items: { label: string; value: string; hint?: string; color?: string }[] }) {
+  return (
+    <section className="card px-4 py-3" aria-label={title}>
+      <div className="text-xs text-muted">{title}</div>
+      <div className="mt-2 grid divide-x text-center" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`, borderColor: "var(--border)" }}>
+        {items.map((it) => (
+          <div key={it.label} className="min-w-0 px-1" style={{ borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-center gap-1 text-[11px] text-muted">
+              {it.color && <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: it.color }} />}
+              <span className="truncate">{it.label}</span>
+            </div>
+            <div className="num mt-0.5 truncate text-xl font-medium">{it.value}</div>
+            {it.hint && <div className="truncate text-[11px] text-faint">{capitalize(it.hint)}</div>}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** What was done yesterday, in one line per ride (nothing when there was no ride). */
+function YesterdayRides({ rides, load }: { rides: ActivityRow[]; load: number }) {
+  if (rides.length === 0 && load <= 0) return null;
+  return (
+    <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+      <div className="text-xs text-muted">Ieri</div>
+      {rides.length === 0 ? (
+        <div className="mt-1 text-xs text-muted">Attività senza dettagli · carico {fmt(load)}</div>
+      ) : (
+        rides.map((a) => (
+          <div key={a.id} className="mt-1">
+            <div className="truncate text-sm font-medium">{a.name}</div>
+            <div className="num text-xs text-muted">
+              {fmtDuration(a.movingTime)}
+              {a.tss !== null && ` · ${fmt(a.tss)} TSS`}
+              {a.avgWatts !== null && ` · ${fmt(a.avgWatts, 0, " W")} medi`}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+export function ReadinessCard({ status, yesterday }: { status: DashboardData["status"]; yesterday?: { rides: ActivityRow[]; load: number } }) {
   const r = status.readiness;
   const s = LEVEL_STYLE[r.level];
   return (
@@ -63,14 +109,17 @@ export function ReadinessCard({ status }: { status: DashboardData["status"] }) {
         </div>
       </div>
       <p className="mt-4 text-sm">{r.advice}</p>
-      <ul className="mt-3 space-y-1.5 text-xs text-muted">
-        {r.reasons.map((x) => (
-          <li key={x} className="flex gap-2">
-            <span style={{ color: s.ink }}>•</span>
-            {x}
-          </li>
-        ))}
-      </ul>
+      {r.alerts.length > 0 && (
+        <ul className="mt-3 space-y-1.5 text-xs text-muted">
+          {r.alerts.map((x) => (
+            <li key={x} className="flex gap-2">
+              <span style={{ color: s.ink }}>•</span>
+              {x}
+            </li>
+          ))}
+        </ul>
+      )}
+      {yesterday && <YesterdayRides rides={yesterday.rides} load={yesterday.load} />}
     </section>
   );
 }

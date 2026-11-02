@@ -1,9 +1,8 @@
 "use client";
 
-import { IconDots } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { isActive, type Section, SECTIONS, SETTINGS } from "./sections";
 
 const tint = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
@@ -53,71 +52,56 @@ function SideRail({ pathname }: { pathname: string }) {
   );
 }
 
-/** Bottom tab bar on phones, also in landscape: the five main sections under the thumb, the rest in "Altro". */
+/** Bottom tab bar on phones, also in landscape: every section in one row that scrolls sideways, the open one kept in view. */
 function BottomBar({ pathname }: { pathname: string }) {
-  const [open, setOpen] = useState(false);
-  const main = SECTIONS.filter((s) => s.primary);
-  const more = [...SECTIONS.filter((s) => !s.primary), SETTINGS];
-  const moreActive = more.some((s) => isActive(s, pathname));
-  const tab = "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10px]";
+  const items = [...SECTIONS.filter((s) => !s.soon), SETTINGS];
+  const row = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState({ left: false, right: false });
+  const measure = useCallback(() => {
+    const el = row.current;
+    if (el) setMore({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  }, []);
+  useEffect(() => {
+    row.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ inline: "center", block: "nearest" });
+    measure();
+  }, [pathname, measure]);
+  const tab = "flex w-[4.75rem] flex-none snap-start flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10px]";
+  const fade = (side: "left" | "right") => (
+    <span
+      aria-hidden
+      className={`pointer-events-none absolute inset-y-0 w-7 ${side === "left" ? "left-0" : "right-0"}`}
+      style={{ background: `linear-gradient(to ${side === "left" ? "right" : "left"}, var(--surface), transparent)` }}
+    />
+  );
   return (
-    <>
-      {open && (
-        <div className="fixed inset-0 z-40 rail:hidden" onClick={() => setOpen(false)} style={{ background: "rgba(0,0,0,.35)" }}>
-          <div
-            className="card absolute inset-x-3 overflow-y-auto p-2"
-            style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))", maxHeight: "calc(100dvh - 5.5rem - env(safe-area-inset-bottom))" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {more.map((s) => {
-              const Icon = s.icon;
-              return (
-                <Link
-                  key={s.id}
-                  href={s.href}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm"
-                  style={{ background: isActive(s, pathname) ? "var(--neutral-bg)" : undefined, opacity: s.soon ? 0.6 : 1 }}
-                >
-                  <Icon size={20} style={{ color: s.color }} aria-hidden />
-                  {s.label}
-                  {s.soon && <span className="ml-auto text-xs text-faint">in arrivo</span>}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      <nav
-        aria-label="Sezioni"
-        className="fixed inset-x-0 bottom-0 z-40 flex gap-1 px-2 pt-1.5 rail:hidden"
-        style={{
-          background: "var(--surface)",
-          borderTop: "1px solid var(--border)",
-          paddingBottom: "calc(0.4rem + env(safe-area-inset-bottom))",
-        }}
+    <nav
+      aria-label="Sezioni"
+      className="fixed inset-x-0 bottom-0 z-40 rail:hidden"
+      style={{
+        background: "var(--surface)",
+        borderTop: "1px solid var(--border)",
+        paddingBottom: "calc(0.4rem + env(safe-area-inset-bottom))",
+      }}
+    >
+      <div
+        ref={row}
+        onScroll={measure}
+        className="flex snap-x scroll-px-2 gap-1 overflow-x-auto px-2 pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {main.map((s) => {
+        {items.map((s) => {
           const Icon = s.icon;
           const on = isActive(s, pathname);
           return (
             <Link key={s.id} href={s.href} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? tint(s.color, 18) : undefined, color: on ? s.color : "var(--muted)" }}>
               <Icon size={22} stroke={on ? 2.1 : 1.7} style={{ color: s.color }} aria-hidden />
-              {s.label}
+              <span className="max-w-full truncate">{s.label}</span>
             </Link>
           );
         })}
-        <button
-          className={tab}
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          style={{ background: moreActive ? "var(--neutral-bg)" : undefined, color: "var(--muted)" }}
-        >
-          <IconDots size={22} aria-hidden />
-          Altro
-        </button>
-      </nav>
-    </>
+      </div>
+      {more.left && fade("left")}
+      {more.right && fade("right")}
+    </nav>
   );
 }
 
