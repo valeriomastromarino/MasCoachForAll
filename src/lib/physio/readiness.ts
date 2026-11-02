@@ -12,8 +12,6 @@ export type Readiness = {
   headline: string;
   advice: string;
   reasons: string[];
-  /** Only the signals that explain a yellow or red level: what the app shows under the headline (reasons also holds the HRV and form details). */
-  alerts: string[];
 };
 
 /** Below this CTL the TSB/CTL ratio explodes, so "high risk" uses the absolute TSB instead. */
@@ -38,44 +36,39 @@ export function assessReadiness(input: {
 }): Readiness {
   const { hrv, autonomic, tsb, ctlYesterday, tsbYesterday, sleepNights } = input;
   const reasons: string[] = [autonomic.explanation];
-  const alerts: string[] = [];
-  const warn = (text: string) => {
-    reasons.push(text);
-    alerts.push(text);
-  };
   let score: number = autonomic.severity; // higher = more caution
 
   if (autonomic.anomalyStreak >= 2) {
     score += 2;
-    warn(
+    reasons.push(
       `${autonomic.anomalyStreak} notti di fila con HRV bassa e FC a riposo alta insieme: tipico di un malanno in arrivo o di stress accumulato.`,
     );
   } else if (autonomic.anomalyToday) {
     score += 1;
-    warn("Stanotte HRV bassa e FC a riposo alta insieme: stress acuto (sonno, alcol, viaggio, malanno?).");
+    reasons.push("Stanotte HRV bassa e FC a riposo alta insieme: stress acuto (sonno, alcol, viaggio, malanno?).");
   } else if (hrv.acuteDrop) {
     score += 1;
-    warn("L'HRV di stanotte è molto più bassa del solito.");
+    reasons.push("L'HRV di stanotte è molto più bassa del solito.");
   }
 
   if (hrv.sd7 !== null && hrv.sd60 !== null && hrv.sd7 > hrv.sd60 * 1.5 && hrv.status === "sotto la norma") {
     score += 1;
-    warn("HRV più instabile del solito (SD a 7 giorni oltre 1,5 volte quella a 60 giorni) e in calo: segnale di fatica che si accumula.");
+    reasons.push("HRV più instabile del solito (SD a 7 giorni oltre 1,5 volte quella a 60 giorni) e in calo: segnale di fatica che si accumula.");
   }
 
   const shortNights = sleepNights.filter((h) => h !== null && h < 6).length;
   if (shortNights >= 2) {
     score += 1;
-    warn(`Sonno sotto le 6 h in ${shortNights} delle ultime 3 notti.`);
+    reasons.push(`Sonno sotto le 6 h in ${shortNights} delle ultime 3 notti.`);
   }
 
   const highRisk = highRiskForm(ctlYesterday, tsbYesterday);
   // With a stress pattern low HRV and a negative form come from the same load: counting both would double it.
   if (highRisk && autonomic.pattern !== "stress") {
     score += 1;
-    warn(`Forma di ieri (TSB ${tsbYesterday!.toFixed(0)}) in zona ad alto rischio: la fatica supera di molto la fitness.`);
+    reasons.push(`Forma di ieri (TSB ${tsbYesterday!.toFixed(0)}) in zona ad alto rischio: la fatica supera di molto la fitness.`);
   } else if (highRisk) {
-    warn(`Forma di ieri (TSB ${tsbYesterday!.toFixed(0)}) in zona ad alto rischio, già legata allo stress: non aggiunge punti.`);
+    reasons.push(`Forma di ieri (TSB ${tsbYesterday!.toFixed(0)}) in zona ad alto rischio, già legata allo stress: non aggiunge punti.`);
   } else if (tsb !== null) {
     reasons.push(`Forma (TSB ${tsb.toFixed(0)}): zona ${formZone(tsb)}.`);
   }
@@ -83,7 +76,7 @@ export function assessReadiness(input: {
   // A calm pattern with a single acute signal never goes past yellow.
   if (score >= 3 && autonomic.pattern === "stabile" && autonomic.anomalyStreak < 2) {
     score = 2;
-    warn("Pattern stabile con un solo segnale acuto: il livello massimo è giallo.");
+    reasons.push("Pattern stabile con un solo segnale acuto: il livello massimo è giallo.");
   }
 
   if (autonomic.pattern === "dati_insufficienti" && score === 0) {
@@ -92,11 +85,10 @@ export function assessReadiness(input: {
       headline: "Dati insufficienti",
       advice: "Segui il piano e ascolta le sensazioni finché la baseline non è pronta.",
       reasons,
-      alerts,
     };
   }
   if (score >= 3) {
-    return { level: "rosso", headline: "Recupero", advice: "Oggi riposo o Z1 breve (≤ 45 min). Niente intensità.", reasons, alerts };
+    return { level: "rosso", headline: "Recupero", advice: "Oggi riposo o Z1 breve (≤ 45 min). Niente intensità.", reasons };
   }
   if (score >= 1) {
     return {
@@ -104,8 +96,7 @@ export function assessReadiness(input: {
       headline: "Riduci l'intensità",
       advice: "Va bene allenarsi, ma preferisci Z2. Se è previsto un lavoro duro, accorcialo o spostalo.",
       reasons,
-      alerts,
     };
   }
-  return { level: "verde", headline: "Pronto", advice: "Puoi svolgere l'allenamento previsto, anche se intenso.", reasons, alerts };
+  return { level: "verde", headline: "Pronto", advice: "Puoi svolgere l'allenamento previsto, anche se intenso.", reasons };
 }

@@ -109,16 +109,6 @@ export function ReadinessCard({ status, yesterday }: { status: DashboardData["st
         </div>
       </div>
       <p className="mt-4 text-sm">{r.advice}</p>
-      {r.alerts.length > 0 && (
-        <ul className="mt-3 space-y-1.5 text-xs text-muted">
-          {r.alerts.map((x) => (
-            <li key={x} className="flex gap-2">
-              <span style={{ color: s.ink }}>•</span>
-              {x}
-            </li>
-          ))}
-        </ul>
-      )}
       {yesterday && <YesterdayRides rides={yesterday.rides} load={yesterday.load} />}
     </section>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { IconChevronRight } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -44,6 +45,78 @@ const CATEGORY_BADGE: Partial<Record<ActivityCategory, { label: string; bg: stri
   rulli: { label: "Rulli", bg: "var(--accent-bg)", ink: "var(--accent-ink)" },
   offroad: { label: "Off-road", bg: "var(--good-bg)", ink: "var(--good)" },
 };
+
+const pill = "num rounded-full px-2.5 py-0.5 text-xs";
+
+/** Phone version of an archive row: a rounded bubble with the key numbers; rides open on tap, other sports and Strava-only imports don't. */
+function RideBubble({ r }: { r: ActivityRow }) {
+  const openable = BIKE.includes(r.category);
+  const badge = CATEGORY_BADGE[r.category];
+  const numbers = (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {r.movingTime > 0 && (
+        <span className={pill} style={{ background: "var(--neutral-bg)" }}>
+          {fmtDuration(r.movingTime)}
+        </span>
+      )}
+      {r.distanceKm !== null && r.distanceKm > 0 && (
+        <span className={pill} style={{ background: "var(--neutral-bg)" }}>
+          {fmt(r.distanceKm, 0)} km
+        </span>
+      )}
+      {r.tss !== null && (
+        <span className={pill} style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
+          {fmt(r.tss)} TSS
+        </span>
+      )}
+    </div>
+  );
+  const head = (
+    <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
+      {fmtWeekday(r.date)}
+      {r.isTest && (
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>
+          TEST
+        </span>
+      )}
+      {badge && (
+        <span className="rounded-full px-2 py-0.5 text-[10px]" style={{ background: badge.bg, color: badge.ink }}>
+          {badge.label}
+        </span>
+      )}
+    </div>
+  );
+  if (!openable) {
+    return (
+      <div
+        className="rounded-2xl border border-dashed px-3.5 py-2.5"
+        style={{ borderColor: "var(--border)", color: r.category === "nascosta" ? "var(--faint)" : "var(--muted)" }}
+        title={r.category === "nascosta" ? "Strava non permette di leggerla via API" : undefined}
+      >
+        {head}
+        <div className="truncate text-sm">
+          {r.name}
+          {r.category === "altro" && r.type && <span className="ml-1 text-faint">({r.type})</span>}
+        </div>
+        {r.movingTime > 0 && <div className="num text-xs">{fmtDuration(r.movingTime)}{r.tss !== null && ` · ${fmt(r.tss)} TSS`}</div>}
+      </div>
+    );
+  }
+  return (
+    <Link
+      href={`/attivita/${r.id}`}
+      className="flex items-center gap-2 rounded-2xl px-3.5 py-3 transition-transform active:scale-[0.98]"
+      style={{ background: "var(--background)", border: "1px solid var(--border)" }}
+    >
+      <div className="min-w-0 flex-1">
+        {head}
+        <div className="mt-0.5 truncate text-[15px] font-medium">{r.name}</div>
+        {numbers}
+      </div>
+      <IconChevronRight size={18} className="shrink-0 text-faint" aria-hidden />
+    </Link>
+  );
+}
 
 type LoadState = { pages: ActivitiesPage[]; loading: boolean; error: string | null; exhausted: boolean };
 
@@ -185,7 +258,15 @@ export default function Archive({ section = "uscite", initialFilter = "bici" }: 
               {m.list.length} attività · {fmt(m.km)} km · {fmtDuration(m.secs)} · carico {fmt(m.tss)}
             </p>
           </div>
-          <div className="-mx-5 mt-3 overflow-x-auto px-5">
+          {/* Phone: one bubble per ride, a tap opens it. */}
+          <ul className="mt-3 space-y-2.5 sm:hidden">
+            {m.list.map((r) => (
+              <li key={r.id}>
+                <RideBubble r={r} />
+              </li>
+            ))}
+          </ul>
+          <div className="-mx-5 mt-3 hidden overflow-x-auto px-5 sm:block">
             <table className="num w-full min-w-[680px] text-xs">
               <thead>
                 <tr className="text-left">

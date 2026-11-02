@@ -3,7 +3,7 @@
 import { PmcChart, WeeklyLoadChart } from "../charts";
 import { fmt } from "../format";
 import { PlanChart } from "../trendCharts";
-import { Card, Stat, StatGroup } from "./parts";
+import { Card, StatGroup } from "./parts";
 import { SectionPage } from "./SectionPage";
 
 export default function Forma() {
@@ -16,17 +16,14 @@ export default function Forma() {
         const next = plan.weeks.find((w) => w.when === "next");
         return (
           <>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-              <StatGroup
-                title="Carico"
-                items={[
-                  { label: "Fitness", color: "var(--fitness)", value: fmt(status.ctl), hint: "media 6 settimane" },
-                  { label: "Fatica", color: "var(--fatigue)", value: fmt(status.atl), hint: "media 7 giorni" },
-                  { label: "Forma", color: "var(--form)", value: fmt(status.tsb), hint: status.formZone ?? undefined },
-                ]}
-              />
-              <Stat label="Ramp rate" value={fmt(status.rampRate, 1)} hint="punti fitness a settimana" />
-            </div>
+            <StatGroup
+              title="Carico"
+              items={[
+                { label: "Fitness", color: "var(--fitness)", value: fmt(status.ctl), hint: "media 6 settimane" },
+                { label: "Fatica", color: "var(--fatigue)", value: fmt(status.atl), hint: "media 7 giorni" },
+                { label: "Forma", color: "var(--form)", value: fmt(status.tsb), hint: status.formZone ?? undefined },
+              ]}
+            />
 
             <Card title="Fitness, fatica e forma" subtitle="Performance Management Chart (Banister/Coggan), ultimi 120 giorni">
               <PmcChart pmc={data.pmc} />
