@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { type Action, chat, type ChatContext, type ChatState, emptyState } from "@/lib/coach/chat";
 import { normalize } from "@/lib/coach/chat/text";
+import { useCompact } from "@/lib/compact";
 import { isApp } from "@/lib/native";
 import { type ChatMessage, clearChat, loadChat, saveChat, saveOverrides } from "@/lib/coach/chat/store";
 import type { DashboardData } from "@/lib/dashboard";
@@ -45,6 +46,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
   const setup = useMemo(() => (rawSeason ? loadSeason() : null), [rawSeason]);
   const plan = useMemo(() => (setup ? planFromToday(setup, today, data.status.ctl, life) : null), [setup, today, data.status.ctl, life]);
 
+  const compact = useCompact();
   const [thread, setThread] = useState(() => loadChat());
   const messages = thread.messages;
   const state = thread.state;
@@ -88,11 +90,11 @@ export function CoachChat({ data }: { data: DashboardData }) {
 
   // The first time the chat opens (or after "Nuova conversazione"), it starts with the day's briefing.
   useEffect(() => {
-    if (!ctx || started.current || messages.length > 0) return;
+    if (!ctx || started.current || messages.length > 0 || compact) return;
     started.current = true;
     const r = chat("fammi il punto", ctx, emptyState());
     commit([{ id: uid(), role: "coach", text: r.reply.text, lines: r.reply.lines, proposal: r.reply.proposal, chips: r.reply.chips, at: new Date().toISOString() }], r.state);
-  }, [ctx, messages.length]);
+  }, [ctx, messages.length, compact]);
 
   useEffect(() => {
     saveChat(messages, state);
@@ -202,11 +204,13 @@ export function CoachChat({ data }: { data: DashboardData }) {
 
   return (
     <section className="card flex flex-col p-4" aria-label="Chat con il coach">
-      <div className="flex items-start justify-between gap-3">
+      <div className={"flex items-start gap-3 " + (compact ? "justify-end" : "justify-between")}>
+        {!compact && (
         <div>
           <h2 className="text-sm font-medium">Parla con il coach</h2>
           <p className="mt-0.5 text-xs text-muted">{aiOff ? (isApp() ? "Risponde con le regole dell'app: per il coach scritto inserisci la password in Impostazioni." : "Risponde con i tuoi dati e le regole dell'app.") : "Scrivi come vuoi: il coach (Claude Sonnet) legge i tuoi dati."} Scrive su Intervals solo dopo il tuo «sì».</p>
         </div>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -223,15 +227,16 @@ export function CoachChat({ data }: { data: DashboardData }) {
 
       <div ref={scroller} className="mt-3 max-h-[62vh] min-h-[220px] space-y-3 overflow-y-auto pr-1" role="log" aria-live="polite">
         {!ctx && <p className="text-sm text-muted">Preparo i dati…</p>}
+        {compact && ctx && messages.length === 0 && <p className="text-sm text-muted">Chiedimi di oggi, del piano o di un cambio.</p>}
         {messages.map((m) => (
           <Bubble key={m.id} m={m} />
         ))}
         {busy && <p className="text-xs text-muted">{busyText}</p>}
       </div>
 
-      {lastCoach?.chips && lastCoach.chips.length > 0 && !busy && (
+      {lastCoach?.chips && lastCoach.chips.filter((c) => !compact || c === "Sì" || c === "No").length > 0 && !busy && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {lastCoach.chips.map((c) => (
+          {lastCoach.chips.filter((c) => !compact || c === "Sì" || c === "No").map((c) => (
             <button key={c} type="button" onClick={() => void send(c)} className="rounded-full px-3 py-1 text-xs" style={{ background: waiting && (c === "Sì" || c === "No") ? "var(--accent-bg)" : "transparent", color: waiting && (c === "Sì" || c === "No") ? "var(--accent-ink)" : "var(--foreground)", border: "1px solid var(--border)" }}>
               {c}
             </button>
@@ -258,13 +263,13 @@ export function CoachChat({ data }: { data: DashboardData }) {
           Invia
         </button>
       </form>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      {!compact && <div className="mt-2 flex flex-wrap gap-1.5">
         {QUICK.map((q) => (
           <button key={q} type="button" onClick={() => void send(q)} disabled={!ctx || busy} className="rounded-full px-2.5 py-1 text-[11px] text-muted disabled:opacity-50" style={{ border: "1px solid var(--border)" }}>
             {q}
           </button>
         ))}
-      </div>
+      </div>}
     </section>
   );
 }

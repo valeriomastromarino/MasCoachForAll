@@ -4,6 +4,7 @@
 // Each button opens Claude with the request ready; the coach then reads the data and writes workouts on Intervals.icu.
 import { IconBike, IconCalendarWeek, IconMessageCircle, IconMoon, IconStopwatch, IconSun } from "@tabler/icons-react";
 import { useState, useSyncExternalStore } from "react";
+import { useCompact } from "@/lib/compact";
 import { CoachChat } from "../coach/Chat";
 import { fmt } from "../format";
 import { SectionPage } from "./SectionPage";
@@ -67,6 +68,7 @@ async function openCoach(projectUrl: string, text: string): Promise<boolean> {
 }
 
 export default function Coach() {
+  const compact = useCompact();
   const projectUrl = useSyncExternalStore(subscribe, savedUrl, () => "");
   const [draft, setDraft] = useState("");
   const [copied, setCopied] = useState(false);
@@ -86,13 +88,14 @@ export default function Coach() {
   const fieldStyle = { background: "var(--background)", border: "1px solid var(--border)" };
 
   return (
-    <SectionPage id="coach">
+    <SectionPage id="coach" heading={!compact}>
       {(data) => {
         const { status } = data;
         const hrv7 = status.hrv.baseline7 !== null ? Math.exp(status.hrv.baseline7) : null;
         return (
           <div className="max-w-3xl space-y-4">
             <CoachChat data={data} />
+            {!compact && (
             <details className="card p-4">
               <summary className="cursor-pointer text-sm font-medium">Il Progetto Claude (un&apos;alternativa, con il connettore)</summary>
               <div className="mt-4 space-y-4">
@@ -183,6 +186,7 @@ export default function Coach() {
             </section>
               </div>
             </details>
+            )}
           </div>
         );
       }}

@@ -1,8 +1,6 @@
 "use client";
 
-// Today on the phone app, short: one verdict, today's workout, three numbers, the week, and a door to the coach.
-import { IconMessageChatbot } from "@tabler/icons-react";
-import Link from "next/link";
+// Today on the phone app, short: one verdict, today's workout, three numbers and the week.
 import { useMemo, useSyncExternalStore } from "react";
 import type { DashboardData } from "@/lib/dashboard";
 import { weekStart } from "@/lib/dates";
@@ -79,10 +77,6 @@ export function OggiCompact({ data }: { data: DashboardData }) {
         </section>
       )}
 
-      <Link href="/coach" className="card flex items-center gap-3 px-4 py-3 text-sm text-muted">
-        <IconMessageChatbot size={20} style={{ color: "var(--accent-ink)" }} aria-hidden />
-        Scrivi al coach…
-      </Link>
     </div>
   );
 }

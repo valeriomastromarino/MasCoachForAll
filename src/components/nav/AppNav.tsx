@@ -3,17 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { IconDots } from "@tabler/icons-react";
+import { IconCalendarEvent, IconDots } from "@tabler/icons-react";
 import { useCompact } from "@/lib/compact";
 import { isActive, type Section, SECTIONS, SETTINGS } from "./sections";
 
 /** Phone app: four big tabs. Everything that isn't today, the coach or the trainer is under "Altro". */
-const COMPACT_IDS = ["oggi", "coach", "rulli"] as const;
 const ALTRO = { href: "/altro", label: "Altro", color: "var(--muted)" };
+type Tab = { id: string; href: string; label: string; icon: Section["icon"]; color: string };
+const tabOf = (id: "oggi" | "coach" | "rulli"): Tab => SECTIONS.find((s) => s.id === id)!;
+const CALENDARIO: Tab = { id: "calendario", href: "/calendario", label: "Calendario", icon: IconCalendarEvent, color: "var(--fitness-ink)" };
+const tabOn = (s: Tab, pathname: string) => (s.href === "/" ? pathname === "/" : pathname === s.href || pathname.startsWith(s.href + "/"));
 
 function CompactBar({ pathname }: { pathname: string }) {
-  const tabs = COMPACT_IDS.map((id) => SECTIONS.find((s) => s.id === id)!);
-  const inTabs = tabs.some((s) => isActive(s, pathname));
+  const tabs: Tab[] = [tabOf("oggi"), CALENDARIO, tabOf("coach"), tabOf("rulli")];
+  const inTabs = tabs.some((s) => tabOn(s, pathname));
   const tab = "flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px]";
   return (
     <nav
@@ -24,7 +27,7 @@ function CompactBar({ pathname }: { pathname: string }) {
       <div className="flex gap-1 px-2 pt-1.5">
         {tabs.map((s) => {
           const Icon = s.icon;
-          const on = isActive(s, pathname);
+          const on = tabOn(s, pathname);
           return (
             <Link key={s.id} href={s.href} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? tint(s.color, 18) : undefined, color: on ? s.color : "var(--muted)" }}>
               <Icon size={24} stroke={on ? 2.1 : 1.7} style={{ color: s.color }} aria-hidden />

@@ -2,7 +2,7 @@
 
 // Pieces shared by the calendar grid and its pop-ups.
 import { IconX } from "@tabler/icons-react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ActivityCategory } from "@/lib/activities";
 import type { CoachMark } from "@/lib/coach/marks";
 import type { WorkoutBlock } from "@/lib/workout";
@@ -72,22 +72,54 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="mb-2 mt-5 text-xs font-medium">{children}</h3>;
 }
 
-/** Workout profile as zone-coloured blocks: width = time, height = intensity. */
-export function WorkoutProfile({ blocks, height = 64, axis = true }: { blocks: WorkoutBlock[]; height?: number; axis?: boolean }) {
+const ZONE_NAME = ["", "recupero", "fondo", "tempo", "soglia", "VO2", "anaerobico", "sprint"];
+
+/**
+ * Workout profile as zone-coloured blocks: width = time, height = intensity.
+ * With `scrub`, a finger (or the mouse) sliding over it reads the block under it: zone, length and where it starts.
+ * Vertical scrolling still works from the chart.
+ */
+export function WorkoutProfile({ blocks, height = 64, axis = true, scrub = false }: { blocks: WorkoutBlock[]; height?: number; axis?: boolean; scrub?: boolean }) {
   const total = blocks.reduce((a, b) => a + b.secs, 0);
+  const box = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<number | null>(null);
   if (!total) return null;
+  const pick = (clientX: number) => {
+    const r = box.current?.getBoundingClientRect();
+    if (!r || r.width === 0) return;
+    const at = Math.min(0.9999, Math.max(0, (clientX - r.left) / r.width)) * total;
+    let acc = 0;
+    for (let i = 0; i < blocks.length; i++) {
+      acc += blocks[i].secs;
+      if (at < acc) return setActive(i);
+    }
+  };
+  const startOf = (i: number) => blocks.slice(0, i).reduce((a, b) => a + b.secs, 0);
+  const current = active !== null ? blocks[active] : null;
   return (
     <div>
-      <div className="flex items-end gap-px" style={{ height }} aria-hidden>
+      <div
+        ref={box}
+        className="flex items-end gap-px"
+        style={{ height, touchAction: scrub ? "pan-y" : undefined }}
+        aria-hidden={!scrub}
+        onPointerDown={scrub ? (e) => pick(e.clientX) : undefined}
+        onPointerMove={scrub ? (e) => pick(e.clientX) : undefined}
+      >
         {blocks.map((b, i) => (
           <div
             key={i}
             title={`Z${b.zone} · ${fmtDuration(b.secs)}`}
             className="rounded-t-[3px]"
-            style={{ width: `${(b.secs / total) * 100}%`, height: `${18 + (b.zone - 1) * 13.5}%`, background: `var(--z${b.zone})` }}
+            style={{ width: `${(b.secs / total) * 100}%`, height: `${18 + (b.zone - 1) * 13.5}%`, background: `var(--z${b.zone})`, opacity: active === null || active === i ? 1 : 0.4 }}
           />
         ))}
       </div>
+      {scrub && (
+        <div className="mt-1 min-h-4 text-[11px] text-muted" aria-live="polite">
+          {current && active !== null ? `Z${current.zone} ${ZONE_NAME[current.zone] ?? ""} · ${fmtDuration(current.secs)} · dal minuto ${Math.round(startOf(active) / 60)}` : "Scorri sul grafico per vedere i blocchi"}
+        </div>
+      )}
       {axis && (
         <div className="mt-1 flex justify-between text-[11px] text-faint">
           <span>0</span>

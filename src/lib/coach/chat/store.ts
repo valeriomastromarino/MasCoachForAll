@@ -1,5 +1,6 @@
 // What the chat keeps on this device: what the athlete asked for today, and the conversation.
 import type { Proposal } from "@/lib/training/suggest";
+import { isCompact } from "@/lib/compact";
 import { type ChatState, emptyState, type TodayOverrides } from "./context";
 
 const TODAY_KEY = "mascoach-today";
@@ -53,7 +54,14 @@ export type ChatMessage = {
 
 export type SavedChat = { messages: ChatMessage[]; state: ChatState };
 
+/** Phone app: the thread lives in memory only, so closing and reopening the app starts a clean chat (it stays while moving between tabs). */
+let memory: SavedChat | null = null;
+
 export function loadChat(): SavedChat {
+  if (isCompact()) {
+    write(CHAT_KEY, null);
+    return memory ?? { messages: [], state: emptyState() };
+  }
   try {
     const raw = read(CHAT_KEY);
     if (!raw) return { messages: [], state: emptyState() };
@@ -65,7 +73,14 @@ export function loadChat(): SavedChat {
 }
 
 export function saveChat(messages: ChatMessage[], state: ChatState) {
+  if (isCompact()) {
+    memory = { messages: messages.slice(-MAX_MESSAGES), state };
+    return;
+  }
   write(CHAT_KEY, JSON.stringify({ messages: messages.slice(-MAX_MESSAGES), state }));
 }
 
-export const clearChat = () => write(CHAT_KEY, null);
+export const clearChat = () => {
+  memory = null;
+  write(CHAT_KEY, null);
+};
