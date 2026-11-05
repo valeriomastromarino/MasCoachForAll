@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:id="@+id/w_top"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/w_dot"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:contentDescription="@null" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView android:id="@+id/w_headline" style="@style/WTitle" android:textSize="16sp" />
+            <TextView android:id="@+id/w_sub" style="@style/WSub" android:maxLines="2" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/w_nums"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal">
+
+        <LinearLayout style="@style/WCard">
+            <TextView android:id="@+id/w_tsb" style="@style/WVal" />
+            <TextView style="@style/WLbl" android:text="forma" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/WCard" android:layout_marginStart="6dp">
+            <TextView android:id="@+id/w_hrv" style="@style/WVal" />
+            <TextView style="@style/WLbl" android:text="HRV" />
+        </LinearLayout>
+
+        <LinearLayout style="@style/WCard" android:layout_marginStart="6dp">
+            <TextView android:id="@+id/w_sleep" style="@style/WVal" />
+            <TextView style="@style/WLbl" android:text="sonno" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/w_wo_box"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="10dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView style="@style/WLbl" android:text="Oggi" android:textSize="12sp" />
+        <TextView android:id="@+id/w_wo_name" style="@style/WTitle" />
+        <ImageView
+            android:id="@+id/w_profile"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:minHeight="48dp"
+            android:layout_marginVertical="4dp"
+            android:layout_weight="1"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+        <TextView android:id="@+id/w_wo_info" style="@style/WSub" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/w_btn_rulli"
+        style="@style/WButton"
+        android:layout_width="match_parent"
+        android:layout_marginTop="8dp"
+        android:text="▶ Avvia rulli" />
+</LinearLayout>

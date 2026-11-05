@@ -30,6 +30,28 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- Home-screen widget: today's verdict, key numbers and planned workout; refreshed at 8:00 (see MasCoachWidget). -->
+        <receiver
+            android:name=".MasCoachWidget"
+            android:exported="true"
+            android:label="MasCoach">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
+        <receiver
+            android:name=".WidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="it.mascoach.app.WIDGET_REFRESH" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -56,4 +78,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Re-arms the widget's 8:00 refresh after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>

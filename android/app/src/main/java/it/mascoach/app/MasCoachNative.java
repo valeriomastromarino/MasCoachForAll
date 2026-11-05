@@ -15,6 +15,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -106,5 +107,21 @@ public class MasCoachNative extends Plugin {
                 call.reject("Colore non valido");
             }
         });
+    }
+
+    /** Server and password for the home-screen widget (it asks /api/widget by itself, also at 8:00 with the app closed). */
+    @PluginMethod
+    public void widgetSetup(PluginCall call) {
+        MasCoachWidget.configure(getContext(), call.getString("url", ""), call.getString("password", ""));
+        MasCoachWidget.refreshAsync(getContext(), null);
+        call.resolve();
+    }
+
+    /** Page a widget tap asked for (once): the app navigates to it. */
+    @PluginMethod
+    public void takeRoute(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("route", MainActivity.takeRoute());
+        call.resolve(r);
     }
 }

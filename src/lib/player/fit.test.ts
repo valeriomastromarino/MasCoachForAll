@@ -10,7 +10,7 @@ function sampleRecording(): Recording {
   for (let i = 0; i < 120; i++) {
     if (i >= 60 && i < 70) continue; // 10 s paused
     distance += 30 / 3.6;
-    rec.samples.push({ t: t0 + i * 1000, power: i < 60 ? 150 : 220, hr: 120 + Math.floor(i / 10), cadence: 90, speed: 30, distance, target: 150 });
+    rec.samples.push({ t: t0 + i * 1000, power: i < 60 ? 150 : 220, hr: 120 + Math.floor(i / 10), cadence: 90, speed: 30, distance, target: 150, dfa: i < 60 ? 0.95 : null });
   }
   rec.laps = [0, 60];
   rec.pauses = [{ from: t0 + 60_000, to: t0 + 70_000 }];
@@ -34,6 +34,10 @@ describe("FIT writer", () => {
     expect(messages.recordMesgs[0].power).toBe(150);
     expect(messages.recordMesgs[0].heartRate).toBe(120);
     expect(messages.recordMesgs[0].speed).toBeCloseTo(30 / 3.6, 2);
+    // DFA α1 as a developer field "DFA_a1" (× 1000), only where the strap gave a value.
+    expect(messages.fieldDescriptionMesgs[0].fieldName).toBe("DFA_a1");
+    expect(messages.recordMesgs[0].developerFields?.[0]).toBeCloseTo(950, 0);
+    expect(messages.recordMesgs[100].developerFields?.[0]).toBeUndefined();
     expect(messages.lapMesgs).toHaveLength(2);
     expect(messages.lapMesgs[1].avgPower).toBe(220);
 

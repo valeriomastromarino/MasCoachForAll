@@ -3,6 +3,7 @@
 import { type ActivityRow, RIDE_TYPES, toActivityRow } from "../activities";
 import { buildCalendar, buildLibrary, type CalendarData, eventFromLibrary, type LibraryFolder } from "../calendar";
 import { buildDashboard, type DashboardData } from "../dashboard";
+import { buildWidget } from "../widget";
 import { addDays, toIsoDate } from "../dates";
 import { demoData } from "../demo";
 import { demoRide } from "../demoRide";
@@ -75,6 +76,18 @@ async function dashboard(q: URLSearchParams): Promise<ApiResult> {
   const data = buildDashboard(await fetchIntervals(HISTORY_DAYS), DISPLAY_DAYS);
   dashboardCache = { at: Date.now(), data };
   return ok(data);
+}
+
+// ── Home-screen widget ──────────────────────────────────────────────────────────────────────────────
+
+/** The small summary the Android widget draws (lib/widget.ts): today's verdict, numbers and planned workout. */
+async function widget(): Promise<ApiResult> {
+  const today = toIsoDate(new Date());
+  const dash = await dashboard(new URLSearchParams());
+  const cal = await calendar(new URLSearchParams({ from: today, to: today }));
+  if (dash.status !== 200) return dash;
+  if (cal.status !== 200) return cal;
+  return ok(buildWidget(dash.json as DashboardData, cal.json as CalendarData, today));
 }
 
 // ── Archive ─────────────────────────────────────────────────────────────────────────────────────────
@@ -413,6 +426,7 @@ export async function handleApi(method: string, path: string, body: unknown = nu
   const seg = (re: RegExp) => decodeURIComponent(p.match(re)?.[1] ?? "");
   try {
     if (method === "GET" && p === "/api/dashboard") return await dashboard(q);
+    if (method === "GET" && p === "/api/widget") return await widget();
     if (method === "GET" && p === "/api/activities") return await activities(q);
     if (method === "GET" && p === "/api/calendar") return await calendar(q);
     if (method === "GET" && p === "/api/library") return await library(q);

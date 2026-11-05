@@ -36,6 +36,7 @@ export type DeviceView = {
 
 export type PlayerView = {
   session: SessionState;
+  /** Power averaged over the last 3 seconds (what the screen shows; the recording keeps every second). */
   power: number | null;
   hr: number | null;
   cadence: number | null;
@@ -57,6 +58,11 @@ export type PlayerView = {
 };
 
 const FRESH_MS = 3000;
+/** Seconds of the power average shown on screen. */
+const POWER_AVG_SECS = 3;
+/** After a stop (or the first pedal stroke) the ERG target climbs back over this many seconds, from SOFT_START_FROM of the target. */
+const SOFT_START_SECS = 12;
+const SOFT_START_FROM = 0.5;
 const MATCH_WINDOW = 30;
 /** Longest stall played back in one go (seconds); a longer one means the app was frozen and the clock restarts. */
 const MAX_CATCH_UP = 1800;
@@ -85,6 +91,9 @@ export class PlayerEngine {
   private trace: { pos: number; w: number }[] = [];
   private dfa: DfaLive | null = null;
   private dfaHistory: { t: number; a: number }[] = [];
+  private powerWindow: number[] = [];
+  /** Epoch ms when the current soft start began (null = none in progress). */
+  private softStartAt: number | null = null;
   private match = { t: [] as number[], p: [] as number[] };
   private ticks = 0;
   /** Epoch ms up to which the session clock has been played. */
@@ -170,6 +179,24 @@ export class PlayerEngine {
     };
   }
 
+  /** Average of the last seconds of power; the live reading when the window is empty. */
+  private powerAvg(live: number | null): number | null {
+    if (live === null) return null;
+    const w = this.powerWindow;
+    return w.length ? Math.round(w.reduce((a, b) => a + b, 0) / w.length) : live;
+  }
+
+  /** ERG fraction of the target while the soft start lasts (1 when none). */
+  private softFactor(now = Date.now()): number {
+    if (this.softStartAt === null) return 1;
+    const f = (now - this.softStartAt) / (SOFT_START_SECS * 1000);
+    if (f >= 1) {
+      this.softStartAt = null;
+      return 1;
+    }
+    return SOFT_START_FROM + (1 - SOFT_START_FROM) * Math.max(0, f);
+  }
+
   private matchFactor(): number | null {
     const sumT = this.match.t.reduce((s, v) => s + v, 0);
     const sumP = this.match.p.reduce((s, v) => s + v, 0);
@@ -197,7 +224,7 @@ export class PlayerEngine {
     const r = this.readings();
     return {
       session: this.session,
-      power: r.power,
+      power: this.powerAvg(r.power),
       hr: r.hr,
       cadence: r.cadence,
       target: ergTarget(this.session, this.workout.steps),
@@ -325,6 +352,13 @@ export class PlayerEngine {
     const next = tick(prev, 1, pedalling, steps);
 
     const moving = next.status === "running" && !next.autoPaused;
+    if (live) {
+      if (r.power !== null) this.powerWindow = [...this.powerWindow, r.power].slice(-POWER_AVG_SECS);
+      else this.powerWindow = [];
+    }
+    // Soft start: when pedalling resumes after a stop (or begins), the trainer eases up to the target instead of jumping.
+    if (moving && !this.moving && live) this.softStartAt = Date.now();
+    if (!moving) this.softStartAt = null;
     // Recording starts with the first second actually ridden (pressing play alone does not start it).
     if (moving && !this.rec) this.rec = newRecording(this.workout.id, this.workout.name, at);
     const rec = this.rec;
@@ -336,7 +370,7 @@ export class PlayerEngine {
         if (next.stepIndex !== this.lastStep && rec.samples.length) rec.laps.push(rec.samples.length);
         this.lastStep = next.stepIndex;
         this.distance += (r.speed ?? 0) / 3.6;
-        rec.samples.push({ t: at, power: r.power, hr: r.hr, cadence: r.cadence, speed: r.speed, distance: this.distance, target: next.mode === "erg" ? ergTarget(next, steps) : null });
+        rec.samples.push({ t: at, power: r.power, hr: r.hr, cadence: r.cadence, speed: r.speed, distance: this.distance, target: next.mode === "erg" ? ergTarget(next, steps) : null, dfa: this.dfa?.alpha1 ?? null });
         this.trace = [...this.trace, { pos: next.pos, w: r.power ?? 0 }];
       }
     }
@@ -367,7 +401,7 @@ export class PlayerEngine {
   private drive() {
     if (this.trainer.status !== "connected") return;
     const s = this.session;
-    if (s.mode === "erg") this.trainer.setTarget({ mode: "erg", watts: Math.round(ergTarget(s, this.workout.steps) * (this.matchFactor() ?? 1)) });
+    if (s.mode === "erg") this.trainer.setTarget({ mode: "erg", watts: Math.round(ergTarget(s, this.workout.steps) * (this.matchFactor() ?? 1) * this.softFactor()) });
     else {
       const lv = this.trainer.levels;
       this.trainer.setTarget({ mode: "resistance", level: lv[Math.min(lv.length - 1, s.level)] ?? 0 });

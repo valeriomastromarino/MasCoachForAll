@@ -12,6 +12,8 @@ export type Sample = {
   /** Cumulative metres. */
   distance: number;
   target: number | null;
+  /** Live DFA α1 of this second (chest strap with RR), written in the FIT as a developer field. */
+  dfa?: number | null;
 };
 
 export type Recording = {

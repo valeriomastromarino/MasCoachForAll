@@ -21,23 +21,31 @@ function crc16(bytes: Uint8Array, crc = 0): number {
   return crc;
 }
 
-type BaseType = "enum" | "uint8" | "uint16" | "uint32" | "uint32z";
+type BaseType = "enum" | "uint8" | "uint16" | "uint32" | "uint32z" | "string" | "byte";
 const BASE: Record<BaseType, { id: number; size: number; invalid: number }> = {
   enum: { id: 0x00, size: 1, invalid: 0xff },
   uint8: { id: 0x02, size: 1, invalid: 0xff },
   uint16: { id: 0x84, size: 2, invalid: 0xffff },
   uint32: { id: 0x86, size: 4, invalid: 0xffffffff },
   uint32z: { id: 0x8c, size: 4, invalid: 0 },
+  string: { id: 0x07, size: 1, invalid: 0 },
+  byte: { id: 0x0d, size: 1, invalid: 0xff },
 };
 
 /** [field number, base type, array length] */
 type Field = [number, BaseType, number?];
-type MessageDef = { global: number; fields: Field[] };
+/** Developer fields appended to a message: [field number, size in bytes], all of developer data index DFA_DEV.index. */
+type MessageDef = { global: number; fields: Field[]; dev?: [number, number][] };
+
+/** Developer field "DFA_a1" on every record (uint16, α1 × 1000), declared with developer_data_id + field_description. */
+const DFA_DEV = { index: 0, fieldNumber: 0, scale: 1000 };
 
 const MSG = {
   fileId: { global: 0, fields: [[0, "enum"], [1, "uint16"], [2, "uint16"], [3, "uint32z"], [4, "uint32"]] },
   event: { global: 21, fields: [[253, "uint32"], [0, "enum"], [1, "enum"]] },
-  record: { global: 20, fields: [[253, "uint32"], [3, "uint8"], [4, "uint8"], [7, "uint16"], [6, "uint16"], [5, "uint32"]] },
+  developerDataId: { global: 207, fields: [[0, "byte", 16], [1, "byte", 16], [3, "uint8"], [4, "uint32"]] },
+  fieldDescription: { global: 206, fields: [[0, "uint8"], [1, "uint8"], [2, "uint8"], [3, "string", 16], [8, "string", 8], [6, "uint8"]] },
+  record: { global: 20, fields: [[253, "uint32"], [3, "uint8"], [4, "uint8"], [7, "uint16"], [6, "uint16"], [5, "uint32"]], dev: [[DFA_DEV.fieldNumber, 2]] },
   hrv: { global: 78, fields: [[0, "uint16", 5]] },
   lap: {
     global: 19,
@@ -53,6 +61,7 @@ const MSG = {
 } satisfies Record<string, MessageDef>;
 
 type MsgName = keyof typeof MSG;
+
 
 const SPORT_CYCLING = 2;
 const SUB_SPORT_INDOOR_CYCLING = 6;
@@ -73,10 +82,14 @@ class Writer {
     if (local === undefined) {
       local = this.defined.size;
       this.defined.set(name, local);
-      this.chunks.push(0x40 | local, 0, 0); // definition header, reserved, little endian
+      this.chunks.push(0x40 | (def.dev ? 0x20 : 0) | local, 0, 0); // definition header (0x20 = has developer fields), reserved, little endian
       this.bytes(def.global, 2);
       this.chunks.push(def.fields.length);
       for (const [num, type, n = 1] of def.fields) this.chunks.push(num, BASE[type].size * n, BASE[type].id);
+      if (def.dev) {
+        this.chunks.push(def.dev.length);
+        for (const [num, size] of def.dev) this.chunks.push(num, size, DFA_DEV.index);
+      }
     }
     this.chunks.push(local);
     def.fields.forEach(([, type, n = 1], i) => {
@@ -87,6 +100,12 @@ class Writer {
         const ok = x !== null && x !== undefined && Number.isFinite(x);
         this.bytes(ok ? Math.max(0, Math.round(x)) : BASE[type].invalid, BASE[type].size);
       }
+    });
+    // Developer values follow the regular ones, in the order of def.dev (uint16 each).
+    def.dev?.forEach(([, size], i) => {
+      const x = values[def.fields.length + i];
+      const ok = typeof x === "number" && Number.isFinite(x);
+      this.bytes(ok ? Math.max(0, Math.min(0xfffe, Math.round(x))) : 0xffff, size);
     });
   }
 
@@ -109,6 +128,7 @@ class Writer {
 }
 
 const scale = (x: number | null, k: number) => (x === null ? null : x * k);
+const chars = (text: string, n: number) => Array.from({ length: n }, (_, i) => text.charCodeAt(i) || 0);
 
 /** FIT file of a recorded session. */
 export function encodeFit(rec: Recording): Uint8Array {
@@ -120,6 +140,9 @@ export function encodeFit(rec: Recording): Uint8Array {
   const elapsedS = Math.max(1, (last - first) / 1000 + 1);
 
   w.write("fileId", [4, 255, 0, 1, fitTime(rec.startedAt)]);
+  // Developer field "DFA_a1": declared before the records that use it.
+  w.write("developerDataId", [chars("MasCoach", 16), chars("mascoach-dfa", 16), DFA_DEV.index, 1]);
+  w.write("fieldDescription", [DFA_DEV.index, DFA_DEV.fieldNumber, 0x84, chars("DFA_a1", 16), chars("", 8), DFA_DEV.scale]);
   w.write("event", [fitTime(first), EVENT.timer, EVENT_TYPE.start]);
 
   let r = 0;
@@ -131,7 +154,7 @@ export function encodeFit(rec: Recording): Uint8Array {
       w.write("event", [fitTime(pz.from), EVENT.timer, EVENT_TYPE.stopAll]);
       if (pz.to !== null) w.write("event", [fitTime(Math.max(pz.to, pz.from)), EVENT.timer, EVENT_TYPE.start]);
     }
-    w.write("record", [fitTime(s.t), s.hr, s.cadence, s.power, scale(s.speed === null ? null : s.speed / 3.6, 1000), s.distance * 100]);
+    w.write("record", [fitTime(s.t), s.hr, s.cadence, s.power, scale(s.speed === null ? null : s.speed / 3.6, 1000), s.distance * 100, s.dfa == null ? null : s.dfa * DFA_DEV.scale]);
     // RR intervals that arrived up to this second, five per HRV message (in seconds, scale 1000).
     const batch: number[] = [];
     while (r < rec.rr.length && rec.rr[r].t <= s.t) batch.push(rec.rr[r++].ms / 1000);

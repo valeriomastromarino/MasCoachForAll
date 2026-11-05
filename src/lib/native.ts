@@ -7,6 +7,8 @@ interface MasCoachNativePlugin {
   sessionService(o: { on: boolean }): Promise<void>;
   setBars(o: { color: string; lightIcons: boolean }): Promise<void>;
   shareFile(o: { name: string; data: string }): Promise<void>;
+  widgetSetup(o: { url: string; password: string }): Promise<void>;
+  takeRoute(): Promise<{ route: string | null }>;
 }
 
 const Native = registerPlugin<MasCoachNativePlugin>("MasCoachNative");
@@ -34,6 +36,23 @@ export function paintSystemBars(color: string, lightIcons: boolean): void {
 /** Opens Android's share sheet on a file (base64 data); the WebView cannot download blobs. Rejects when it cannot. */
 export function shareFile(name: string, base64: string): Promise<void> {
   return Native.shareFile({ name, data: base64 });
+}
+
+// ── Home-screen widget ──────────────────────────────────────────────────────────────────────────────
+
+/** Gives the widget the server and the app password (it refreshes by itself every morning at 8:00). */
+export function widgetSetup(url: string, password: string): void {
+  if (isApp() && password) Native.widgetSetup({ url, password }).catch(quiet);
+}
+
+/** Page a widget tap asked for, if any (cold start), once. */
+export async function takeLaunchRoute(): Promise<string | null> {
+  if (!isApp()) return null;
+  try {
+    return (await Native.takeRoute()).route ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Back button ─────────────────────────────────────────────────────────────────────────────────────
