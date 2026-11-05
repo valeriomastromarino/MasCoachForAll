@@ -6,6 +6,10 @@ vi.mock("@/lib/api/handlers", () => ({
   handleApi: async (_method: string, path: string) => {
     if (path.startsWith("/api/dashboard")) return { status: 200, json: { status: { ctl: 50 } } };
     if (path.startsWith("/api/life")) return { status: 200, json: [] };
+    if (path.startsWith("/api/library")) {
+      const w = (id: number, name: string, mins: number, zone: number, tss: number) => ({ id, name, type: "Ride", secs: mins * 60, tss, description: null, blocks: [{ secs: mins * 60, zone, watts: 200 }] });
+      return { status: 200, json: { folders: [{ id: 1, name: "Workout Coach AI", workouts: [w(11, "Zone 2 Endurance 90", 90, 2, 62), w(12, "Threshold 4x8 Indoor", 60, 4, 75), w(13, "MTB XC Zone 2 120", 120, 2, 90)] }] } };
+    }
     return { status: 404, json: {} };
   },
 }));
@@ -60,6 +64,17 @@ describe("strumenti del coach scritto", () => {
     await tool("segna_per_oggi").run({ sensazione: "gambe pesanti", sensazione_negativa: true, minuti_massimi: 45 }, ctx);
     expect(ctx.actions).toHaveLength(0);
     expect(ctx.overrides).toMatchObject({ maxMins: 45, feeling: { drop: true } });
+  });
+
+  it("cerca_libreria dà gli id e filtra per durata, tipo e rulli, senza dump della libreria", async () => {
+    const all = (await tool("cerca_libreria").run({}, ctxOf())) as { trovati: number; allenamenti: { id: number; nome: string }[] };
+    expect(all.allenamenti.every((a) => typeof a.id === "number")).toBe(true);
+    expect(all.allenamenti.map((a) => a.nome)).not.toContain("MTB XC Zone 2 120"); // MTB out by default
+    const rulli = (await tool("cerca_libreria").run({ luogo: "rulli" }, ctxOf())) as { allenamenti: { id: number }[] };
+    expect(rulli.allenamenti.map((a) => a.id)).toEqual([12]);
+    const lunghi = (await tool("cerca_libreria").run({ minuti_min: 80 }, ctxOf())) as { allenamenti: { id: number }[] };
+    expect(lunghi.allenamenti.map((a) => a.id)).toEqual([11]);
+    expect(AI_TOOLS.map((t) => t.name)).not.toContain("libreria_allenamenti");
   });
 
   it("nessuno strumento di scrittura diretta è esposto", () => {

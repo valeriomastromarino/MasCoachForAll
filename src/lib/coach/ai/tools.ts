@@ -1,11 +1,12 @@
 // The tools Sonnet gets inside the app: the connector's read tools as they are, a read of the season plan, and "proponi_…"
 // tools that write NOTHING — each one only records an Action that the chat shows with Sì/No (the app runs it after the "sì").
-import { handleApi } from "@/lib/api/handlers";
+import { handleApi, type LibraryData } from "@/lib/api/handlers";
 import type { DashboardData } from "@/lib/dashboard";
 import { addDays, weekStart } from "@/lib/dates";
 import type { AthleteProfile } from "@/lib/profile/profile";
 import { type LifeCategory, type LifeEvent } from "@/lib/training/life";
 import { planFromToday, type PlanWeek, RAMP_TARGET, type RampLevel, type SeasonSetup } from "@/lib/training/season";
+import { classifyWorkout } from "@/lib/training/suggest";
 import type { Action, TodayOverrides } from "../chat/context";
 import { COACH_TOOLS } from "../tools";
 
@@ -37,7 +38,59 @@ function summary(setup: SeasonSetup, today: string, ctl: number | null, life: Li
   return { plan, rows: plan.weeks.map(weekRow) };
 }
 
-const READ_NAMES = new Set(COACH_TOOLS.filter((t) => t.annotations.readOnlyHint).map((t) => t.name));
+// The connector's libreria_allenamenti dumps all ~400 workouts with their text and no ids: here it is replaced by cerca_libreria.
+const READ_NAMES = new Set(COACH_TOOLS.filter((t) => t.annotations.readOnlyHint && t.name !== "libreria_allenamenti").map((t) => t.name));
+
+const CLASSES = ["recupero", "z2", "tempo", "sweetspot", "soglia", "vo2", "anaerobico", "sprint"] as const;
+
+const searchLibrary: AiTool = {
+  name: "cerca_libreria",
+  description:
+    "Cerca nella libreria allenamenti di Intervals e restituisce al massimo 12 risultati COMPATTI con l'id (da passare a proponi_programma), nome, cartella, durata, TSS, tipo (recupero, z2, tempo, sweetspot, soglia, vo2, anaerobico, sprint), rulli o fuori. " +
+    "Filtra per tipo, durata e nome; senza filtri restituisce un campione. Usalo SEMPRE per trovare un allenamento prima di proporlo: gli id non si inventano.",
+  input_schema: {
+    type: "object",
+    properties: {
+      tipo: { type: "string", enum: [...CLASSES] },
+      minuti_min: { type: "number" },
+      minuti_max: { type: "number" },
+      nome_contiene: { type: "string", description: "Parte del nome, es. «threshold», «fasted»" },
+      luogo: { type: "string", enum: ["rulli", "fuori"], description: "rulli = allenamenti con «indoor» nel nome; fuori = gli altri" },
+      escludi_mtb: { type: "boolean", description: "Default true: niente allenamenti MTB per chi fa strada" },
+    },
+    additionalProperties: false,
+  },
+  async run(args) {
+    const res = await handleApi("GET", "/api/library");
+    if (res.status !== 200) return bad("Non riesco a leggere la libreria di Intervals");
+    const lib = res.json as LibraryData;
+    const wantClass = CLASSES.includes(args.tipo as (typeof CLASSES)[number]) ? args.tipo : null;
+    const min = Number.isFinite(Number(args.minuti_min)) && args.minuti_min !== undefined ? Number(args.minuti_min) : 0;
+    const max = Number.isFinite(Number(args.minuti_max)) && args.minuti_max !== undefined ? Number(args.minuti_max) : Infinity;
+    const needle = typeof args.nome_contiene === "string" ? args.nome_contiene.trim().toLowerCase() : "";
+    const noMtb = args.escludi_mtb !== false;
+    const rows = lib.folders.flatMap((f) =>
+      f.workouts.map((w) => {
+        const c = classifyWorkout(w);
+        return { id: w.id, nome: w.name, cartella: f.name, durata_min: Math.round(c.mins), tss: Math.round(c.tss), tipo: c.cls, rulli: c.indoor, mtb: c.mtb };
+      }),
+    );
+    const found = rows.filter(
+      (r) =>
+        (!wantClass || r.tipo === wantClass) &&
+        r.durata_min >= min &&
+        r.durata_min <= max &&
+        (!needle || r.nome.toLowerCase().includes(needle)) &&
+        (args.luogo !== "rulli" || r.rulli) &&
+        (args.luogo !== "fuori" || !r.rulli) &&
+        !(noMtb && r.mtb),
+    );
+    // A spread over durations rather than the first twelve of one folder.
+    const step = Math.max(1, Math.floor(found.length / 12));
+    const sample = found.filter((_, i) => i % step === 0).slice(0, 12);
+    return { trovati: found.length, mostrati: sample.length, allenamenti: sample.map((r) => ({ id: r.id, nome: r.nome, cartella: r.cartella, durata_min: r.durata_min, tss: r.tss, tipo: r.tipo, rulli: r.rulli })) };
+  },
+};
 
 const readTools: AiTool[] = COACH_TOOLS.filter((t) => READ_NAMES.has(t.name)).map((t) => ({
   name: t.name,
@@ -238,7 +291,6 @@ const proposeLife: AiTool = {
   },
 };
 
-const CLASSES = ["recupero", "z2", "tempo", "sweetspot", "soglia", "vo2", "anaerobico", "sprint"] as const;
 const PLACES = ["indoor", "outdoor"] as const;
 
 const setToday: AiTool = {
@@ -274,4 +326,4 @@ const setToday: AiTool = {
   },
 };
 
-export const AI_TOOLS: AiTool[] = [...readTools, planTool, setToday, proposeSeason, proposeProgram, proposeMove, proposeRemove, proposeLife];
+export const AI_TOOLS: AiTool[] = [...readTools, searchLibrary, planTool, setToday, proposeSeason, proposeProgram, proposeMove, proposeRemove, proposeLife];
