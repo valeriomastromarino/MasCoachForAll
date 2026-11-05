@@ -1,4 +1,4 @@
-// The loop: a message from the athlete goes to Claude Sonnet with the coach prompt and the tools; whatever tools it calls run
+// The loop: a message from the athlete goes to Claude Haiku with the coach prompt and the tools; whatever tools it calls run
 // here (reads) or are only recorded (proposals); when it answers in plain text, the text and the proposals go back to the app.
 import type { Action, TodayOverrides } from "../chat/context";
 import { COACH_MODEL, systemPrompt } from "./system";

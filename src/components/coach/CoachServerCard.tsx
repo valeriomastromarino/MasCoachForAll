@@ -12,7 +12,7 @@ export function CoachServerCard() {
     <section className="card max-w-xl p-5">
       <h2 className="text-sm font-medium">Coach scritto</h2>
       <p className="mt-0.5 text-xs text-muted">
-        Per chiedere al coach con Claude Sonnet serve la password dell&apos;app online (quella del tuo sito online su Vercel) e la rete. Senza, la chat risponde con le regole dell&apos;app. La password resta solo su questo telefono.
+        Per chiedere al coach con Claude Haiku serve la password dell&apos;app online (quella del tuo sito online su Vercel) e la rete. Senza, la chat risponde con le regole dell&apos;app. La password resta solo su questo telefono.
       </p>
       <form
         className="mt-3 space-y-2"

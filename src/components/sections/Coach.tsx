@@ -1,6 +1,6 @@
 "use client";
 
-// The coach: a chat with Claude Sonnet (online) or, without it, with the app's own rules. Writes to Intervals.icu only after a "sì".
+// The coach: a chat with Claude Haiku (online) or, without it, with the app's own rules. Writes to Intervals.icu only after a "sì".
 import { useCompact } from "@/lib/compact";
 import { CoachChat } from "../coach/Chat";
 import { SectionPage } from "./SectionPage";

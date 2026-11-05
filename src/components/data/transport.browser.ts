@@ -8,7 +8,7 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
   return new Response(JSON.stringify(r.json), { status: r.status, headers: { "Content-Type": "application/json" } });
 }
 
-/** The written coach (Claude Sonnet) runs on the online MasCoach: the phone sends the question there with the app password. Without a password the chat uses its rules. */
+/** The written coach (Claude Haiku) runs on the online MasCoach: the phone sends the question there with the app password. Without a password the chat uses its rules. */
 export async function askFetch(body: unknown): Promise<Response> {
   const password = coachPassword();
   if (!password || !coachServer()) return new Response(JSON.stringify({ error: "Inserisci l'indirizzo e la password del tuo sito online in Impostazioni per usare il coach scritto." }), { status: 501, headers: { "Content-Type": "application/json" } });

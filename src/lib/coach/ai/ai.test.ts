@@ -108,7 +108,7 @@ describe("ciclo con il modello", () => {
     expect(r.text).toContain("Confermi");
     expect(r.actions).toHaveLength(1);
     expect(calls).toHaveLength(2);
-    expect(calls[0].body.model).toBe("claude-sonnet-5-5");
+    expect(calls[0].body.model).toBe("claude-haiku-5-5");
     expect(calls[0].headers["x-api-key"]).toBe("test-key");
     // The second call carries the tool result back to the model.
     const last = (calls[1].body.messages as { role: string; content: unknown }[]).at(-1)!;

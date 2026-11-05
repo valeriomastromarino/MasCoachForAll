@@ -1,5 +1,5 @@
 // Copies the coach prompt (prompt-coach/MasCoach_prompt.txt, between the INIZIO/FINE lines) into a TS module,
-// so the in-app coach (Sonnet) runs with the same rules as the Claude Project. Run after changing the prompt: node scripts/gen-coach-prompt.mjs
+// so the in-app coach (Haiku) runs with the same rules as the Claude Project. Run after changing the prompt: node scripts/gen-coach-prompt.mjs
 import { readFileSync, writeFileSync } from "node:fs";
 
 const SRC = "prompt-coach/MasCoach_prompt.txt";

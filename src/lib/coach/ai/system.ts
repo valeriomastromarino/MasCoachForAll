@@ -1,8 +1,8 @@
-// The instructions Sonnet runs with inside the app: the same coach prompt as the Claude Project (generico), plus what is
+// The instructions Haiku runs with inside the app: the same coach prompt as the Claude Project (generico), plus what is
 // different here — the connector's write tools are not available, writes are proposals the athlete confirms in the chat.
 import { COACH_PROMPT_BASE } from "./promptBase.generated";
 
-export const COACH_MODEL = "claude-sonnet-5-5";
+export const COACH_MODEL = "claude-haiku-5-5";
 
 const IN_APP = `
 ═══════════════════════════════════════

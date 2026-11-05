@@ -1,4 +1,4 @@
-// The tools Sonnet gets inside the app: the connector's read tools as they are, a read of the season plan, and "proponi_…"
+// The tools Haiku gets inside the app: the connector's read tools as they are, a read of the season plan, and "proponi_…"
 // tools that write NOTHING — each one only records an Action that the chat shows with Sì/No (the app runs it after the "sì").
 import { handleApi, type LibraryData } from "@/lib/api/handlers";
 import type { DashboardData } from "@/lib/dashboard";

@@ -53,7 +53,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [busyText, setBusyText] = useState("Scrivo su Intervals…");
-  /** Changes proposed by the written coach (Claude Sonnet), waiting for the "sì". Not kept: a new topic drops them. */
+  /** Changes proposed by the written coach (Claude Haiku), waiting for the "sì". Not kept: a new topic drops them. */
   const [aiActions, setAiActions] = useState<Action[]>([]);
   /** The written coach is not reachable here (single-file app, no key): the chat uses its rules. */
   const [aiOff, setAiOff] = useState(false);
@@ -106,7 +106,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
   const say = (text: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({ id: uid(), role: "coach", text, at: new Date().toISOString(), ...extra });
   const push = (add: ChatMessage[], patch?: Partial<ChatState>) => setThread((cur) => ({ messages: [...cur.messages, ...add], state: patch ? { ...cur.state, ...patch } : cur.state }));
 
-  /** The written coach: Claude Sonnet reads the thread and the data, answers, and proposes changes that wait for the "sì". */
+  /** The written coach: Claude Haiku reads the thread and the data, answers, and proposes changes that wait for the "sì". */
   const askCoach = async (t: string, user: ChatMessage): Promise<{ ok: true } | { ok: false; why: string }> => {
     const history = [...messages, user].slice(-16).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.role === "user" ? m.text : [m.text, ...(m.lines ?? [])].join("\n") }));
     setBusyText("Il coach sta pensando…");
@@ -208,7 +208,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
         {!compact && (
         <div>
           <h2 className="text-sm font-medium">Parla con il coach</h2>
-          <p className="mt-0.5 text-xs text-muted">{aiOff ? (isApp() ? "Risponde con le regole dell'app: per il coach scritto inserisci la password in Impostazioni." : "Risponde con i tuoi dati e le regole dell'app.") : "Scrivi come vuoi: il coach (Claude Sonnet) legge i tuoi dati."} Scrive su Intervals solo dopo il tuo «sì».</p>
+          <p className="mt-0.5 text-xs text-muted">{aiOff ? (isApp() ? "Risponde con le regole dell'app: per il coach scritto inserisci la password in Impostazioni." : "Risponde con i tuoi dati e le regole dell'app.") : "Scrivi come vuoi: il coach (Claude Haiku) legge i tuoi dati."} Scrive su Intervals solo dopo il tuo «sì».</p>
         </div>
         )}
         <button

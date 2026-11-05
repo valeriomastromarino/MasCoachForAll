@@ -1,4 +1,4 @@
-// The written coach: a message (and the thread so far) in, Claude Sonnet's answer out, plus the changes it proposes.
+// The written coach: a message (and the thread so far) in, Claude Haiku's answer out, plus the changes it proposes.
 // The proposals write nothing: the app shows them and runs them only after the athlete's "sì".
 // Two ways in: the login cookie (the website) or the app password in a header (the Android app, which has no cookie).
 import { cookies } from "next/headers";
