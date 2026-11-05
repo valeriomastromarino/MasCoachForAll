@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
     "build:file": "vite build --config standalone/vite.config.mts",
     "check": "next typegen && tsc --noEmit && eslint src standalone && vitest run",
     "build:apk": "node scripts/build-apk.mjs"

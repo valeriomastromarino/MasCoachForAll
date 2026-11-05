@@ -5,6 +5,7 @@ import { Calendar } from "../calendar/Calendar";
 import { fmt, fmtDuration } from "../format";
 import { ReadinessCard, StatGroup } from "./parts";
 import { SectionPage } from "./SectionPage";
+import { TodayWorkout } from "./TodayWorkout";
 
 export default function Oggi() {
   return (
@@ -46,6 +47,7 @@ export default function Oggi() {
                 />
               </div>
             </div>
+            <TodayWorkout data={data} />
             <Calendar dashboard={data} />
           </>
         );

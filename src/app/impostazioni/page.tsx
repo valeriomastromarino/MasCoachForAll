@@ -1,4 +1,5 @@
 import { ThemeToggle } from "@/components/brand/ThemeToggle";
+import { ProfileCard } from "@/components/firstrun/ProfileCard";
 import { SectionHeading } from "@/components/sections/SectionPage";
 
 export default function Page() {
@@ -12,6 +13,7 @@ export default function Page() {
           <ThemeToggle />
         </div>
       </section>
+      <ProfileCard />
       <section className="card max-w-xl p-5">
         <h2 className="text-sm font-medium">Dati</h2>
         <p className="mt-2 text-xs text-muted">

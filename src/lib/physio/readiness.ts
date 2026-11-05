@@ -1,6 +1,6 @@
 // Daily readiness: autonomic markers first (HRV and resting HR read together, Altini), then sleep and
 // training-load context (TSB). The load metrics explain *why*, the body's response decides *what to do*.
-// The rules follow the coach prompt (§5.5): the coach reads the level, it never recomputes it.
+// The rules follow the coach prompt v8.0 (§5.5): the coach reads the level, it never recomputes it.
 import type { AutonomicAssessment } from "./autonomic";
 import type { HrvAnalysis } from "./hrv";
 import { formZone } from "./pmc";
@@ -14,13 +14,9 @@ export type Readiness = {
   reasons: string[];
 };
 
-/** Below this CTL the TSB/CTL ratio explodes, so "high risk" uses the absolute TSB instead. */
-const LOW_CTL = 35;
-
-/** "Alto rischio" for the readiness score: yesterday's form (CTL − ATL), as a share of CTL or, at low CTL, absolute. */
-export function highRiskForm(ctlYesterday: number | null, tsbYesterday: number | null): boolean {
-  if (ctlYesterday === null || tsbYesterday === null) return false;
-  return ctlYesterday >= LOW_CTL ? tsbYesterday / ctlYesterday < -0.3 : tsbYesterday < -15;
+/** "Alto rischio" for the readiness score: yesterday's form (CTL − ATL) in the zone shown in the app (below −30). */
+export function highRiskForm(tsbYesterday: number | null): boolean {
+  return tsbYesterday !== null && tsbYesterday < -30;
 }
 
 export function assessReadiness(input: {
@@ -28,13 +24,12 @@ export function assessReadiness(input: {
   autonomic: Pick<AutonomicAssessment, "pattern" | "explanation" | "severity" | "anomalyToday" | "anomalyStreak">;
   /** Form shown in the app (today's CTL − ATL), only for the explanation. */
   tsb: number | null;
-  /** Yesterday's CTL and form (CTL − ATL): what the score judges "alto rischio" on. */
-  ctlYesterday: number | null;
+  /** Yesterday's form (CTL − ATL): what the score judges "alto rischio" on. */
   tsbYesterday: number | null;
   /** Hours slept in the last three nights, newest last; null = no data. */
   sleepNights: (number | null)[];
 }): Readiness {
-  const { hrv, autonomic, tsb, ctlYesterday, tsbYesterday, sleepNights } = input;
+  const { hrv, autonomic, tsb, tsbYesterday, sleepNights } = input;
   const reasons: string[] = [autonomic.explanation];
   let score: number = autonomic.severity; // higher = more caution
 
@@ -62,7 +57,7 @@ export function assessReadiness(input: {
     reasons.push(`Sonno sotto le 6 h in ${shortNights} delle ultime 3 notti.`);
   }
 
-  const highRisk = highRiskForm(ctlYesterday, tsbYesterday);
+  const highRisk = highRiskForm(tsbYesterday);
   // With a stress pattern low HRV and a negative form come from the same load: counting both would double it.
   if (highRisk && autonomic.pattern !== "stress") {
     score += 1;

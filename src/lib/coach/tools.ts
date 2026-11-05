@@ -1,6 +1,7 @@
 // The tools the MasCoach connector gives Claude (the coach): read the same numbers the dashboard shows,
 // and write workouts on the Intervals.icu calendar. Reads go through handleApi, exactly like the pages.
 import { type CalendarData, type DurabilityData, handleApi, type LibraryData } from "../api/handlers";
+import type { CloudPayload } from "../profile/cloud";
 import type { ActivitiesPage, HistoryData } from "../api/handlers";
 import type { DashboardData } from "../dashboard";
 import { addDays, toIsoDate } from "../dates";
@@ -625,6 +626,32 @@ const WORKOUT_FORMAT =
   'Righe senza "- " sono titoli di sezione. ' +
   "Esempio:\nRiscaldamento\n- 10m ramp 50-70%\n\nSweet spot 3x\n- 12m 88-92%\n- 5m 55%\n\nDefaticamento\n- 10m 50%";
 
+/** The sheet and the season the app keeps in Intervals.icu (lib/profile/cloud.ts). */
+async function schedaAtleta() {
+  const { payload } = await api<{ payload: CloudPayload | null }>("/api/cloud");
+  if (!payload || (!payload.profile && !payload.season)) {
+    return { disponibile: false, nota: "L'app non ha ancora salvato la scheda atleta né la stagione su Intervals.icu." };
+  }
+  const s = payload.season;
+  return {
+    disponibile: true,
+    salvata_il: payload.savedAt.slice(0, 10),
+    profilo_di_potenza: payload.phenotype,
+    scheda: payload.sheet,
+    stagione: s
+      ? {
+          inizio: s.start,
+          orizzonte_settimane: s.horizonWeeks,
+          gara_A: s.raceA,
+          periodo_di_picco: s.peak ? { inizio: s.peak.start, settimane: s.peak.weeks } : null,
+          ramp_rate_scelto: s.ramp,
+          ore_massime_settimana: s.maxHours,
+          stop: s.stops,
+        }
+      : null,
+  };
+}
+
 export const COACH_TOOLS: CoachTool[] = [
   {
     name: "stato_di_oggi",
@@ -788,6 +815,16 @@ export const COACH_TOOLS: CoachTool[] = [
     inputSchema: noArgs,
     annotations: READ,
     run: libreria,
+  },
+  {
+    name: "scheda_atleta",
+    title: "Scheda atleta e stagione",
+    description:
+      "La scheda atleta (testo nel formato di Scheda_atleta.md) e il piano della stagione (periodo di picco, gara A, ramp rate, ore, stop) " +
+      "salvati dall'app nell'account Intervals.icu. Se non c'è ancora nulla, lo dice: in quel caso chiedi all'atleta di compilarli nell'app.",
+    inputSchema: noArgs,
+    annotations: READ,
+    run: schedaAtleta,
   },
   {
     name: "crea_allenamento",

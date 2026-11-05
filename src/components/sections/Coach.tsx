@@ -4,6 +4,7 @@
 // Each button opens Claude with the request ready; the coach then reads the data and writes workouts on Intervals.icu.
 import { IconBike, IconCalendarWeek, IconMessageCircle, IconMoon, IconStopwatch, IconSun } from "@tabler/icons-react";
 import { useState, useSyncExternalStore } from "react";
+import { CoachChat } from "../coach/Chat";
 import { fmt } from "../format";
 import { SectionPage } from "./SectionPage";
 
@@ -91,6 +92,10 @@ export default function Coach() {
         const hrv7 = status.hrv.baseline7 !== null ? Math.exp(status.hrv.baseline7) : null;
         return (
           <div className="max-w-3xl space-y-4">
+            <CoachChat data={data} />
+            <details className="card p-4">
+              <summary className="cursor-pointer text-sm font-medium">Il Progetto Claude (un&apos;alternativa, con il connettore)</summary>
+              <div className="mt-4 space-y-4">
             <section className="card p-5">
               <div className="text-xs text-muted">Il coach vede questi dati</div>
               <p className="mt-1 text-sm font-medium">{status.readiness.headline}</p>
@@ -176,6 +181,8 @@ export default function Coach() {
                 lo stai provando sono marcati <b className="font-medium">Coach · prova</b> e lui li può cancellare tutti insieme.
               </p>
             </section>
+              </div>
+            </details>
           </div>
         );
       }}

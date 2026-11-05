@@ -72,7 +72,7 @@ export type DashboardData = {
     ctl: number | null;
     atl: number | null;
     tsb: number | null;
-    /** CTL and form (CTL − ATL) of yesterday: what the readiness score judges "alto rischio" on. */
+    /** CTL and form (CTL − ATL) of yesterday; the readiness score judges "alto rischio" on the form (< −30). */
     ctlYesterday: number | null;
     tsbYesterday: number | null;
     rampRate: number | null;
@@ -200,7 +200,6 @@ export function buildDashboard(raw: RawData, displayDays = 120): DashboardData {
     hrv: hrvAnalysis.today,
     autonomic,
     tsb,
-    ctlYesterday,
     tsbYesterday,
     sleepNights,
   });

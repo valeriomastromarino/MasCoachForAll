@@ -4,3 +4,8 @@
 export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init);
 }
+
+/** The written coach (Claude Sonnet) lives on the server, where the Anthropic key is: never in the page. */
+export function askFetch(body: unknown): Promise<Response> {
+  return fetch("/api/coach/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}

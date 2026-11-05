@@ -7,6 +7,7 @@ import CoachPage from "@/app/coach/page";
 import CuorePage from "@/app/cuore/page";
 import FormaPage from "@/app/forma/page";
 import SettingsPage from "@/app/impostazioni/page";
+import StagionePage from "@/app/stagione/page";
 import OggiPage from "@/app/page";
 import PotenzaPage from "@/app/potenza/page";
 import RecuperoPage from "@/app/recupero/page";
@@ -15,12 +16,15 @@ import RulliPage from "@/app/rulli/page";
 import TestPage from "@/app/test/page";
 import { TopBar } from "@/components/brand/TopBar";
 import { AppNav } from "@/components/nav/AppNav";
-import { DemoBanner, IntervalsKeyCard } from "./IntervalsKey";
+import { FirstRunGate } from "@/components/firstrun/FirstRun";
+import { apiKey } from "@/lib/intervals/credentials.browser";
+import { DemoBanner, IntervalsKeyCard, IntervalsKeyStep } from "./IntervalsKey";
 import { usePath } from "./router";
 
 const PAGES: Record<string, () => React.ReactNode> = {
   "/": OggiPage,
   "/forma": FormaPage,
+  "/stagione": StagionePage,
   "/potenza": PotenzaPage,
   "/cuore": CuorePage,
   "/recupero": RecuperoPage,
@@ -53,14 +57,16 @@ export function App() {
     window.scrollTo(0, 0);
   }, [path]);
   return (
-    // Same frame as app/layout.tsx.
-    <div className="mx-auto flex w-full max-w-[calc(72rem+5rem)] md:pl-4">
-      <AppNav />
-      <div className="flex min-h-full min-w-0 flex-1 flex-col pb-24 md:pb-0">
-        <TopBar />
-        <DemoBanner />
-        <Page key={path} path={path} />
+    <FirstRunGate needsKey={!apiKey()} KeyStep={IntervalsKeyStep}>
+      {/* Same frame as app/layout.tsx. */}
+      <div className="mx-auto flex w-full max-w-[calc(72rem+5rem)] md:pl-4">
+        <AppNav />
+        <div className="flex min-h-full min-w-0 flex-1 flex-col pb-24 md:pb-0">
+          <TopBar />
+          <DemoBanner />
+          <Page key={path} path={path} />
+        </div>
       </div>
-    </div>
+    </FirstRunGate>
   );
 }

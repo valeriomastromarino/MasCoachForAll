@@ -37,7 +37,15 @@ export default function Recupero() {
                   },
                 ]}
               />
-              <Stat label="Peso" value={fmt(lastWeight?.kg, 1, " kg")} hint={lastWeight ? `pesata del ${fmtDay(lastWeight.date)}` : "nessuna pesata"} />
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-1">
+                <Stat label="Peso" value={fmt(lastWeight?.kg, 1, " kg")} hint={lastWeight ? `pesata del ${fmtDay(lastWeight.date)}` : "nessuna pesata"} />
+                <Stat
+                  label="Ramp rate"
+                  color="var(--fitness)"
+                  value={status.rampRate !== null ? `${status.rampRate > 0 ? "+" : ""}${fmt(status.rampRate, 1)}` : "–"}
+                  hint="CTL negli ultimi 7 giorni"
+                />
+              </div>
             </div>
 
             <Card title="HRV e FC a riposo" subtitle="Lettura combinata dei due marcatori notturni secondo il metodo di Marco Altini">

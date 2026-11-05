@@ -27,7 +27,7 @@ describe("MasCoach MCP server", () => {
     expect(byName.get("stato_di_oggi")?.annotations.readOnlyHint).toBe(true);
     expect(byName.get("crea_allenamento")?.annotations.readOnlyHint).toBe(false);
     // Tools the coach prompt v7.2-p expects.
-    for (const name of ["eventi", "w_balance", "fueling_log"]) expect(byName.get(name)?.annotations.readOnlyHint).toBe(true);
+    for (const name of ["eventi", "w_balance", "fueling_log", "scheda_atleta"]) expect(byName.get(name)?.annotations.readOnlyHint).toBe(true);
     for (const name of ["registra_carboidrati", "salva_in_libreria"]) expect(byName.get(name)?.annotations.readOnlyHint).toBe(false);
   });
 

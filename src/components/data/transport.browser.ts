@@ -6,3 +6,8 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
   const r = await handleApi(init?.method ?? "GET", input, body);
   return new Response(JSON.stringify(r.json), { status: r.status, headers: { "Content-Type": "application/json" } });
 }
+
+/** Single-file build and Android app: no server here, so no written coach yet (the chat falls back to its rules). */
+export async function askFetch(): Promise<Response> {
+  return new Response(JSON.stringify({ error: "Il coach scritto non è ancora disponibile in questa versione." }), { status: 501, headers: { "Content-Type": "application/json" } });
+}

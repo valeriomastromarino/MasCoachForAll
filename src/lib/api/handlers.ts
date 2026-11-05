@@ -13,6 +13,7 @@ import {
   deleteEvent,
   fetchActivities,
   fetchAthlete,
+  fetchEvent,
   fetchEvents,
   fetchHistory,
   fetchIntervals,
@@ -23,8 +24,10 @@ import {
   intervalsConfigured,
   moveEvent,
   updateActivity,
+  updateEvent,
   uploadActivity,
 } from "../intervals/client";
+import { CLOUD_NOTE, CLOUD_TEST, type CloudPayload, decodeCloud, encodeCloud, isCloudPayload } from "../profile/cloud";
 import { DEMO_WORKOUT_ID, demoWorkout, indoorFtp, playerWorkout } from "../player/load";
 import type { PlayerWorkout } from "../player/timeline";
 import {
@@ -125,6 +128,8 @@ async function patchRide(id: string, body: Record<string, unknown> | null): Prom
   // Intervals.icu ignores null: 0 is how an RPE is cleared.
   if (body.rpe === null) patch.icu_rpe = 0;
   else if (typeof body.rpe === "number" && Number.isInteger(body.rpe) && body.rpe >= 1 && body.rpe <= 10) patch.icu_rpe = body.rpe;
+  // Only what the athlete told us: the app never passes Intervals.icu's own estimate of carbohydrates.
+  if (typeof body.carbs_ingested === "number" && Number.isInteger(body.carbs_ingested) && body.carbs_ingested >= 0 && body.carbs_ingested <= 1500) patch.carbs_ingested = body.carbs_ingested;
   if (!Object.keys(patch).length) return fail(400, "Niente da salvare");
   await updateActivity(id, patch);
   rideCache.delete(id);
@@ -150,6 +155,84 @@ async function calendar(q: URLSearchParams): Promise<ApiResult> {
     Promise.all([fetchActivities(from, to), fetchEvents(from, to)]),
   );
   return ok(buildCalendar(acts, events, from, to, ftp) satisfies CalendarData);
+}
+
+/**
+ * The copy of the athlete sheet and the season kept in Intervals.icu (lib/profile/cloud.ts): GET reads it, PUT writes it,
+ * DELETE only removes the test note (?prova=1), never the real copy.
+ */
+async function cloud(method: string, q: URLSearchParams, body: unknown): Promise<ApiResult> {
+  if (!intervalsConfigured()) return DEMO_ONLY();
+  const test = q.get("prova") === "1";
+  const target = test ? CLOUD_TEST : CLOUD_NOTE;
+  const events = await fetchEvents(target.date, addDays(target.date, 1));
+  const found = events.find((e) => e.external_id === target.externalId) ?? null;
+  if (method === "GET") return ok({ payload: decodeCloud(found?.description) });
+  if (method === "PUT") {
+    if (!isCloudPayload(body)) return fail(400, "Dati non validi");
+    const description = encodeCloud(body as CloudPayload);
+    if (found) await updateEvent(String(found.id), { name: target.name, description });
+    else await createEvent({ category: "NOTE", start_date_local: `${target.date}T00:00:00`, name: target.name, description, external_id: target.externalId });
+    return ok({ ok: true });
+  }
+  if (method === "DELETE") {
+    if (!test) return fail(400, "Si può cancellare solo la nota di prova");
+    if (found) await deleteEvent(String(found.id));
+    return ok({ ok: true });
+  }
+  return fail(405, "Metodo non previsto");
+}
+
+const LIFE_CATEGORIES = ["HOLIDAY", "SICK", "INJURED"];
+const LIFE_PREFIX = "mascoach-life-";
+
+/**
+ * Holidays, illness and injury on the Intervals.icu calendar: GET lists them for a period (one call), POST writes one,
+ * PATCH ends one ("sto meglio"), DELETE takes back one the app wrote (and only those).
+ */
+async function life(method: string, id: string, q: URLSearchParams, body: unknown): Promise<ApiResult> {
+  if (!intervalsConfigured()) return DEMO_ONLY();
+  const b = (body ?? {}) as { category?: string; from?: string; to?: string; name?: string };
+  if (method === "GET") {
+    const from = q.get("from") ?? "";
+    const to = q.get("to") ?? "";
+    if (!ISO_DATE.test(from) || !ISO_DATE.test(to) || from > to || addDays(from, 800) < to) return fail(400, "Intervallo di date non valido");
+    const events = await fetchEvents(from, to);
+    const list = events
+      .filter((e) => e.category && LIFE_CATEGORIES.includes(e.category))
+      .map((e) => {
+        const start = e.start_date_local.slice(0, 10);
+        const end = e.end_date_local ? e.end_date_local.slice(0, 10) : null;
+        // Intervals.icu ends a single-day event at midnight of the next day.
+        return { id: String(e.id), category: e.category as string, from: start, to: end && end > addDays(start, 1) ? addDays(end, -1) : end && end > start ? start : start, name: e.name ?? undefined };
+      });
+    return ok(list);
+  }
+  if (method === "POST") {
+    if (!b.category || !LIFE_CATEGORIES.includes(b.category) || !ISO_DATE.test(b.from ?? "") || !ISO_DATE.test(b.to ?? "") || b.from! > b.to!) return fail(400, "Richiesta non valida");
+    const created = await createEvent({
+      category: b.category,
+      start_date_local: `${b.from}T00:00:00`,
+      end_date_local: `${addDays(b.to!, 1)}T00:00:00`,
+      name: (b.name ?? "").slice(0, 120) || (b.category === "HOLIDAY" ? "Ferie" : b.category === "SICK" ? "Malattia" : "Infortunio"),
+      external_id: `${LIFE_PREFIX}${Date.now()}`,
+    });
+    return ok({ id: String(created?.id ?? "") });
+  }
+  if (!id) return fail(400, "Serve l'id dell'evento");
+  const ev = await fetchEvent(id);
+  if (!ev.category || !LIFE_CATEGORIES.includes(ev.category)) return fail(400, "Non è una malattia, un infortunio o una vacanza");
+  if (method === "PATCH") {
+    if (!ISO_DATE.test(b.to ?? "")) return fail(400, "Data non valida");
+    await updateEvent(id, { end_date_local: `${addDays(b.to!, 1)}T00:00:00` });
+    return ok({ ok: true });
+  }
+  if (method === "DELETE") {
+    if (!ev.external_id?.startsWith(LIFE_PREFIX)) return fail(400, "Si possono togliere solo gli eventi scritti da MasCoach");
+    await deleteEvent(id);
+    return ok({ ok: true });
+  }
+  return fail(405, "Metodo non previsto");
 }
 
 /** Puts a workout from the Intervals.icu library on a day of the calendar. */
@@ -335,6 +418,8 @@ export async function handleApi(method: string, path: string, body: unknown = nu
     if (method === "GET" && p === "/api/library") return await library(q);
     if (method === "GET" && p === "/api/durability") return await durability(q);
     if (method === "GET" && p === "/api/history") return await history(q);
+    if (p === "/api/cloud") return await cloud(method, q, body);
+    if (p === "/api/life" || p.startsWith("/api/life/")) return await life(method, seg(/^\/api\/life\/([^/]+)$/), q, body);
     if (p.startsWith("/api/activity/")) {
       const id = seg(/^\/api\/activity\/([^/]+)$/);
       if (method === "GET") return await ride(id);

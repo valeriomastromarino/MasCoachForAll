@@ -203,7 +203,7 @@ describe("readiness", () => {
   const base = { ln: 4.1, baseline7: 4.1, low: 4.0, high: 4.2, acuteDrop: false, sd7: 0.08, sd60: 0.1 };
   const calm = { pattern: "stabile" as const, explanation: "ok", severity: 0 as const, anomalyToday: false, anomalyStreak: 0 };
   const stress = { pattern: "stress" as const, explanation: "stress", severity: 2 as const, anomalyToday: false, anomalyStreak: 0 };
-  const fine = { tsb: -5, ctlYesterday: 60, tsbYesterday: -5, sleepNights: [7.5, 7, 7.2] };
+  const fine = { tsb: -5, tsbYesterday: -5, sleepNights: [7.5, 7, 7.2] };
   it("is green when all is normal", () => {
     const r = assessReadiness({ hrv: { ...base, status: "nella norma" }, autonomic: calm, ...fine });
     expect(r.level).toBe("verde");
@@ -231,18 +231,18 @@ describe("readiness", () => {
     expect(once.reasons.some((x) => x.includes("ultime 3 notti"))).toBe(false);
     expect(twice.reasons.some((x) => x.includes("ultime 3 notti"))).toBe(true);
     expect(twice.level).toBe("giallo"); // 1 (pattern) + 1 (sleep) = 2
-    const twiceAndForm = assessReadiness({ ...hrvDown, ...fine, sleepNights: [5.5, 7, 5], ctlYesterday: 60, tsbYesterday: -25 });
+    const twiceAndForm = assessReadiness({ ...hrvDown, ...fine, sleepNights: [5.5, 7, 5], tsbYesterday: -31 });
     expect(twiceAndForm.level).toBe("rosso"); // 1 + 1 + 1
   });
-  it("judges high risk on yesterday's form: share of CTL, or absolute at low CTL", () => {
-    expect(highRiskForm(60, -19)).toBe(true); // -31.7 %
-    expect(highRiskForm(60, -17)).toBe(false); // -28.3 %
-    expect(highRiskForm(30, -16)).toBe(true); // low CTL: TSB < -15
-    expect(highRiskForm(30, -10)).toBe(false);
-    expect(highRiskForm(null, -30)).toBe(false);
+  it("judges high risk on yesterday's form with the app zone: TSB below −30, whatever the CTL", () => {
+    expect(highRiskForm(-31)).toBe(true);
+    expect(highRiskForm(-30)).toBe(false);
+    expect(highRiskForm(-19)).toBe(false); // used to count as high risk at CTL 60 (−31.7 %)
+    expect(highRiskForm(-16)).toBe(false); // used to count as high risk at CTL 30
+    expect(highRiskForm(null)).toBe(false);
   });
   it("does not add the form on top of a stress pattern, but keeps the sleep", () => {
-    const risky = { ...fine, ctlYesterday: 60, tsbYesterday: -30 };
+    const risky = { ...fine, tsbYesterday: -31 };
     const noSleep = assessReadiness({ hrv: { ...base, status: "sotto la norma" }, autonomic: stress, ...risky });
     expect(noSleep.level).toBe("giallo"); // 2, form not counted
     const withSleep = assessReadiness({
@@ -258,8 +258,7 @@ describe("readiness", () => {
       hrv: { ...base, status: "nella norma", acuteDrop: true },
       autonomic: calm,
       tsb: -35,
-      ctlYesterday: 60,
-      tsbYesterday: -30,
+      tsbYesterday: -31,
       sleepNights: [5, 5, 7],
     });
     expect(r.level).toBe("giallo"); // 1 + 1 + 1 would be red
