@@ -11,7 +11,7 @@ import { isActive, type Section, SECTIONS, SETTINGS } from "./sections";
 const ALTRO = { href: "/altro", label: "Altro", color: "var(--muted)" };
 type Tab = { id: string; href: string; label: string; icon: Section["icon"]; color: string };
 const tabOf = (id: "oggi" | "coach" | "rulli"): Tab => SECTIONS.find((s) => s.id === id)!;
-const CALENDARIO: Tab = { id: "calendario", href: "/calendario", label: "Calendario", icon: IconCalendarEvent, color: "var(--fitness-ink)" };
+const CALENDARIO: Tab = { id: "calendario", href: "/calendario", label: "Calendario", icon: IconCalendarEvent, color: "var(--accent-ink)" };
 const tabOn = (s: Tab, pathname: string) => (s.href === "/" ? pathname === "/" : pathname === s.href || pathname.startsWith(s.href + "/"));
 
 function CompactBar({ pathname }: { pathname: string }) {
@@ -29,13 +29,13 @@ function CompactBar({ pathname }: { pathname: string }) {
           const Icon = s.icon;
           const on = tabOn(s, pathname);
           return (
-            <Link key={s.id} href={s.href} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? tint(s.color, 18) : undefined, color: on ? s.color : "var(--muted)" }}>
-              <Icon size={24} stroke={on ? 2.1 : 1.7} style={{ color: s.color }} aria-hidden />
+            <Link key={s.id} href={s.href} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? "var(--accent-bg)" : undefined, color: on ? "var(--accent-ink)" : "var(--muted)" }}>
+              <Icon size={24} stroke={on ? 2.1 : 1.7} aria-hidden />
               <span>{s.label}</span>
             </Link>
           );
         })}
-        <Link href={ALTRO.href} className={tab} aria-current={!inTabs ? "page" : undefined} style={{ background: !inTabs ? tint(ALTRO.color, 18) : undefined, color: !inTabs ? "var(--foreground)" : "var(--muted)" }}>
+        <Link href={ALTRO.href} className={tab} aria-current={!inTabs ? "page" : undefined} style={{ background: !inTabs ? "var(--accent-bg)" : undefined, color: !inTabs ? "var(--accent-ink)" : "var(--muted)" }}>
           <IconDots size={24} stroke={!inTabs ? 2.1 : 1.7} aria-hidden />
           <span>{ALTRO.label}</span>
         </Link>
@@ -43,8 +43,6 @@ function CompactBar({ pathname }: { pathname: string }) {
     </nav>
   );
 }
-
-const tint = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
 function RailItem({ s, active }: { s: Section; active: boolean }) {
   const Icon = s.icon;
@@ -54,9 +52,9 @@ function RailItem({ s, active }: { s: Section; active: boolean }) {
       aria-label={s.label}
       aria-current={active ? "page" : undefined}
       className="group relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-[var(--neutral-bg)]"
-      style={{ background: active ? tint(s.color, 18) : undefined, color: s.color, opacity: s.soon ? 0.55 : 1 }}
+      style={{ background: active ? "var(--accent-bg)" : undefined, color: active ? "var(--accent-ink)" : "var(--muted)", opacity: s.soon ? 0.55 : 1 }}
     >
-      {active && <span className="absolute -left-3 h-5 w-1 rounded-r-full" style={{ background: s.color }} aria-hidden />}
+      {active && <span className="absolute -left-3 h-5 w-1 rounded-r-full" style={{ background: "var(--accent-ink)" }} aria-hidden />}
       <Icon size={21} stroke={active ? 2.1 : 1.7} aria-hidden />
       {/* Name on hover: the rail shows icons only. */}
       <span
@@ -131,8 +129,8 @@ function BottomBar({ pathname }: { pathname: string }) {
           const Icon = s.icon;
           const on = isActive(s, pathname);
           return (
-            <Link key={s.id} href={s.href} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? tint(s.color, 18) : undefined, color: on ? s.color : "var(--muted)" }}>
-              <Icon size={22} stroke={on ? 2.1 : 1.7} style={{ color: s.color }} aria-hidden />
+            <Link key={s.id} href={s.href} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? "var(--accent-bg)" : undefined, color: on ? "var(--accent-ink)" : "var(--muted)" }}>
+              <Icon size={22} stroke={on ? 2.1 : 1.7} aria-hidden />
               <span className="max-w-full truncate">{s.label}</span>
             </Link>
           );

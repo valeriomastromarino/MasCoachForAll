@@ -88,29 +88,65 @@ function YesterdayRides({ rides, load }: { rides: ActivityRow[]; load: number })
   );
 }
 
-export function ReadinessCard({ status, yesterday }: { status: DashboardData["status"]; yesterday?: { rides: ActivityRow[]; load: number } }) {
+/** How far along the readiness scale each level sits (the bar shows the level, not a measured percentage). */
+const READINESS_SHARE: Record<ReadinessLevel, number> = { verde: 1, giallo: 0.6, rosso: 0.25, grigio: 0 };
+
+/** Today's verdict on the brand colour: the level in words, a bar along Recupero → Riduci → Pronto and the advice. */
+export function ReadinessHero({ status, size = "full", children }: { status: DashboardData["status"]; size?: "full" | "short"; children?: React.ReactNode }) {
   const r = status.readiness;
-  const s = LEVEL_STYLE[r.level];
+  const share = READINESS_SHARE[r.level];
   return (
-    <section className="card p-5" style={{ background: `linear-gradient(135deg, ${s.bg} 0%, var(--surface) 75%)` }}>
-      <div className="flex items-center gap-3">
+    <section className="rounded-[24px] p-5" style={{ background: "var(--brand)", color: "var(--on-brand)" }} aria-label="Stato di oggi">
+      <div className="text-[10px] font-medium uppercase tracking-[0.1em] opacity-85">Stato di oggi</div>
+      <div className="mt-2 flex items-center gap-3">
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg font-medium text-white"
-          style={{ background: s.ink }}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl font-medium"
+          style={{ background: "var(--on-brand)", color: "var(--brand)" }}
           aria-hidden
         >
-          {s.icon}
+          {LEVEL_STYLE[r.level].icon}
         </span>
-        <div>
-          <div className="text-xs text-muted">Stato di oggi</div>
-          <div className="text-xl font-medium" style={{ color: s.ink }}>
-            {r.headline}
-          </div>
-        </div>
+        <div className="text-[28px] font-medium leading-none tracking-tight">{r.headline}</div>
       </div>
-      <p className="mt-4 text-sm">{r.advice}</p>
-      {yesterday && <YesterdayRides rides={yesterday.rides} load={yesterday.load} />}
+      <div className="mt-4 flex items-baseline justify-between text-xs">
+        <span>Prontezza</span>
+        <span className="opacity-85">{r.level === "grigio" ? "dati insufficienti" : LEVEL_LABEL[r.level]}</span>
+      </div>
+      <div
+        className="mt-1.5 h-3 overflow-hidden rounded-full"
+        style={{ background: "color-mix(in srgb, var(--on-brand) 28%, transparent)" }}
+        role="meter"
+        aria-label="Prontezza"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(share * 100)}
+        aria-valuetext={r.headline}
+      >
+        <div className="h-full rounded-full transition-[width]" style={{ width: `${share * 100}%`, background: "var(--on-brand)" }} />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] opacity-85" aria-hidden>
+        <span>Recupero</span>
+        <span>Riduci</span>
+        <span>Pronto</span>
+      </div>
+      <p className={`${size === "short" ? "mt-3" : "mt-4"} text-sm leading-snug opacity-95`}>{r.advice}</p>
+      {children}
     </section>
+  );
+}
+
+const LEVEL_LABEL: Record<ReadinessLevel, string> = { verde: "pronto", giallo: "riduci l'intensità", rosso: "recupero", grigio: "" };
+
+export function ReadinessCard({ status, yesterday }: { status: DashboardData["status"]; yesterday?: { rides: ActivityRow[]; load: number } }) {
+  return (
+    <div className="space-y-3">
+      <ReadinessHero status={status} />
+      {yesterday && (yesterday.rides.length > 0 || yesterday.load > 0) && (
+        <section className="card px-5 py-1 pb-4">
+          <YesterdayRides rides={yesterday.rides} load={yesterday.load} />
+        </section>
+      )}
+    </div>
   );
 }
 

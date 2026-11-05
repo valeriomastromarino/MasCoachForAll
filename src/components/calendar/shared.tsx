@@ -9,10 +9,10 @@ import type { WorkoutBlock } from "@/lib/workout";
 import { capitalize, fmtDuration } from "../format";
 import { apiFetch } from "../data/transport";
 
-/** Colour of an activity by kind: road like power (blue), indoor lavender, off-road green, other sports grey. */
+/** Colour of an activity by kind: road terracotta (the brand), indoor ochre, off-road green, other sports grey. */
 export const CATEGORY_STYLE: Record<ActivityCategory, { color: string; ink: string; label: string }> = {
-  strada: { color: "var(--fitness)", ink: "var(--fitness-ink)", label: "Strada" },
-  rulli: { color: "var(--fatigue)", ink: "var(--fatigue-ink)", label: "Rulli" },
+  strada: { color: "var(--brand)", ink: "var(--accent-ink)", label: "Strada" },
+  rulli: { color: "var(--cat-indoor)", ink: "var(--cat-indoor-ink)", label: "Rulli" },
   offroad: { color: "var(--good)", ink: "var(--good)", label: "MTB e gravel" },
   altro: { color: "var(--faint)", ink: "var(--muted)", label: "Altro sport" },
   nascosta: { color: "var(--faint)", ink: "var(--muted)", label: "Da Strava" },

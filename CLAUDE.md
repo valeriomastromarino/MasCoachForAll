@@ -99,6 +99,7 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 
 - Tre temi su `<html data-theme>`: `day` (stile A pastello), `night`, `paper` (grana carta). Etichette del selettore in **inglese**: Day / Night / Paper.
 - Usare sempre i token CSS di `globals.css` (mai colori esadecimali nei componenti, salvo Leaflet).
+- **Palette terracotta (2026-11-05)**: colore del marchio `--brand` (#9f5f45, `--on-brand` per il testo sopra), accent = terracotta (`--accent-bg`/`--accent-ink`) in tutti e tre i temi, fondo caldo (Day #f4f2ef, Night marrone scuro, Paper invariato con accento terracotta), schede a 20 px. La navigazione è monocroma (grigio, terracotta se attiva), niente lilla né blu nell'interfaccia; categorie del calendario: strada terracotta, rulli ocra (`--cat-indoor`), MTB verde. **Il logo non cambia** e usa `--fatigue`, `--fitness`, `--hrv`: non toccare questi token. Le zone Z1-Z7 (`--z1`…`--z7`, ultima marrone scuro) sono dati e restano multicolore. Il verdetto di oggi è `ReadinessHero` (`sections/parts.tsx`): scheda terracotta con barra Recupero → Riduci → Pronto che mostra il livello, non una percentuale misurata.
 - Colori metriche come Intervals: fitness blu, fatica lavanda, forma giallo, HRV verde acqua, FC a riposo rosa, zone grigio→lilla.
 - Grafici: mai doppio asse Y; un solo tooltip nel grafico sotto il mouse, linea tratteggiata negli altri.
 - Prima di grosse modifiche grafiche mostrare un'anteprima e aspettare la scelta.

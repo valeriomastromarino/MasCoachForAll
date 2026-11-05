@@ -7,7 +7,7 @@ import type { LatLngTuple } from "leaflet";
 import type { RidePoint } from "@/lib/ride";
 
 // Same pastel zone palette as the CSS tokens (Leaflet draws on canvas/SVG attributes, so plain hex).
-const ZONE_HEX = ["#c9d1db", "#9cc8f2", "#a6e0bb", "#f6dc8f", "#f5b98f", "#f2a1a1", "#c9b0ec"];
+const ZONE_HEX = ["#c9c6be", "#8fbceb", "#5fc9a5", "#f0c55e", "#ee9b6e", "#e4776f", "#6b3a28"];
 const ROUTE_FALLBACK = "#6fa6ee";
 
 type Segment = { color: string; positions: LatLngTuple[] };

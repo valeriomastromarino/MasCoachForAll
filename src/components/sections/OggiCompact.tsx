@@ -9,7 +9,7 @@ import { planFromToday, weekFor } from "@/lib/training/season";
 import { loadSeason, SEASON_EVENT, seasonSnapshot } from "@/lib/training/seasonStore";
 import { useLife } from "../data/trainingData";
 import { fmt, fmtDuration } from "../format";
-import { LEVEL_STYLE } from "./parts";
+import { ReadinessHero } from "./parts";
 import { TodayWorkout } from "./TodayWorkout";
 
 const subSeason = (cb: () => void) => {
@@ -29,7 +29,6 @@ function Tile({ label, value, hint, href }: { label: string; value: string; hint
 
 export function OggiCompact({ data }: { data: DashboardData }) {
   const { status, today } = data;
-  const level = LEVEL_STYLE[status.readiness.level];
   const raw = useSyncExternalStore(subSeason, seasonSnapshot, () => "");
   const life = useLife(today);
   const plan = useMemo(() => {
@@ -44,17 +43,7 @@ export function OggiCompact({ data }: { data: DashboardData }) {
 
   return (
     <div className="space-y-3">
-      <section className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: level.bg }} aria-label="Stato di oggi">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-medium text-white" style={{ background: level.ink }} aria-hidden>
-          {level.icon}
-        </span>
-        <div className="min-w-0">
-          <div className="text-[11px] text-muted">Stato di oggi</div>
-          <div className="text-lg font-medium leading-tight" style={{ color: level.ink }}>
-            {status.readiness.headline}
-          </div>
-        </div>
-      </section>
+      <ReadinessHero status={status} size="short" />
 
       <TodayWorkout data={data} compact />
 

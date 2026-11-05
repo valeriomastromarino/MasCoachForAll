@@ -217,7 +217,7 @@ export function ActivityModal({ a, onClose, onChanged }: { a: CalendarActivity; 
           href={`/attivita/${a.id}`}
           onClick={onClose}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-opacity hover:opacity-90"
-          style={{ background: "var(--fitness-ink)", color: "var(--surface)" }}
+          style={{ background: "var(--brand)", color: "var(--on-brand)" }}
         >
           <IconMap size={20} /> {a.category === "altro" ? "Apri il dettaglio" : "Apri il dettaglio con mappa e grafici"}
         </Link>
