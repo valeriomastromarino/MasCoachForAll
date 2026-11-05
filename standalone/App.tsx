@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import AllenamentiPage from "@/app/allenamenti/page";
 import AltroPage from "@/app/altro/page";
+import AnalisiPage from "@/app/analisi/page";
 import CalendarioPage from "@/app/calendario/page";
 import { CoachServerCard } from "@/components/coach/CoachServerCard";
 import ActivityPage from "@/app/attivita/[id]/page";
@@ -43,6 +44,7 @@ const PAGES: Record<string, () => React.ReactNode> = {
 function Page({ path }: { path: string }) {
   if (path.startsWith("/attivita/")) return <ActivityPage />;
   if (path.startsWith("/rulli/")) return <PlayerPage />;
+  if (path.startsWith("/analisi")) return <AnalisiPage />;
   if (path === "/impostazioni")
     return (
       <>

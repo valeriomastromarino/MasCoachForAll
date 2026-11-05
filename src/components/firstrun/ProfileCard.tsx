@@ -1,7 +1,6 @@
 "use client";
 
-// Settings: the saved athlete sheet (copy its text for the Claude Project), its copy in Intervals.icu, and the way to
-// redo the first-launch setup.
+// Settings: the saved athlete sheet, its copy in Intervals.icu, and the way to redo the first-launch setup.
 import { useState, useSyncExternalStore } from "react";
 import { applyCloud, markRedo, pullCloud, pushCloud, useCloudStatus } from "@/components/data/cloud";
 import { clearProfile, loadProfile, notifyProfile, PROFILE_EVENT } from "@/lib/profile/profile";
@@ -15,19 +14,9 @@ const savedAt = () => loadProfile()?.savedAt ?? "";
 export function ProfileCard() {
   const date = useSyncExternalStore(subscribe, savedAt, () => "");
   const cloud = useCloudStatus();
-  const [copied, setCopied] = useState<"" | "ok" | "manual">("");
   const [message, setMessage] = useState("");
-  const sheet = date ? (loadProfile()?.sheet ?? "") : "";
   const button = "rounded-xl px-4 py-2 text-sm";
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(sheet);
-      setCopied("ok");
-    } catch {
-      setCopied("manual");
-    }
-  };
   const redo = () => {
     markRedo();
     clearProfile();
@@ -58,30 +47,16 @@ export function ProfileCard() {
   return (
     <section className="card max-w-xl p-5">
       <h2 className="text-sm font-medium">Scheda atleta</h2>
-      {date && sheet ? (
+      {date ? (
         <>
           <p className="mt-2 text-xs text-muted">
-            Salvata il {date}. Per il coach copia il testo e sostituisci il file «Scheda_atleta.md» nel Progetto Claude.
+            Salvata il {date}. Il coach la usa per scegliere gli allenamenti.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={copy} className={button} style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
-              {copied === "ok" ? "Scheda copiata" : "Copia il testo"}
-            </button>
             <button type="button" onClick={redo} className={button} style={{ border: "1px solid var(--border)" }}>
               Rifai la configurazione iniziale
             </button>
           </div>
-          {copied === "manual" && (
-            <textarea
-              readOnly
-              value={sheet}
-              rows={8}
-              onFocus={(e) => e.currentTarget.select()}
-              className="mt-3 w-full rounded-xl px-3 py-2 font-mono text-xs outline-none"
-              style={{ background: "var(--background)", border: "1px solid var(--border)" }}
-              aria-label="Testo della Scheda atleta"
-            />
-          )}
         </>
       ) : (
         <>

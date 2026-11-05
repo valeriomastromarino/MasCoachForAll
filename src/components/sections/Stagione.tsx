@@ -3,6 +3,7 @@
 // Season: the first planning screen asks for the goals (peak period, optional A race), the ramp rate the athlete accepts,
 // the hours and the days off; then it shows the plan week by week (lib/training/season.ts).
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCompact } from "@/lib/compact";
 import { addDays, weekStart } from "@/lib/dates";
 import type { CalendarData } from "@/lib/api/handlers";
 import type { DashboardData } from "@/lib/dashboard";
@@ -274,6 +275,10 @@ function PlanView({ data, setup, onEdit }: { data: DashboardData; setup: SeasonS
   const life = useLife(data.today);
   const plan = useMemo(() => planFromToday(setup, data.today, data.status.ctl, life), [setup, data.today, data.status.ctl, life]);
   const current = weekStart(data.today);
+  // Phone app: the next 8 weeks, the rest on request.
+  const compact = useCompact();
+  const [allWeeks, setAllWeeks] = useState(false);
+  const listed = compact && !allWeeks ? plan.weeks.filter((w) => w.start >= current).slice(0, 8) : plan.weeks;
   const maxTss = Math.max(...plan.weeks.map((w) => w.tssTarget), 1);
   const next = plan.weeks.find((w) => w.start >= current && w.kind !== "stop");
   const stat = (label: string, value: string, hint?: string) => (
@@ -344,7 +349,7 @@ function PlanView({ data, setup, onEdit }: { data: DashboardData; setup: SeasonS
           </p>
         )}
         <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
-          {plan.weeks.map((w) => (
+          {listed.map((w) => (
             <li key={w.start} className="flex items-start gap-3 py-2 text-sm" style={{ borderColor: "var(--border)", background: w.start === current ? "var(--background)" : undefined }}>
               <span className="w-24 shrink-0 text-xs text-muted">{weekLabel(w)}</span>
               <span className="min-w-0 flex-1">
@@ -363,6 +368,11 @@ function PlanView({ data, setup, onEdit }: { data: DashboardData; setup: SeasonS
             </li>
           ))}
         </ul>
+        {compact && plan.weeks.length > listed.length && !allWeeks && (
+          <button type="button" onClick={() => setAllWeeks(true)} className="mt-3 w-full rounded-xl px-4 py-2 text-sm text-muted" style={{ border: "1px solid var(--border)" }}>
+            Mostra tutte le {plan.weeks.length} settimane
+          </button>
+        )}
       </section>
     </div>
   );

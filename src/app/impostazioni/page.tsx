@@ -2,25 +2,21 @@ import { ThemeToggle } from "@/components/brand/ThemeToggle";
 import { ProfileCard } from "@/components/firstrun/ProfileCard";
 import { SectionHeading } from "@/components/sections/SectionPage";
 
+// Two blocks: how the app looks, and what it connects to (the single-file app adds the Intervals key and the coach password below).
 export default function Page() {
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6">
+    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-6">
       <SectionHeading id="impostazioni" />
+      <h2 className="pt-1 text-xs font-medium uppercase tracking-wide text-muted">Aspetto</h2>
       <section className="card max-w-xl p-5">
-        <h2 className="text-sm font-medium">Tema</h2>
+        <h3 className="text-sm font-medium">Tema</h3>
         <p className="mt-0.5 text-xs text-muted">La scelta resta salvata su questo dispositivo.</p>
         <div className="mt-4">
           <ThemeToggle />
         </div>
       </section>
+      <h2 className="pt-3 text-xs font-medium uppercase tracking-wide text-muted">Collegamenti</h2>
       <ProfileCard />
-      <section className="card max-w-xl p-5">
-        <h2 className="text-sm font-medium">Dati</h2>
-        <p className="mt-2 text-xs text-muted">
-          Tutti i dati arrivano da Intervals.icu, che li riceve dal Garmin. FTP, FC di soglia e peso si cambiano su
-          Intervals.icu: l&apos;app li legge da lì.
-        </p>
-      </section>
     </main>
   );
 }

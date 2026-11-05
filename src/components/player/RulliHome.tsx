@@ -13,6 +13,7 @@ import { deleteRecording, listRecordings } from "@/lib/player/store";
 import { downloadFit, uploadPending, uploadRecording } from "./upload";
 import { apiFetch } from "../data/transport";
 import { fmt, fmtClock, fmtDuration, fmtWeekday } from "../format";
+import { useCompact } from "@/lib/compact";
 import { SectionHeading } from "../sections/SectionPage";
 import { PedalaLink } from "./PedalaLink";
 
@@ -111,6 +112,8 @@ export default function RulliHome() {
     return () => window.removeEventListener("online", retry);
   }, [reloadSessions]);
 
+  const compact = useCompact();
+  const [more, setMore] = useState(false);
   const workouts =
     today && cal && !("error" in cal) ? cal.workouts.filter((w) => w.date >= today && w.blocks.length > 0).sort((a, b) => a.date.localeCompare(b.date)) : [];
 
@@ -133,20 +136,20 @@ export default function RulliHome() {
             <p className="mt-2 text-sm text-muted">Nessun allenamento strutturato nei prossimi 7 giorni su Intervals.icu.</p>
           ) : (
             <ul className="mt-1 divide-y" style={{ borderColor: "var(--border)" }}>
-              {workouts.map((w) => (
+              {(compact ? workouts.slice(0, 3) : workouts).map((w) => (
                 <WorkoutRow key={w.id} w={w} today={today ?? ""} />
               ))}
             </ul>
           )}
         </section>
         <div className="space-y-5">
-          <section className="card p-5">
+          {(!compact || more) && (<section className="card p-5">
             <h2 className="text-sm font-medium">Prova del rullo</h2>
             <p className="mt-1 text-sm text-muted">
               14 minuti per controllare rullo, fascia cardio, ERG e resistenza: riscaldamento, tre cambi di potenza da 1′ e defaticamento.
             </p>
             <PedalaLink id={DEMO_WORKOUT_ID} className="mt-3" />
-          </section>
+          </section>)}
           <section className="card p-5">
             <h2 className="text-sm font-medium">Sedute su questo dispositivo</h2>
             {sessions.length === 0 ? (
@@ -162,7 +165,7 @@ export default function RulliHome() {
               </>
             )}
           </section>
-          <section className="card p-5 text-sm text-muted">
+          {(!compact || more) && (<section className="card p-5 text-sm text-muted">
             <h2 className="text-sm font-medium text-[color:var(--foreground)]">Come funziona</h2>
             <ul className="mt-1 list-disc space-y-1 pl-5">
               <li>Chrome o Edge su Windows o Android, con il Bluetooth acceso. Su iPhone non funziona.</li>
@@ -174,7 +177,12 @@ export default function RulliHome() {
               </li>
               <li>La seduta parte quando pedali, va in pausa quando smetti e alla fine si carica su Intervals.icu.</li>
             </ul>
-          </section>
+          </section>)}
+          {compact && !more && (
+            <button type="button" onClick={() => setMore(true)} className="card w-full px-4 py-3 text-left text-sm text-muted">
+              Prova del rullo e istruzioni
+            </button>
+          )}
         </div>
       </div>
     </main>

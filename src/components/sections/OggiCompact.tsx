@@ -1,6 +1,7 @@
 "use client";
 
 // Today on the phone app, short: one verdict, today's workout, three numbers and the week.
+import Link from "next/link";
 import { useMemo, useSyncExternalStore } from "react";
 import type { DashboardData } from "@/lib/dashboard";
 import { weekStart } from "@/lib/dates";
@@ -16,13 +17,13 @@ const subSeason = (cb: () => void) => {
   return () => window.removeEventListener(SEASON_EVENT, cb);
 };
 
-function Tile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Tile({ label, value, hint, href }: { label: string; value: string; hint?: string; href: string }) {
   return (
-    <div className="card px-3 py-2.5">
+    <Link href={href} className="card block px-3 py-2.5">
       <div className="text-[11px] text-muted">{label}</div>
       <div className="num text-lg font-medium leading-tight">{value}</div>
       {hint && <div className="truncate text-[11px] text-muted">{hint}</div>}
-    </div>
+    </Link>
   );
 }
 
@@ -58,9 +59,9 @@ export function OggiCompact({ data }: { data: DashboardData }) {
       <TodayWorkout data={data} compact />
 
       <div className="grid grid-cols-3 gap-2">
-        <Tile label="Forma" value={fmt(status.tsb)} hint={status.formZone ?? undefined} />
-        <Tile label="HRV 7 gg" value={fmt(hrv7, 0, " ms")} />
-        <Tile label="Sonno" value={status.sleepHours !== null ? fmtDuration(status.sleepHours * 3600) : "–"} />
+        <Tile label="Forma" value={fmt(status.tsb)} hint={status.formZone ?? undefined} href="/analisi" />
+        <Tile label="HRV 7 gg" value={fmt(hrv7, 0, " ms")} href="/analisi/recupero" />
+        <Tile label="Sonno" value={status.sleepHours !== null ? fmtDuration(status.sleepHours * 3600) : "–"} href="/analisi/recupero" />
       </div>
 
       {week && (
