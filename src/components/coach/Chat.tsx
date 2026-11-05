@@ -282,7 +282,7 @@ function Bubble({ m }: { m: ChatMessage }) {
   return (
     <div className="flex justify-start">
       <div className="max-w-[92%] rounded-2xl rounded-bl-md px-3 py-2 text-sm" style={{ background: "var(--background)" }}>
-        <p>{m.text}</p>
+        <p className="whitespace-pre-line">{m.text}</p>
         {p && (
           <div className="mt-2 rounded-xl p-2.5" style={{ border: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2">
