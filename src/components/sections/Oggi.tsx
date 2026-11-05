@@ -1,16 +1,20 @@
 "use client";
 
+import { useCompact } from "@/lib/compact";
 import { addDays } from "@/lib/dates";
 import { Calendar } from "../calendar/Calendar";
 import { fmt, fmtDuration } from "../format";
+import { OggiCompact } from "./OggiCompact";
 import { ReadinessCard, StatGroup } from "./parts";
 import { SectionPage } from "./SectionPage";
 import { TodayWorkout } from "./TodayWorkout";
 
 export default function Oggi() {
+  const compact = useCompact();
   return (
     <SectionPage id="oggi" heading={false}>
       {(data) => {
+        if (compact) return <OggiCompact data={data} />;
         const { status } = data;
         const lastNight = data.sleep.at(-1);
         const sleepScore = lastNight?.date === data.today ? lastNight.score : null;

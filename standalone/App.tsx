@@ -1,6 +1,9 @@
 // Single-file build: the same pages as the Next.js app, picked by the hash router.
 import { useEffect } from "react";
 import AllenamentiPage from "@/app/allenamenti/page";
+import AltroPage from "@/app/altro/page";
+import CalendarioPage from "@/app/calendario/page";
+import { CoachServerCard } from "@/components/coach/CoachServerCard";
 import ActivityPage from "@/app/attivita/[id]/page";
 import ArchivePage from "@/app/attivita/page";
 import CoachPage from "@/app/coach/page";
@@ -31,6 +34,8 @@ const PAGES: Record<string, () => React.ReactNode> = {
   "/attivita": ArchivePage,
   "/test": TestPage,
   "/allenamenti": AllenamentiPage,
+  "/altro": AltroPage,
+  "/calendario": CalendarioPage,
   "/coach": CoachPage,
   "/rulli": RulliPage,
 };
@@ -42,8 +47,9 @@ function Page({ path }: { path: string }) {
     return (
       <>
         <SettingsPage />
-        <div className="mx-auto w-full max-w-6xl px-4 pb-6">
+        <div className="mx-auto w-full max-w-6xl space-y-5 px-4 pb-6">
           <IntervalsKeyCard />
+          <CoachServerCard />
         </div>
       </>
     );

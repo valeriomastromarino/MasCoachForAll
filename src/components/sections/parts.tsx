@@ -36,7 +36,7 @@ export function Stat({ label, value, hint, color }: { label: string; value: stri
   );
 }
 
-const LEVEL_STYLE: Record<ReadinessLevel, { ink: string; bg: string; icon: string }> = {
+export const LEVEL_STYLE: Record<ReadinessLevel, { ink: string; bg: string; icon: string }> = {
   verde: { ink: "var(--good)", bg: "var(--good-bg)", icon: "✓" },
   giallo: { ink: "var(--warning)", bg: "var(--warning-bg)", icon: "!" },
   rosso: { ink: "var(--critical)", bg: "var(--critical-bg)", icon: "✕" },

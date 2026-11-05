@@ -1,5 +1,5 @@
 // Every page and /api/* call needs the login cookie (see lib/auth/session.ts). Still reachable: the login page,
-// static files, the install files (manifest, icons) and the Claude connector (api/mcp, which checks its own secret).
+// static files, the install files (manifest, icons) and the Claude connector (api/mcp, which checks its own secret) and the app's coach route (api/coach/ask, which checks the cookie or the app password).
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, isAllowed } from "@/lib/auth/session";
 
@@ -13,5 +13,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/login|api/mcp/|_next/static|_next/image|manifest.webmanifest|icon|apple-icon|favicon.ico|icons/).*)"],
+  matcher: ["/((?!login|api/login|api/mcp/|api/coach/ask|_next/static|_next/image|manifest.webmanifest|icon|apple-icon|favicon.ico|icons/).*)"],
 };

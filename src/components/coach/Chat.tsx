@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { type Action, chat, type ChatContext, type ChatState, emptyState } from "@/lib/coach/chat";
 import { normalize } from "@/lib/coach/chat/text";
+import { isApp } from "@/lib/native";
 import { type ChatMessage, clearChat, loadChat, saveChat, saveOverrides } from "@/lib/coach/chat/store";
 import type { DashboardData } from "@/lib/dashboard";
 import { assessPhenotype } from "@/lib/profile/phenotype";
@@ -204,7 +205,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-medium">Parla con il coach</h2>
-          <p className="mt-0.5 text-xs text-muted">{aiOff ? "Risponde con i tuoi dati e le regole dell&apos;app." : "Scrivi come vuoi: il coach (Claude Sonnet) legge i tuoi dati."} Scrive su Intervals solo dopo il tuo «sì».</p>
+          <p className="mt-0.5 text-xs text-muted">{aiOff ? (isApp() ? "Risponde con le regole dell'app: per il coach scritto inserisci la password in Impostazioni." : "Risponde con i tuoi dati e le regole dell'app.") : "Scrivi come vuoi: il coach (Claude Sonnet) legge i tuoi dati."} Scrive su Intervals solo dopo il tuo «sì».</p>
         </div>
         <button
           type="button"

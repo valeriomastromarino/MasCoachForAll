@@ -32,7 +32,8 @@ const subscribeSeason = (cb: () => void) => {
   return () => window.removeEventListener(SEASON_EVENT, cb);
 };
 
-export function TodayWorkout({ data }: { data: DashboardData }) {
+/** compact (phone app): only the workout and its button, without the phase text, the reasons and the week proposal. */
+export function TodayWorkout({ data, compact = false }: { data: DashboardData; compact?: boolean }) {
   const raw = useSyncExternalStore(subscribe, profileSnapshot, () => "");
   const rawSeason = useSyncExternalStore(subscribeSeason, seasonSnapshot, () => "");
   const life = useLife(data.today);
@@ -160,11 +161,9 @@ export function TodayWorkout({ data }: { data: DashboardData }) {
           </div>
         )}
         <ul className="mt-3 space-y-1 text-xs text-muted">
-          {p.reasons.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-          <li>Carboidrati: {p.carbs} (indicazione, non un dato registrato).</li>
-          {p.ftpNote && <li>{p.ftpNote}.</li>}
+          {!compact && p.reasons.map((r) => <li key={r}>{r}</li>)}
+          <li>Carboidrati: {p.carbs}{compact ? "" : " (indicazione, non un dato registrato)"}.</li>
+          {!compact && p.ftpNote && <li>{p.ftpNote}.</li>}
         </ul>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
@@ -203,7 +202,7 @@ export function TodayWorkout({ data }: { data: DashboardData }) {
   return (
     <section className="card p-4">
       {header}
-      <div className="mt-2 text-xs text-muted">
+      {!compact && <div className="mt-2 text-xs text-muted">
         {weekPlan ? (
           <>
             {PHASE_INFO[weekPlan.phase].label}: {PHASE_INFO[weekPlan.phase].focus}. Settimana {KIND_NAME[weekPlan.kind]}, TSS di riferimento {weekPlan.tssTarget}.{" "}
@@ -216,14 +215,14 @@ export function TodayWorkout({ data }: { data: DashboardData }) {
             Imposta la stagione: picco di forma e ramp rate →
           </Link>
         )}
-      </div>
+      </div>}
       {body}
       {error && (
         <p className="mt-3 text-xs" style={{ color: "var(--critical)" }} role="alert">
           {error}
         </p>
       )}
-      {week.length > 0 && (
+      {!compact && week.length > 0 && (
         <details className="mt-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
           <summary className="cursor-pointer text-xs text-muted">Proposta per la settimana</summary>
           <div className="mt-2 text-[11px] text-faint">Da domani si suppone la prontezza verde: si aggiorna ogni mattina con i dati veri.</div>

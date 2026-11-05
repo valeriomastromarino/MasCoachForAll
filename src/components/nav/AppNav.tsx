@@ -3,7 +3,43 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { IconDots } from "@tabler/icons-react";
+import { useCompact } from "@/lib/compact";
 import { isActive, type Section, SECTIONS, SETTINGS } from "./sections";
+
+/** Phone app: four big tabs. Everything that isn't today, the coach or the trainer is under "Altro". */
+const COMPACT_IDS = ["oggi", "coach", "rulli"] as const;
+const ALTRO = { href: "/altro", label: "Altro", color: "var(--muted)" };
+
+function CompactBar({ pathname }: { pathname: string }) {
+  const tabs = COMPACT_IDS.map((id) => SECTIONS.find((s) => s.id === id)!);
+  const inTabs = tabs.some((s) => isActive(s, pathname));
+  const tab = "flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px]";
+  return (
+    <nav
+      aria-label="Sezioni"
+      className="fixed inset-x-0 bottom-0 z-40"
+      style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", paddingBottom: "calc(0.4rem + env(safe-area-inset-bottom))" }}
+    >
+      <div className="flex gap-1 px-2 pt-1.5">
+        {tabs.map((s) => {
+          const Icon = s.icon;
+          const on = isActive(s, pathname);
+          return (
+            <Link key={s.id} href={s.href} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? tint(s.color, 18) : undefined, color: on ? s.color : "var(--muted)" }}>
+              <Icon size={24} stroke={on ? 2.1 : 1.7} style={{ color: s.color }} aria-hidden />
+              <span>{s.label}</span>
+            </Link>
+          );
+        })}
+        <Link href={ALTRO.href} className={tab} aria-current={!inTabs ? "page" : undefined} style={{ background: !inTabs ? tint(ALTRO.color, 18) : undefined, color: !inTabs ? "var(--foreground)" : "var(--muted)" }}>
+          <IconDots size={24} stroke={!inTabs ? 2.1 : 1.7} aria-hidden />
+          <span>{ALTRO.label}</span>
+        </Link>
+      </div>
+    </nav>
+  );
+}
 
 const tint = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
@@ -106,6 +142,8 @@ function BottomBar({ pathname }: { pathname: string }) {
 }
 
 function Nav({ pathname }: { pathname: string }) {
+  const compact = useCompact();
+  if (compact) return <CompactBar pathname={pathname} />;
   return (
     <>
       <SideRail pathname={pathname} />
