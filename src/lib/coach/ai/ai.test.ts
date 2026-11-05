@@ -10,7 +10,7 @@ vi.mock("@/lib/api/handlers", () => ({
   },
 }));
 
-import { ask } from "./agent";
+import { ask, hideKeys } from "./agent";
 import { AI_TOOLS, type Snapshot, type ToolContext } from "./tools";
 
 const TODAY = "2026-11-09"; // a Monday
@@ -99,6 +99,23 @@ describe("ciclo con il modello", () => {
     const last = (calls[1].body.messages as { role: string; content: unknown }[]).at(-1)!;
     expect(last.role).toBe("user");
     expect(JSON.stringify(last.content)).toContain("tool_result");
+  });
+
+  it("una chiave incollata con spazi o a capo viene ripulita prima di andare nell'intestazione", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-abc123 \n def456 ";
+    let sent = "";
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      sent = (init.headers as Record<string, string>)["x-api-key"];
+      return new Response(JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: "ok" }] }), { status: 200 });
+    }) as typeof fetch;
+    await ask([{ role: "user", content: "ciao" }], snapshot);
+    expect(sent).toBe("sk-ant-abc123def456");
+  });
+
+  it("nessun messaggio di errore mostra la chiave", () => {
+    const bad = 'Headers.append: "sk-ant-usr-AAA BBB" is an invalid header value.';
+    expect(hideKeys(bad)).toBe('Headers.append: "[chiave nascosta]" is an invalid header value.');
+    expect(hideKeys("errore sk-ant-xyz123 qui")).not.toContain("xyz123");
   });
 
   it("senza chiave risponde 501, così l'app usa le regole", async () => {

@@ -1,7 +1,7 @@
 // The written coach: a message (and the thread so far) in, Claude Sonnet's answer out, plus the changes it proposes.
 // The proposals write nothing: the app shows them and runs them only after the athlete's "sì".
 import { cookies } from "next/headers";
-import { type AskMessage, ask, AskError } from "@/lib/coach/ai/agent";
+import { type AskMessage, ask, AskError, hideKeys } from "@/lib/coach/ai/agent";
 import type { Snapshot } from "@/lib/coach/ai/tools";
 import { SESSION_COOKIE, isAllowed } from "@/lib/auth/session";
 
@@ -29,7 +29,9 @@ export async function POST(request: Request): Promise<Response> {
   try {
     return Response.json(await ask(messages, snapshot));
   } catch (e) {
-    if (e instanceof AskError) return Response.json({ error: e.message }, { status: e.status === 501 ? 501 : 502 });
-    return Response.json({ error: e instanceof Error ? e.message : "Errore" }, { status: 500 });
+    const message = hideKeys(e instanceof Error ? e.message : "Errore");
+    console.error("coach/ask", e instanceof AskError ? e.status : "", message);
+    if (e instanceof AskError) return Response.json({ error: message }, { status: e.status === 501 ? 501 : 502 });
+    return Response.json({ error: message }, { status: 500 });
   }
 }

@@ -104,7 +104,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
   const push = (add: ChatMessage[], patch?: Partial<ChatState>) => setThread((cur) => ({ messages: [...cur.messages, ...add], state: patch ? { ...cur.state, ...patch } : cur.state }));
 
   /** The written coach: Claude Sonnet reads the thread and the data, answers, and proposes changes that wait for the "sì". */
-  const askCoach = async (t: string, user: ChatMessage): Promise<boolean> => {
+  const askCoach = async (t: string, user: ChatMessage): Promise<{ ok: true } | { ok: false; why: string }> => {
     const history = [...messages, user].slice(-16).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.role === "user" ? m.text : [m.text, ...(m.lines ?? [])].join("\n") }));
     setBusyText("Il coach sta pensando…");
     try {
@@ -112,16 +112,16 @@ export function CoachChat({ data }: { data: DashboardData }) {
       const json = (await res.json().catch(() => ({}))) as { text?: string; actions?: Action[]; overrides?: Partial<Omit<import("@/lib/coach/chat").TodayOverrides, "date">>; error?: string };
       if (res.status === 501) {
         setAiOff(true);
-        return false;
+        return { ok: false, why: "" };
       }
-      if (!res.ok || !json.text) return false;
+      if (!res.ok || !json.text) return { ok: false, why: `${res.status} ${json.error ?? "nessuna risposta"}`.slice(0, 300) };
       if (json.overrides) saveOverrides({ ...(overrides.date === today ? overrides : { date: today }), ...json.overrides, date: today });
       const actions = json.actions ?? [];
       setAiActions(actions);
       push([say(json.text, actions.length ? { lines: actions.map((a) => a.label), chips: ["Sì", "No"] } : { chips: ["Cosa faccio oggi?", "Fammi il punto"] })]);
-      return true;
-    } catch {
-      return false;
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, why: `rete: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300) };
     }
   };
 
@@ -164,23 +164,26 @@ export function CoachChat({ data }: { data: DashboardData }) {
     }
 
     // The written coach answers everything it can; if it isn't there (single-file app, no key, no network), the rules do.
-    if (!aiOff && !state.pending && !(state.awaiting && !aiActions.length) && !NO.test(n) && !/^annulla/.test(n)) {
+    const tryAi = !aiOff && !state.pending && !(state.awaiting && !aiActions.length) && !NO.test(n) && !/^annulla/.test(n);
+    if (tryAi) {
       push([user]);
       setBusy(true);
-      const done = await askCoach(t, user);
-      setBusy(false);
-      if (done) return;
-      setThread((cur) => ({ ...cur, messages: cur.messages.filter((m) => m.id !== user.id) }));
     }
+    const done = tryAi ? await askCoach(t, user) : null;
+    if (tryAi) setBusy(false);
+    if (done?.ok) return;
+    if (done) setThread((cur) => ({ ...cur, messages: cur.messages.filter((m) => m.id !== user.id) }));
+    const aiNote = done && !done.ok && done.why ? say(`Il coach scritto non ha risposto (${done.why}). Ti rispondo con le regole dell'app.`) : null;
 
     const r = chat(t, ctx, state);
     const coach: ChatMessage = { id: uid(), role: "coach", text: r.reply.text, lines: r.reply.lines, proposal: r.reply.proposal, chips: r.reply.chips, at: now };
     if (r.resetOverrides) saveOverrides({ date: today });
     else if (r.overrides) saveOverrides({ ...(overrides.date === today ? overrides : { date: today }), ...r.overrides, date: today });
-    if (!r.run && !r.undo) return commit([user, coach], r.state);
+    const shown = aiNote ? [user, aiNote, coach] : [user, coach];
+    if (!r.run && !r.undo) return commit(shown, r.state);
     setBusyText("Scrivo su Intervals…");
     setBusy(true);
-    commit([user, coach], r.state);
+    commit(shown, r.state);
     const result = r.run ? await runAction(r.run, sheet) : await runUndo(r.undo!);
     const follow: ChatMessage = {
       id: uid(),

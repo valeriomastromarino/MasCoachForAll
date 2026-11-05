@@ -20,6 +20,11 @@ type Block =
 type ApiMessage = { role: "user" | "assistant"; content: string | Block[] };
 type ApiReply = { content: Block[]; stop_reason: string; error?: { message?: string } };
 
+/** An error text must never carry the API key (a bad header value is quoted back by fetch): hide anything that looks like one. */
+export function hideKeys(text: string): string {
+  return text.replace(/"[^"]*sk-ant-[^"]*"/g, '"[chiave nascosta]"').replace(/sk-ant-\S*/g, "[chiave nascosta]");
+}
+
 export class AskError extends Error {
   constructor(
     message: string,
@@ -35,7 +40,8 @@ const toText = (v: unknown) => {
 };
 
 async function callModel(system: string, messages: ApiMessage[]): Promise<ApiReply> {
-  const key = process.env.ANTHROPIC_API_KEY;
+  // A key pasted with a line break or a space inside is an invalid header: drop all whitespace.
+  const key = process.env.ANTHROPIC_API_KEY?.replace(/\s+/g, "");
   if (!key) throw new AskError("Manca ANTHROPIC_API_KEY sul server", 501);
   const tools = AI_TOOLS.map((t, i) => ({ name: t.name, description: t.description, input_schema: t.input_schema, ...(i === AI_TOOLS.length - 1 ? { cache_control: { type: "ephemeral" } } : {}) }));
   const res = await fetch(API, {
