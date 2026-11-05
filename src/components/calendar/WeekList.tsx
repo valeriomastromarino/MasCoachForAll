@@ -3,9 +3,11 @@
 // Phones: one week at a time, day under day, with the night, races and holidays, rides and planned workouts in full.
 import { IconCalendarEvent, IconCheck, IconPlus, IconX } from "@tabler/icons-react";
 import type { CalendarActivity, CalendarEvent, CalendarWorkout } from "@/lib/calendar";
+import type { DayWeather } from "@/lib/weather";
 import { fmt, fmtDuration } from "../format";
 import { type Night, NIGHT_COLOR } from "./Modals";
 import { CATEGORY_STYLE, CoachBadge, dayLabel, tint, WorkoutProfile } from "./shared";
+import { WeatherIcon, WindArrow } from "./WeatherPanel";
 
 export type WorkoutState = "done" | "missed" | "planned";
 
@@ -92,7 +94,24 @@ function EventLine({ e }: { e: CalendarEvent }) {
   );
 }
 
+/** Weather and wind of a day, small, under its date. */
+function DayWeatherLine({ w }: { w: DayWeather }) {
+  return (
+    <span className="num mt-1 block text-[11px] text-muted" aria-label={`${w.label}, ${w.tMax} gradi, vento ${w.windKmh} chilometri orari`}>
+      <span className="flex items-center gap-0.5">
+        <WeatherIcon kind={w.kind} size={14} />
+        {w.tMax}°
+      </span>
+      <span className="flex items-center gap-0.5">
+        <WindArrow from={w.windFrom} size={13} />
+        {w.windKmh}
+      </span>
+    </span>
+  );
+}
+
 export function WeekList({
+  weather,
   days,
   byDay,
   events,
@@ -103,6 +122,8 @@ export function WeekList({
   onOpenActivity,
   onOpenWorkout,
 }: {
+  /** Forecast per day (only days within the forecast window). */
+  weather?: Map<string, DayWeather>;
   days: string[];
   byDay: Map<string, { acts: CalendarActivity[]; plans: CalendarWorkout[] }>;
   events: CalendarEvent[];
@@ -150,6 +171,7 @@ export function WeekList({
                 <span className="block text-xs text-muted">{dayLabel(d, { weekday: "short" })}</span>
                 <span className="num block text-xl font-medium leading-tight">{Number(d.slice(8))}</span>
                 {isToday && <span className="text-[11px]" style={{ color: "var(--accent-ink)" }}>oggi</span>}
+                {weather?.get(d) && <DayWeatherLine w={weather.get(d)!} />}
               </button>
               <div className="min-w-0 space-y-1.5">
                 {night && (

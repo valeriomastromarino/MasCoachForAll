@@ -10,8 +10,10 @@ import { loadRide, prefetchRide } from "../data/rides";
 import { fmt, fmtDuration } from "../format";
 import { ActivityModal, DayModal, type Night, NIGHT_COLOR, WorkoutModal } from "./Modals";
 import { CATEGORY_STYLE, CoachBadge, dayLabel, send, tint } from "./shared";
+import { WeatherPanel } from "./WeatherPanel";
 import { WeekList, type WorkoutState, workoutState } from "./WeekList";
 import { apiFetch } from "../data/transport";
+import { useForecast, usePlace } from "../data/weatherData";
 
 const WEEKS = 4;
 /** Week shown on phones: the third of the four loaded (this week, when the range is centred on today). */
@@ -126,6 +128,9 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
   const [data, setData] = useState<{ key: string; cal: CalendarData } | { key: string; error: string } | null>(null);
   const [version, setVersion] = useState(0);
   const [open, setOpen] = useState<Open>(null);
+  const where = usePlace();
+  const forecast = useForecast(where.place);
+  const weatherByDay = useMemo(() => new Map(forecast.days.map((d) => [d.date, d])), [forecast.days]);
   const [moving, setMoving] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const key = `${start}|${version}`;
@@ -243,7 +248,9 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
       )}
 
       <div className="sm:hidden">
+        <WeatherPanel today={today} place={where.place} status={where.status} ask={where.ask} days={forecast.days} error={forecast.error} />
         <WeekList
+          weather={weatherByDay}
           days={phoneWeek}
           byDay={byDay}
           events={cal?.events ?? []}
