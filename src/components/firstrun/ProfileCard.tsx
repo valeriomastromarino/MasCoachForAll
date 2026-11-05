@@ -15,7 +15,7 @@ export function ProfileCard() {
   const date = useSyncExternalStore(subscribe, savedAt, () => "");
   const cloud = useCloudStatus();
   const [message, setMessage] = useState("");
-  const button = "rounded-xl px-4 py-2 text-sm";
+  const button = "inline-flex h-9 items-center rounded-full px-4 text-xs font-medium leading-none";
 
   const redo = () => {
     markRedo();

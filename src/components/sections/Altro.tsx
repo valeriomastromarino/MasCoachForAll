@@ -11,8 +11,7 @@ const ANALISI = { id: "analisi", href: "/analisi", label: "Analisi", description
 export default function Altro() {
   const items = [ANALISI, sectionById("stagione"), sectionById("uscite"), sectionById("test"), SETTINGS];
   return (
-    <main className="mx-auto w-full max-w-xl space-y-3 px-4 py-6">
-      <h1 className="text-lg font-medium">Altro</h1>
+    <main className="mx-auto w-full max-w-xl space-y-4 px-4 py-4 sm:py-6">
       <nav aria-label="Altre sezioni" className="card overflow-hidden">
         {items.map((s, i) => {
           const Icon = s.icon;

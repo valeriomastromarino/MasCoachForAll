@@ -199,7 +199,7 @@ export default function Archive({ section = "uscite", initialFilter = "bici" }: 
   const th = "py-2 font-normal text-faint";
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6">
+    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
       <SectionHeading id={section} />
       {oldestLoaded && (
         <p className="-mt-3 text-xs text-faint">

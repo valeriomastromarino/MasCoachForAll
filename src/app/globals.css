@@ -185,6 +185,24 @@
  */
 @custom-variant rail (@media (min-width: 48rem) and (min-height: 36rem));
 
+/* Height of the phone app's bottom bar (tab 3.25rem + padding): pages keep their last line above it. */
+:root {
+  --nav-h: calc(4.5rem + env(safe-area-inset-bottom));
+}
+
+/* A page that opens from the swipeable ones slides in from the right. */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="page-in"] {
+    animation: none !important;
+  }
+}
+
 html {
   /* Nothing may make the page wider than the phone: a sideways drift drags the fixed bottom bar off screen. */
   overflow-x: clip;
@@ -192,6 +210,11 @@ html {
   touch-action: manipulation;
   /* Android's WebView paints a yellow box on whatever is tapped. */
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Charts read the finger sideways (tooltip): the swipe between pages must not start on them. */
+.recharts-wrapper {
+  touch-action: pan-y;
 }
 
 /* Recharts makes the chart focusable (accessibility layer): tapping it drew a focus frame around the whole chart. */

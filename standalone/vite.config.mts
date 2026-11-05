@@ -22,6 +22,9 @@ export default defineConfig({
       // Key from the browser's storage, and the /api/* code run inside the page.
       { find: /^\.\/credentials$/, replacement: path.resolve(src, "lib/intervals/credentials.browser.ts") },
       { find: /^(\.\.\/data|\.)\/transport$/, replacement: path.resolve(src, "components/data/transport.browser.ts") },
+      // Page changes without history entries: hash router instead of the address bar.
+      { find: /^\.\/replacePath$/, replacement: path.resolve(here, "replacePath.ts") },
+      { find: /^\.\/useCurrentPath$/, replacement: path.resolve(here, "useCurrentPath.ts") },
       { find: /^@\//, replacement: `${src}/` },
     ],
   },

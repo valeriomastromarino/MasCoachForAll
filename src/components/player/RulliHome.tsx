@@ -19,7 +19,7 @@ import { PedalaLink } from "./PedalaLink";
 
 function WorkoutRow({ w, today }: { w: CalendarWorkout; today: string }) {
   return (
-    <li className="flex items-center gap-3 py-2.5">
+    <li className="flex items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{w.name}</div>
         <div className="num text-xs text-muted">
@@ -117,32 +117,47 @@ export default function RulliHome() {
   const workouts =
     today && cal && !("error" in cal) ? cal.workouts.filter((w) => w.date >= today && w.blocks.length > 0).sort((a, b) => a.date.localeCompare(b.date)) : [];
 
+  const next = workouts[0];
+  const rest = compact ? workouts.slice(1, 4) : workouts;
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6">
+    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
       <SectionHeading id="rulli" />
       {problem && (
         <p className="max-w-2xl rounded-2xl px-4 py-3 text-sm" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
           {problem}
         </p>
       )}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {/* Phone app: the next workout on the trainer, big, with the way to start it. */}
+      {compact && next && (
+        <section className="rounded-[20px] p-5" style={{ background: "var(--brand)", color: "var(--on-brand)" }} aria-label="Prossimo allenamento sui rulli">
+          <div className="text-[11px] font-medium uppercase leading-none tracking-wider opacity-80">{next.date === today ? "Oggi" : fmtWeekday(next.date)}</div>
+          <div className="mt-2 text-xl font-medium leading-tight">{next.name}</div>
+          <div className="num mt-1 text-xs opacity-85">
+            {[next.secs !== null ? fmtDuration(next.secs) : null, next.tss !== null ? `${fmt(next.tss)} TSS` : null, next.type === "VirtualRide" ? "rulli" : null].filter(Boolean).join(" · ")}
+          </div>
+          <PedalaLink id={next.id} className="mt-4 !h-11 w-full !text-sm" tone="onBrand" />
+        </section>
+      )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="card p-5">
-          <h2 className="text-sm font-medium">Allenamenti dei prossimi giorni</h2>
+          <h2 className="text-sm font-medium">{compact && next ? "Prossimi giorni" : "Allenamenti dei prossimi giorni"}</h2>
           {!cal ? (
             <p className="mt-2 text-sm text-muted">Carico il calendario…</p>
           ) : "error" in cal ? (
             <p className="mt-2 text-sm text-muted">{cal.error}</p>
           ) : workouts.length === 0 ? (
             <p className="mt-2 text-sm text-muted">Nessun allenamento strutturato nei prossimi 7 giorni su Intervals.icu.</p>
+          ) : rest.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Nient&apos;altro in programma nei prossimi giorni.</p>
           ) : (
             <ul className="mt-1 divide-y" style={{ borderColor: "var(--border)" }}>
-              {(compact ? workouts.slice(0, 3) : workouts).map((w) => (
+              {rest.map((w) => (
                 <WorkoutRow key={w.id} w={w} today={today ?? ""} />
               ))}
             </ul>
           )}
         </section>
-        <div className="space-y-5">
+        <div className="space-y-4">
           {(!compact || more) && (<section className="card p-5">
             <h2 className="text-sm font-medium">Prova del rullo</h2>
             <p className="mt-1 text-sm text-muted">

@@ -1,18 +1,27 @@
 "use client";
 
-// The map around the athlete (OpenStreetMap, toned to the theme) with the day's wind drawn over it as a few soft flow lines.
+// The map around the athlete (OpenStreetMap, toned to the theme) with the day's wind drawn over it as a grid of arrows.
 import "leaflet/dist/leaflet.css";
 import { CircleMarker, MapContainer, TileLayer } from "react-leaflet";
 import { arrowRotation } from "@/lib/weather";
 
-/** Offsets (px from the centre) of the flow lines, perpendicular to the wind. */
-const LANES = [-230, -165, -105, -50, 0, 50, 105, 165, 230];
+/** Tidy grid of arrows: 3 rows x 5 columns, the middle row shifted by half a step. */
+const COL = 60;
+const ROW = 70;
+const GRID = [-1, 0, 1].flatMap((r) =>
+  [-2, -1, 0, 1, 2].map((c) => ({ x: c * COL + (r === 0 ? COL / 2 : 0), y: r * ROW })),
+).filter((p) => Math.hypot(p.x, p.y) > 40); // nothing over the position marker
 
-/** Flow lines pointing downwind: stronger wind = thicker and darker lines. All colours come from the theme. */
+/** One equal arrow per grid point, pointing where the wind goes: stronger wind = longer, thicker and darker. Colours come from the theme. */
 function WindFlow({ from, kmh }: { from: number; kmh: number }) {
   const strength = Math.min(1, kmh / 40);
-  const width = 1.4 + kmh / 14;
+  const len = 13 + 0.55 * kmh;
+  const width = 1.8 + kmh / 16;
+  const head = Math.min(9, 4 + len / 5);
   const ink = `color-mix(in srgb, var(--brand) ${Math.round(60 + strength * 40)}%, var(--surface))`;
+  const half = len / 2;
+  const d = `M${-half} 0 L${half} 0 M${half - head} ${-head * 0.75} L${half} 0 L${half - head} ${head * 0.75}`;
+  const rot = arrowRotation(from) - 90;
   return (
     <svg
       viewBox="-170 -120 340 240"
@@ -21,25 +30,13 @@ function WindFlow({ from, kmh }: { from: number; kmh: number }) {
       style={{ zIndex: 450 }}
       aria-hidden
     >
-      {/* The group is drawn flowing to the east; turning it by (direction − 90°) points it where the wind goes. */}
-      <g transform={`rotate(${arrowRotation(from) - 90})`} fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ stroke: ink }}>
-        {LANES.map((y, k) => {
-          const amp = 7 + (k % 3) * 3;
-          const x0 = -260 + (k % 2) * 30;
-          return (
-            <g key={y}>
-              {/* A pale halo under each line keeps it readable over roads and labels. */}
-              <path d={`M${x0} ${y} q130 ${-amp} 260 0 t260 0`} strokeWidth={width * 2.6} opacity={0.35} style={{ stroke: "var(--surface)" }} />
-              <path
-                d={`M${x0} ${y} q130 ${-amp} 260 0 t260 0`}
-                strokeWidth={width * (k % 2 ? 0.8 : 1.1)}
-                opacity={k % 2 ? 0.65 : 0.9}
-              />
-              {k % 2 === 0 && <path d={`M${60 + k * 18} ${y - 6} l10 6 l-10 6`} strokeWidth={width * 1.2} opacity={0.95} />}
-            </g>
-          );
-        })}
-      </g>
+      {GRID.map((p) => (
+        <g key={`${p.x}_${p.y}`} transform={`translate(${p.x} ${p.y}) rotate(${rot})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
+          {/* A white border keeps each arrow readable over roads and labels. */}
+          <path d={d} strokeWidth={width + 3} style={{ stroke: "var(--surface)" }} opacity={0.9} />
+          <path d={d} strokeWidth={width} style={{ stroke: ink }} />
+        </g>
+      ))}
     </svg>
   );
 }
@@ -49,7 +46,7 @@ export default function WeatherMap({ lat, lon, windFrom, windKmh }: { lat: numbe
     <div className="absolute inset-0 isolate">
       <MapContainer
         center={[lat, lon]}
-        zoom={11}
+        zoom={10}
         dragging={false}
         touchZoom={false}
         doubleClickZoom={false}

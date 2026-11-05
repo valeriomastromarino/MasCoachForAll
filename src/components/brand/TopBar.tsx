@@ -1,39 +1,63 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
-import { useCompact } from "@/lib/compact";
+import { IconChevronLeft } from "@tabler/icons-react";
+import { usePagerPos } from "@/lib/pagerPos";
+import { isDetailPath, pageLabel, TAB_PATHS } from "../nav/tabs";
 import { Logo } from "./Logo";
-import { TOPBAR_ACTIONS_ID } from "./slots";
 
-// The phone app (single-file build) uses the hash router; elsewhere the address bar path.
-const here = () => {
-  const h = window.location.hash.replace(/^#/, "");
-  if (h.startsWith("/")) return h;
-  const p = window.location.pathname;
-  return p.endsWith(".html") ? "/" : p;
-};
-const subscribe = (cb: () => void) => {
-  window.addEventListener("hashchange", cb);
-  window.addEventListener("popstate", cb);
-  return () => {
-    window.removeEventListener("hashchange", cb);
-    window.removeEventListener("popstate", cb);
-  };
-};
-
-// The theme switch moved to Impostazioni (gear icon in the navigation).
-// Phone app: the logo, the name, the data source and "Aggiorna" show on Oggi only; the other pages start with their own content.
-export function TopBar() {
-  const compact = useCompact();
-  const path = useSyncExternalStore(subscribe, here, () => "/");
-  if (compact && path !== "/") return null;
+/** Dots of the five pages: the long one is the page under the finger and moves while you swipe. */
+function Dots({ index }: { index: number }) {
+  const pos = usePagerPos();
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 pt-5">
-      <Link href="/" aria-label="MasCoach, torna a Oggi">
+    <span className="ml-auto flex items-center gap-1.5" aria-hidden>
+      {TAB_PATHS.map((p, i) => {
+        // `pos` is the live position while sliding; at rest it equals the page.
+        const near = Math.max(0, 1 - Math.abs((Number.isFinite(pos) ? pos : index) - i));
+        return (
+          <span
+            key={p}
+            className="block h-1.5 rounded-full"
+            style={{ width: 6 + 12 * near, background: `color-mix(in srgb, var(--accent-ink) ${Math.round(near * 100)}%, var(--border))` }}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
+/**
+ * The same top of every page: the MasCoach logo. On the phone app a row follows with the name of the page
+ * (and a way back for the pages under "Altro"), plus the dots of the five swipeable pages.
+ */
+export function TopBarView({ path, compact, index }: { path: string; compact: boolean; index: number }) {
+  if (compact && isDetailPath(path)) return null;
+  const label = compact ? pageLabel(path) : "";
+  return (
+    <div className="mx-auto w-full max-w-6xl shrink-0 px-4 pt-5">
+      <Link href="/" aria-label="MasCoach, torna a Oggi" className="inline-flex">
         <Logo />
       </Link>
-      <div id={TOPBAR_ACTIONS_ID} className="flex flex-wrap items-center gap-2" />
+      {compact && label && (
+        <div className="mt-3 flex h-8 items-center gap-3">
+          {index >= 0 ? (
+            <span className="inline-flex h-8 items-center rounded-full px-3.5 text-xs font-medium leading-none" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
+              {label}
+            </span>
+          ) : (
+            <Link
+              href="/altro"
+              aria-label="Torna ad Altro"
+              className="inline-flex h-8 items-center gap-1 rounded-full pl-2 pr-3.5 text-xs font-medium leading-none"
+              style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
+            >
+              <IconChevronLeft size={15} stroke={2} aria-hidden />
+              {label}
+            </Link>
+          )}
+          {index >= 0 && <Dots index={index} />}
+        </div>
+      )}
     </div>
   );
 }

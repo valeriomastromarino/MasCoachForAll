@@ -120,7 +120,7 @@ function RideBody({ ride }: { ride: RideDetail }) {
   );
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6">
+    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
       <Link href="/attivita" className="text-xs" style={{ color: "var(--accent-ink)" }}>
         ← Uscite
       </Link>

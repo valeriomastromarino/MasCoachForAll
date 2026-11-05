@@ -18,8 +18,8 @@ import RecuperoPage from "@/app/recupero/page";
 import PlayerPage from "@/app/rulli/[id]/page";
 import RulliPage from "@/app/rulli/page";
 import TestPage from "@/app/test/page";
-import { TopBar } from "@/components/brand/TopBar";
 import { AppNav } from "@/components/nav/AppNav";
+import { AppShell } from "@/components/nav/AppShell";
 import { FirstRunGate } from "@/components/firstrun/FirstRun";
 import { apiKey } from "@/lib/intervals/credentials.browser";
 import { DemoBanner, IntervalsKeyCard, IntervalsKeyStep } from "./IntervalsKey";
@@ -70,9 +70,9 @@ export function App() {
       <div className="mx-auto flex w-full max-w-[calc(72rem+5rem)] md:pl-4">
         <AppNav />
         <div className="flex min-h-full min-w-0 flex-1 flex-col pb-24 md:pb-0">
-          <TopBar />
-          <DemoBanner />
-          <Page key={path} path={path} />
+          <AppShell header={<DemoBanner />}>
+            <Page key={path} path={path} />
+          </AppShell>
         </div>
       </div>
     </FirstRunGate>

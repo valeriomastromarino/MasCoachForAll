@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
-import { TopBar } from "@/components/brand/TopBar";
 import { FirstRunGate } from "@/components/firstrun/FirstRun";
 import { AppNav } from "@/components/nav/AppNav";
+import { AppShell } from "@/components/nav/AppShell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -43,8 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="mx-auto flex w-full max-w-[calc(72rem+5rem)] rail:pl-4">
             <AppNav />
             <div className="flex min-h-full min-w-0 flex-1 flex-col pb-[calc(6rem+env(safe-area-inset-bottom))] rail:pb-0">
-              <TopBar />
-              {children}
+              <AppShell>{children}</AppShell>
             </div>
           </div>
         </FirstRunGate>

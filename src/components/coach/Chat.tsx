@@ -201,9 +201,11 @@ export function CoachChat({ data }: { data: DashboardData }) {
 
   const lastCoach = [...messages].reverse().find((m) => m.role === "coach");
   const waiting = state.pending !== null || aiActions.length > 0;
+  // Phone: only the Sì/No of a proposal, and three ideas while the chat is still empty.
+  const chips = compact ? (waiting ? (lastCoach?.chips ?? []).filter((c) => c === "Sì" || c === "No") : messages.length === 0 && ctx ? QUICK.slice(0, 3) : []) : (lastCoach?.chips ?? []);
 
   return (
-    <section className="card flex flex-col p-4" aria-label="Chat con il coach">
+    <section className={compact ? "flex h-full min-h-0 flex-col" : "card flex flex-col p-4"} aria-label="Chat con il coach">
       <div className={"flex items-start gap-3 " + (compact ? "justify-end" : "justify-between")}>
         {!compact && (
         <div>
@@ -218,34 +220,48 @@ export function CoachChat({ data }: { data: DashboardData }) {
             started.current = false;
             setThread({ messages: [], state: emptyState() });
           }}
-          className="shrink-0 rounded-full px-3 py-1 text-xs"
-          style={{ border: "1px solid var(--border)" }}
+          className={compact ? "card inline-flex h-8 shrink-0 items-center rounded-full px-3.5 text-xs font-medium leading-none" : "shrink-0 rounded-full px-3 py-1 text-xs"}
+          style={compact ? undefined : { border: "1px solid var(--border)" }}
         >
           Nuova conversazione
         </button>
       </div>
 
-      <div ref={scroller} className="mt-3 max-h-[62vh] min-h-[220px] space-y-3 overflow-y-auto pr-1" role="log" aria-live="polite">
+      <div ref={scroller} className={compact ? "mt-3 min-h-0 flex-1 space-y-2.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "mt-3 max-h-[62vh] min-h-[220px] space-y-3 overflow-y-auto pr-1"} role="log" aria-live="polite">
         {!ctx && <p className="text-sm text-muted">Preparo i dati…</p>}
-        {compact && ctx && messages.length === 0 && <p className="text-sm text-muted">Chiedimi di oggi, del piano o di un cambio.</p>}
+        {compact && ctx && messages.length === 0 && <Bubble m={{ id: "hello", role: "coach", text: "Chiedimi di oggi, del piano o di un cambio.", at: "" }} compact />}
         {messages.map((m) => (
-          <Bubble key={m.id} m={m} />
+          <Bubble key={m.id} m={m} compact={compact} />
         ))}
         {busy && <p className="text-xs text-muted">{busyText}</p>}
       </div>
 
-      {lastCoach?.chips && lastCoach.chips.filter((c) => !compact || c === "Sì" || c === "No").length > 0 && !busy && (
+      {chips.length > 0 && !busy && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {lastCoach.chips.filter((c) => !compact || c === "Sì" || c === "No").map((c) => (
-            <button key={c} type="button" onClick={() => void send(c)} className="rounded-full px-3 py-1 text-xs" style={{ background: waiting && (c === "Sì" || c === "No") ? "var(--accent-bg)" : "transparent", color: waiting && (c === "Sì" || c === "No") ? "var(--accent-ink)" : "var(--foreground)", border: "1px solid var(--border)" }}>
-              {c}
-            </button>
-          ))}
+          {chips.map((c) => {
+            const yesNo = waiting && (c === "Sì" || c === "No");
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => void send(c)}
+                className={"inline-flex items-center rounded-full leading-none " + (compact ? "h-8 px-3.5 text-xs font-medium" : "px-3 py-1 text-xs")}
+                style={{
+                  background: yesNo ? "var(--accent-bg)" : compact ? "var(--surface)" : "transparent",
+                  color: yesNo ? "var(--accent-ink)" : "var(--foreground)",
+                  border: compact ? "none" : "1px solid var(--border)",
+                  boxShadow: compact && !yesNo ? "var(--card-shadow)" : undefined,
+                }}
+              >
+                {c}
+              </button>
+            );
+          })}
         </div>
       )}
 
       <form
-        className="mt-3 flex gap-2"
+        className={"flex gap-2 " + (compact ? "mt-3 pb-1" : "mt-3")}
         onSubmit={(e) => {
           e.preventDefault();
           void send(draft);
@@ -254,12 +270,17 @@ export function CoachChat({ data }: { data: DashboardData }) {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Scrivimi: «ho male al ginocchio», «ferie dal 10 al 20 dicembre»…"
+          placeholder={compact ? "Scrivimi…" : "Scrivimi: «ho male al ginocchio», «ferie dal 10 al 20 dicembre»…"}
           aria-label="Scrivi al coach"
-          className="min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none"
-          style={{ background: "var(--background)", border: "1px solid var(--border)" }}
+          className={compact ? "card h-11 min-w-0 flex-1 rounded-full px-4 text-sm outline-none" : "min-w-0 flex-1 rounded-xl px-3 py-2 text-sm outline-none"}
+          style={compact ? undefined : { background: "var(--background)", border: "1px solid var(--border)" }}
         />
-        <button type="submit" disabled={!ctx || busy || !draft.trim()} className="rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
+        <button
+          type="submit"
+          disabled={!ctx || busy || !draft.trim()}
+          className={(compact ? "h-11 rounded-full px-5 leading-none " : "rounded-xl px-4 py-2 ") + "text-sm font-medium transition-opacity disabled:opacity-45"}
+          style={compact ? { background: "var(--brand)", color: "var(--on-brand)" } : { background: "var(--accent-bg)", color: "var(--accent-ink)" }}
+        >
           Invia
         </button>
       </form>
@@ -274,11 +295,11 @@ export function CoachChat({ data }: { data: DashboardData }) {
   );
 }
 
-function Bubble({ m }: { m: ChatMessage }) {
+function Bubble({ m, compact = false }: { m: ChatMessage; compact?: boolean }) {
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-md px-3 py-2 text-sm" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
+        <div className="max-w-[85%] rounded-[18px] rounded-br-md px-3.5 py-2.5 text-sm leading-snug" style={compact ? { background: "var(--brand)", color: "var(--on-brand)" } : { background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
           {m.text}
         </div>
       </div>
@@ -287,7 +308,7 @@ function Bubble({ m }: { m: ChatMessage }) {
   const p = m.proposal;
   return (
     <div className="flex justify-start">
-      <div className="max-w-[92%] rounded-2xl rounded-bl-md px-3 py-2 text-sm" style={{ background: "var(--background)" }}>
+      <div className={"max-w-[92%] rounded-[18px] rounded-bl-md px-3.5 py-2.5 text-sm leading-snug" + (compact ? " card !rounded-[18px] !rounded-bl-md" : "")} style={compact ? undefined : { background: "var(--background)" }}>
         <p className="whitespace-pre-line">{m.text}</p>
         {p && (
           <div className="mt-2 rounded-xl p-2.5" style={{ border: "1px solid var(--border)" }}>

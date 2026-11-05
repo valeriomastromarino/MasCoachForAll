@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { IconCalendarEvent, IconDots } from "@tabler/icons-react";
 import { useCompact } from "@/lib/compact";
+import { replacePath } from "./replacePath";
 import { isActive, type Section, SECTIONS, SETTINGS } from "./sections";
+import { tabIndex } from "./tabs";
+import { useCurrentPath } from "./useCurrentPath";
 
 /** Phone app: four big tabs. Everything that isn't today, the coach or the trainer is under "Altro". */
 const ALTRO = { href: "/altro", label: "Altro", color: "var(--muted)" };
@@ -17,25 +19,31 @@ const tabOn = (s: Tab, pathname: string) => (s.href === "/" ? pathname === "/" :
 function CompactBar({ pathname }: { pathname: string }) {
   const tabs: Tab[] = [tabOf("oggi"), CALENDARIO, tabOf("coach"), tabOf("rulli")];
   const inTabs = tabs.some((s) => tabOn(s, pathname));
-  const tab = "flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px]";
+  // On one of the five pages the pager slides to the tapped one; from any other page the tap opens it normally.
+  const slide = (href: string) => (e: React.MouseEvent) => {
+    if (tabIndex(pathname) < 0 || e.metaKey || e.ctrlKey) return;
+    e.preventDefault();
+    replacePath(href);
+  };
+  const tab = "flex h-[3.25rem] flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl text-[11px] leading-none transition-colors";
   return (
     <nav
       aria-label="Sezioni"
       className="fixed inset-x-0 bottom-0 z-40"
-      style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", paddingBottom: "calc(0.4rem + env(safe-area-inset-bottom))" }}
+      style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="flex gap-1 px-2 pt-1.5">
+      <div className="flex gap-1 px-2 py-1.5">
         {tabs.map((s) => {
           const Icon = s.icon;
           const on = tabOn(s, pathname);
           return (
-            <Link key={s.id} href={s.href} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? "var(--accent-bg)" : undefined, color: on ? "var(--accent-ink)" : "var(--muted)" }}>
+            <Link key={s.id} href={s.href} onClick={slide(s.href)} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? "var(--accent-bg)" : undefined, color: on ? "var(--accent-ink)" : "var(--muted)" }}>
               <Icon size={24} stroke={on ? 2.1 : 1.7} aria-hidden />
               <span>{s.label}</span>
             </Link>
           );
         })}
-        <Link href={ALTRO.href} className={tab} aria-current={!inTabs ? "page" : undefined} style={{ background: !inTabs ? "var(--accent-bg)" : undefined, color: !inTabs ? "var(--accent-ink)" : "var(--muted)" }}>
+        <Link href={ALTRO.href} onClick={slide(ALTRO.href)} className={tab} aria-current={!inTabs ? "page" : undefined} style={{ background: !inTabs ? "var(--accent-bg)" : undefined, color: !inTabs ? "var(--accent-ink)" : "var(--muted)" }}>
           <IconDots size={24} stroke={!inTabs ? 2.1 : 1.7} aria-hidden />
           <span>{ALTRO.label}</span>
         </Link>
@@ -154,7 +162,7 @@ function Nav({ pathname }: { pathname: string }) {
 }
 
 function CurrentNav() {
-  return <Nav pathname={usePathname()} />;
+  return <Nav pathname={useCurrentPath()} />;
 }
 
 // The current path is only known at request time: with Cache Components it must sit inside <Suspense>.

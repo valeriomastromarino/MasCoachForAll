@@ -3,7 +3,7 @@
 // Phone app: Forma, Potenza, Cuore and Recupero as the tabs of one page (the full app keeps four pages).
 // The tall ones (Potenza, Cuore, Recupero) open cut short, with a button for the rest.
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Cuore from "./Cuore";
 import Forma from "./Forma";
@@ -55,8 +55,25 @@ export default function Analisi() {
   const path = usePathname();
   const tab = TABS.find((t) => t.id !== "forma" && (path === t.href || path.startsWith(t.href + "/"))) ?? TABS[0];
   const View = tab.View;
+  const router = useRouter();
+  const from = useRef<{ x: number; y: number } | null>(null);
+  // Swipe sideways to move between Forma, Potenza, Cuore and Recupero (not when the finger starts on a chart: it reads it).
+  const onStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    from.current = (e.target as HTMLElement).closest(".recharts-wrapper, [data-noswipe]") ? null : { x: t.clientX, y: t.clientY };
+  };
+  const onEnd = (e: React.TouchEvent) => {
+    const s = from.current;
+    from.current = null;
+    if (!s) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - s.x;
+    if (Math.abs(dx) < 60 || Math.abs(t.clientY - s.y) > Math.abs(dx) * 0.6) return;
+    const next = TABS[TABS.findIndex((x) => x.id === tab.id) + (dx < 0 ? 1 : -1)];
+    if (next) router.replace(next.href);
+  };
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full max-w-6xl" onTouchStart={onStart} onTouchEnd={onEnd}>
       <nav aria-label="Analisi" className="flex gap-1.5 overflow-x-auto px-4 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <Link
