@@ -11,7 +11,7 @@ import { SectionPage } from "./SectionPage";
 
 const RECORD_NAMES: Record<number, string> = { 5: "Sprint 5\"", 60: "1 minuto", 300: "5 minuti", 1200: "20 minuti", 3600: "1 ora" };
 
-function RecordsTable({ records }: { records: DashboardData["records"] }) {
+export function RecordsTable({ records }: { records: DashboardData["records"] }) {
   const th = "py-2 font-normal text-faint text-right";
   return (
     <table className="num w-full text-xs">
