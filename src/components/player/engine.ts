@@ -12,6 +12,7 @@ import {
   initialSession,
   type Mode,
   pause as pauseSession,
+  recalibrate as recalibrateSession,
   type SessionState,
   setMode as setSessionMode,
   skip as skipSession,
@@ -19,6 +20,7 @@ import {
   stepRemaining,
   tick,
 } from "@/lib/player/session";
+import { DEFAULT_SPRINT, readSprintConfig, type SprintConfig, type SprintPhase, sprintPhase } from "@/lib/player/sprint";
 import { deleteRecording, saveRecording } from "@/lib/player/store";
 import type { PlayerWorkout } from "@/lib/player/timeline";
 import { uploadRecording } from "./upload";
@@ -55,6 +57,8 @@ export type PlayerView = {
   finished: Recording | null;
   uploading: boolean;
   sound: boolean;
+  /** Automatic sprints: the settings, where the session stands, and the best power of the sprint in progress. */
+  sprint: SprintPhase & { cfg: SprintConfig; peak: number | null };
 };
 
 const FRESH_MS = 3000;
@@ -67,6 +71,7 @@ const MATCH_WINDOW = 30;
 /** Longest stall played back in one go (seconds); a longer one means the app was frozen and the clock restarts. */
 const MAX_CATCH_UP = 1800;
 const SOUND_KEY = "mascoach-rulli-suoni";
+const SPRINT_KEY = "mascoach-rulli-sprint";
 const KINDS: DeviceKind[] = ["trainer", "hr", "power"];
 
 export class PlayerEngine {
@@ -100,6 +105,10 @@ export class PlayerEngine {
   private lastAt = Date.now();
   private serviceOn = false;
   private sound = true;
+  private sprintCfg: SprintConfig = DEFAULT_SPRINT;
+  /** Where the sprints stood on the last second, to start the soft start when one ends and to reset the peak. */
+  private sprintWas: SprintPhase["phase"] = "off";
+  private sprintPeak: number | null = null;
   private finished: Recording | null = null;
   private uploading = false;
   private remembered: Record<DeviceKind, GattDevice | null> = { trainer: null, hr: null, power: null };
@@ -137,6 +146,11 @@ export class PlayerEngine {
       this.sound = localStorage.getItem(SOUND_KEY) !== "0";
     } catch {
       this.sound = true;
+    }
+    try {
+      this.sprintCfg = readSprintConfig(localStorage.getItem(SPRINT_KEY));
+    } catch {
+      this.sprintCfg = DEFAULT_SPRINT;
     }
     this.view = this.compute();
   }
@@ -238,6 +252,7 @@ export class PlayerEngine {
       finished: this.finished,
       uploading: this.uploading,
       sound: this.sound,
+      sprint: { ...sprintPhase(this.session, this.workout.steps, this.sprintCfg), cfg: this.sprintCfg, peak: this.sprintPeak },
     };
   }
 
@@ -352,6 +367,7 @@ export class PlayerEngine {
     const next = tick(prev, 1, pedalling, steps);
 
     const moving = next.status === "running" && !next.autoPaused;
+    const sp = sprintPhase(next, steps, this.sprintCfg);
     if (live) {
       if (r.power !== null) this.powerWindow = [...this.powerWindow, r.power].slice(-POWER_AVG_SECS);
       else this.powerWindow = [];
@@ -362,6 +378,8 @@ export class PlayerEngine {
     // Recording starts with the first second actually ridden (pressing play alone does not start it).
     if (moving && !this.rec) this.rec = newRecording(this.workout.id, this.workout.name, at);
     const rec = this.rec;
+    // A recalibrated session is marked (the lowest fraction used), see uploadRecording.
+    if (rec?.status === "recording" && next.scale < 1) rec.scale = Math.min(rec.scale ?? 1, next.scale);
     if (rec?.status === "recording") {
       const last = rec.pauses[rec.pauses.length - 1];
       if (this.moving && !moving && next.status !== "done") rec.pauses.push({ from: at, to: null });
@@ -370,17 +388,32 @@ export class PlayerEngine {
         if (next.stepIndex !== this.lastStep && rec.samples.length) rec.laps.push(rec.samples.length);
         this.lastStep = next.stepIndex;
         this.distance += (r.speed ?? 0) / 3.6;
-        rec.samples.push({ t: at, power: r.power, hr: r.hr, cadence: r.cadence, speed: r.speed, distance: this.distance, target: next.mode === "erg" ? ergTarget(next, steps) : null, dfa: this.dfa?.alpha1 ?? null });
+        // In resistance mode (also a sprint ridden in resistance) there is no ERG target to record.
+        const ergNow = next.mode === "erg" && sp.phase === "off";
+        rec.samples.push({ t: at, power: r.power, hr: r.hr, cadence: r.cadence, speed: r.speed, distance: this.distance, target: ergNow ? ergTarget(next, steps) : null, dfa: this.dfa?.alpha1 ?? null });
         this.trace = [...this.trace, { pos: next.pos, w: r.power ?? 0 }];
       }
     }
     this.moving = moving;
 
     // Countdown to the next step (only for the current second: no burst of beeps after a delay).
+    // Before a sprint the beeps are higher, and the step itself starts with a longer one.
     if (moving && live) {
       const left = Math.round(stepRemaining(next, steps));
-      if (next.stepIndex < steps.length - 1 && left >= 1 && left <= 3) this.beep(660, 90);
-      if (next.stepIndex !== prev.stepIndex) this.beep(990, 250);
+      if (sp.phase === "warn") this.beep(sp.secs <= 1 ? 1320 : 880, 140);
+      else if (next.stepIndex < steps.length - 1 && left >= 1 && left <= 3) this.beep(660, 90);
+      if (next.stepIndex !== prev.stepIndex) this.beep(sp.phase === "go" ? 1200 : 990, sp.phase === "go" ? 400 : 250);
+    }
+
+    // Sprint bookkeeping: best power of the sprint in progress; ERG comes back softly when it ends.
+    if (live) {
+      if (sp.phase === "go") {
+        if (this.sprintWas !== "go") this.sprintPeak = null;
+        if (r.power !== null) this.sprintPeak = Math.max(this.sprintPeak ?? 0, r.power);
+      } else if (this.sprintWas === "go") {
+        this.softStartAt = Date.now();
+      }
+      this.sprintWas = sp.phase;
     }
 
     // Power match: trainer power / pedal power over the last 30 s of riding.
@@ -401,7 +434,11 @@ export class PlayerEngine {
   private drive() {
     if (this.trainer.status !== "connected") return;
     const s = this.session;
-    if (s.mode === "erg") this.trainer.setTarget({ mode: "erg", watts: Math.round(ergTarget(s, this.workout.steps) * (this.matchFactor() ?? 1) * this.softFactor()) });
+    // A sprint (warning included) is ridden in resistance mode, at the level used last.
+    if (sprintPhase(s, this.workout.steps, this.sprintCfg).phase !== "off") {
+      const lv = this.trainer.levels;
+      this.trainer.setTarget({ mode: "resistance", level: lv[Math.min(lv.length - 1, this.sprintCfg.level)] ?? 0 });
+    } else if (s.mode === "erg") this.trainer.setTarget({ mode: "erg", watts: Math.round(ergTarget(s, this.workout.steps) * (this.matchFactor() ?? 1) * this.softFactor()) });
     else {
       const lv = this.trainer.levels;
       this.trainer.setTarget({ mode: "resistance", level: lv[Math.min(lv.length - 1, s.level)] ?? 0 });
@@ -473,7 +510,29 @@ export class PlayerEngine {
   }
 
   adjust(dir: 1 | -1) {
+    // During a sprint (or its warning) − / + move the sprint's resistance level, which is kept for the next one.
+    if (sprintPhase(this.session, this.workout.steps, this.sprintCfg).phase !== "off") {
+      this.setSprint({ level: Math.min(this.trainer.levels.length - 1, Math.max(0, this.sprintCfg.level + dir)) });
+      return;
+    }
     this.act((s) => adjustSession(s, dir, this.trainer.levels.length, this.workout.steps));
+  }
+
+  /** "Ricalibra": the rest of the session at a fraction of the plan (1 = as planned). */
+  recalibrate(scale: number) {
+    this.act((s) => recalibrateSession(s, scale));
+  }
+
+  /** Changes the sprint settings and keeps them on the device. */
+  setSprint(patch: Partial<SprintConfig>) {
+    this.sprintCfg = { ...this.sprintCfg, ...patch };
+    try {
+      localStorage.setItem(SPRINT_KEY, JSON.stringify(this.sprintCfg));
+    } catch {
+      // Not remembered.
+    }
+    this.drive();
+    this.emit();
   }
 
   setMode(mode: Mode) {

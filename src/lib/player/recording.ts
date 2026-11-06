@@ -33,6 +33,8 @@ export type Recording = {
   /** Activity id on Intervals.icu once uploaded. */
   uploadedId?: string | null;
   error?: string | null;
+  /** The session was recalibrated to this fraction of the plan ("Ricalibra"), when it was. */
+  scale?: number;
 };
 
 export function newRecording(eventId: string | null, name: string, now: number): Recording {

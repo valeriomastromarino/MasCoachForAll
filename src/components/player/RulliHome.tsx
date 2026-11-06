@@ -4,8 +4,9 @@
 // still on this device (not yet on Intervals.icu).
 import { IconDownload, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { bluetoothProblem } from "@/lib/ble/devices";
+import { bluetoothProblem, type DeviceKind, lastChoice, rememberedDevice } from "@/lib/ble/devices";
 import type { CalendarData, CalendarWorkout } from "@/lib/calendar";
+import type { WorkoutBlock } from "@/lib/workout";
 import { addDays, toIsoDate } from "@/lib/dates";
 import { DEMO_WORKOUT_ID } from "@/lib/player/load";
 import { type Recording, summarize } from "@/lib/player/recording";
@@ -17,9 +18,70 @@ import { useCompact } from "@/lib/compact";
 import { SectionHeading } from "../sections/SectionPage";
 import { PedalaLink } from "./PedalaLink";
 
+/** The workout drawn small: one bar per block, wide as its duration and tall as its zone. `onBrand` is for the terracotta card. */
+function MiniProfile({ blocks, height, onBrand = false, className = "" }: { blocks: WorkoutBlock[]; height: number; onBrand?: boolean; className?: string }) {
+  if (!blocks.length) return null;
+  return (
+    <div className={`flex items-end gap-px ${className}`} style={{ height }} aria-hidden>
+      {blocks.map((b, i) => (
+        <i
+          key={i}
+          className="block rounded-t-[2px]"
+          style={{
+            flex: `${Math.max(1, b.secs)} 1 0`,
+            height: `${Math.round(18 + (Math.min(7, Math.max(1, b.zone)) / 7) * 82)}%`,
+            background: onBrand ? `rgba(255,255,255,${0.45 + (Math.min(7, Math.max(1, b.zone)) / 7) * 0.55})` : `var(--z${Math.min(7, Math.max(1, b.zone))})`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+const SENSORS: { kind: DeviceKind; label: string }[] = [
+  { kind: "trainer", label: "Rullo" },
+  { kind: "hr", label: "Fascia" },
+  { kind: "power", label: "Pedali" },
+];
+
+/** The devices of the last ride (they connect from the player): a dot for the ones the app remembers. */
+function SensorsCard() {
+  const [known, setKnown] = useState<Record<DeviceKind, string | null> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void Promise.all(SENSORS.map(async ({ kind }) => [kind, (await rememberedDevice(kind))?.name ?? lastChoice(kind)?.name ?? null] as const)).then((all) => {
+      if (alive) setKnown(Object.fromEntries(all) as Record<DeviceKind, string | null>);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return (
+    <section className="card px-4 py-3" aria-label="Sensori">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-medium">Sensori</h2>
+        <span className="text-[11px] text-muted">dall&apos;ultima volta · si collegano dal player</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {SENSORS.map(({ kind, label }) => {
+          const name = known?.[kind] ?? null;
+          return (
+            <span key={kind} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ border: "1px solid var(--border)", color: name ? "var(--foreground)" : "var(--muted)" }}>
+              <span className="h-2 w-2 rounded-full" style={{ background: name ? "var(--good)" : "var(--faint)" }} aria-hidden />
+              {label}
+              {name ? ` · ${name}` : " · nessuno"}
+            </span>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function WorkoutRow({ w, today }: { w: CalendarWorkout; today: string }) {
   return (
     <li className="flex items-center gap-3 py-3">
+      <MiniProfile blocks={w.blocks} height={26} className="w-14 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{w.name}</div>
         <div className="num text-xs text-muted">
@@ -135,9 +197,11 @@ export default function RulliHome() {
           <div className="num mt-1 text-xs opacity-85">
             {[next.secs !== null ? fmtDuration(next.secs) : null, next.tss !== null ? `${fmt(next.tss)} TSS` : null, next.type === "VirtualRide" ? "rulli" : null].filter(Boolean).join(" · ")}
           </div>
+          <MiniProfile blocks={next.blocks} height={44} onBrand className="mt-3" />
           <PedalaLink id={next.id} className="mt-4 !h-11 w-full !text-sm" tone="onBrand" />
         </section>
       )}
+      {compact && !problem && <SensorsCard />}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="card p-5">
           <h2 className="text-sm font-medium">{compact && next ? "Prossimi giorni" : "Allenamenti dei prossimi giorni"}</h2>

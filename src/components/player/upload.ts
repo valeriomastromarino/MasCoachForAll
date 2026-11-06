@@ -20,7 +20,8 @@ export async function uploadRecording(rec: Recording): Promise<Recording> {
     const res = await apiFetch("/api/rulli/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fit: toBase64(encodeFit(rec)), name: rec.name, externalId: rec.id, eventId: rec.eventId }),
+      // A recalibrated session says so in its name on Intervals.icu ("… · al 90%").
+      body: JSON.stringify({ fit: toBase64(encodeFit(rec)), name: rec.scale && rec.scale < 1 ? `${rec.name} · al ${Math.round(rec.scale * 100)}%` : rec.name, externalId: rec.id, eventId: rec.eventId }),
     });
     const json = (await res.json().catch(() => ({}))) as { id?: string | null; error?: string };
     next = res.ok ? { ...rec, status: "uploaded", uploadedId: json.id ?? null, error: null } : { ...rec, error: json.error ?? res.statusText };

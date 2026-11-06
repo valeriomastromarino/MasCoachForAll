@@ -4,6 +4,7 @@
 // notes and devices in one column; on computers two columns. Mode selector and controls stay at the bottom.
 import {
   IconActivityHeartbeat,
+  IconAdjustmentsHorizontal,
   IconBolt,
   IconHeart,
   IconMinus,
@@ -25,7 +26,8 @@ import { guardBack } from "@/lib/native";
 import { DFA_VT1, DFA_VT2, dfaZone } from "@/lib/physio/dfa";
 import { workoutNotes } from "@/lib/player/notes";
 import { summarize } from "@/lib/player/recording";
-import { stepRemaining } from "@/lib/player/session";
+import { SCALE_OPTIONS, stepRemaining } from "@/lib/player/session";
+import { SPRINT_LEADS, SPRINT_MAX_STEPS, SPRINT_WATTS } from "@/lib/player/sprint";
 import type { PlayerStep, PlayerWorkout } from "@/lib/player/timeline";
 import { downloadFit } from "./upload";
 import { IconTrainer } from "../brand/TrainerIcon";
@@ -43,8 +45,9 @@ function shortDuration(secs: number): string {
   return `${Math.floor(secs / 3600)}h${secs % 3600 ? String(Math.round((secs % 3600) / 60)).padStart(2, "0") : ""}`;
 }
 
-function stepText(s: PlayerStep): string {
-  return `${shortDuration(s.secs)} @ ${s.ramp ? `${s.from}→${s.to}` : s.from}W`;
+function stepText(s: PlayerStep, k = 1): string {
+  const w = (x: number) => Math.round(x * k);
+  return `${shortDuration(s.secs)} @ ${s.ramp ? `${w(s.from)}→${w(s.to)}` : w(s.from)}W`;
 }
 
 // ── Pieces ──────────────────────────────────────────────────────────────────────────────────────────
@@ -69,14 +72,17 @@ function Metric({ icon, color, label, value, unit, sub, right = false, bottom = 
 
 function Metrics({ view, step }: { view: PlayerView; step: PlayerStep | undefined }) {
   const s = view.session;
-  const resistance = s.mode === "resistance";
+  // A sprint (and its warning) is ridden in resistance: the card shows the sprint's level.
+  const sprinting = view.sprint.phase !== "off";
+  const resistance = s.mode === "resistance" || sprinting;
+  const level = sprinting ? view.sprint.cfg.level : s.level;
   const cad = step?.cadence;
   return (
     <section className={`${card} grid grid-cols-2 overflow-hidden`} style={{ ...cardStyle, gridArea: "metrics" }} aria-label="Metriche">
       <Metric right bottom icon={<IconBolt size={15} />} color="var(--fatigue-ink)" label="Potenza"
         value={fmt(view.power)} unit="W" sub={view.devices.power.status === "connected" ? (view.match ? `dai pedali · corr. ${fmt(view.match, 2)}` : "dai pedali") : null} />
       <Metric bottom icon={<IconTarget size={15} />} color="var(--good)" label={resistance ? "Livello" : "Obiettivo"}
-        value={resistance ? String(s.level) : fmt(view.target)} unit={resistance ? `/ ${view.levels.length - 1}` : "W"}
+        value={resistance ? String(level) : fmt(view.target)} unit={resistance ? `/ ${view.levels.length - 1}` : "W"}
         sub={!resistance && s.offset ? `${s.offset > 0 ? "+" : ""}${s.offset} W su questo step` : resistance ? "resistenza" : null} />
       <Metric right icon={<IconHeart size={15} />} color="var(--rhr-ink)" label="FC" value={fmt(view.hr)} unit="bpm" />
       <Metric icon={<IconRefresh size={15} />} color="var(--fitness-ink)" label="Cadenza" value={fmt(view.cadence)} unit="rpm"
@@ -94,7 +100,7 @@ function statusLabel(view: PlayerView): string | null {
   return null;
 }
 
-function Profile({ workout, view }: { workout: PlayerWorkout; view: PlayerView }) {
+function Profile({ workout, view, onRecal }: { workout: PlayerWorkout; view: PlayerView; onRecal: () => void }) {
   const s = view.session;
   const steps = workout.steps;
   const total = Math.max(1, workout.totalSecs);
@@ -103,6 +109,8 @@ function Profile({ workout, view }: { workout: PlayerWorkout; view: PlayerView }
   const X = (sec: number) => (sec / total) * 1000;
   const Y = (w: number) => H - (Math.min(w, maxW) / maxW) * H;
   const next = steps[s.stepIndex + 1];
+  // Recalibrated: the steps from the one it was applied on are drawn (and shown) at the lower power.
+  const k = (st: PlayerStep) => (st.index >= s.scaleFrom ? s.scale : 1);
   const label = statusLabel(view);
   const trace = view.trace.map((p) => `${X(p.pos).toFixed(1)},${Y(p.w).toFixed(1)}`).join(" ");
   return (
@@ -114,10 +122,19 @@ function Profile({ workout, view }: { workout: PlayerWorkout; view: PlayerView }
         </div>
         <div className="text-right">
           <div className="text-xs text-muted">Prossimo</div>
-          <div className="num text-base text-muted">{next ? stepText(next) : "Fine"}</div>
+          <div className="num text-base text-muted">{next ? stepText(next, k(next)) : "Fine"}</div>
         </div>
       </div>
       {steps[s.stepIndex]?.label && <div className="mt-1 text-xs text-muted">{steps[s.stepIndex].label}</div>}
+      <button
+        type="button"
+        onClick={onRecal}
+        disabled={s.status === "done"}
+        className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium leading-none disabled:opacity-40"
+        style={s.scale < 1 ? { background: "var(--accent-bg)", color: "var(--accent-ink)" } : { border: "1px solid var(--border)", color: "var(--muted)" }}
+      >
+        <IconAdjustmentsHorizontal size={15} aria-hidden /> Ricalibra · {Math.round(s.scale * 100)}%
+      </button>
       <svg viewBox={`0 0 1000 ${H}`} preserveAspectRatio="none" className="mt-3 block h-28 w-full lg:h-44" role="img" aria-label="Profilo con la potenza pedalata">
         {steps.map((st) => {
           const x0 = X(st.start);
@@ -126,7 +143,7 @@ function Profile({ workout, view }: { workout: PlayerWorkout; view: PlayerView }
           return (
             <polygon
               key={st.index}
-              points={`${x0},${H} ${x0},${Y(st.from)} ${x1},${Y(st.to)} ${x1},${H}`}
+              points={`${x0},${H} ${x0},${Y(st.from * k(st))} ${x1},${Y(st.to * k(st))} ${x1},${H}`}
               fill={`var(--z${st.zone})`}
               opacity={done ? 0.45 : 0.9}
               stroke="var(--surface)"
@@ -302,14 +319,183 @@ function Devices({ view, engine }: { view: PlayerView; engine: PlayerEngine }) {
   );
 }
 
+/** Above the metrics: the warning before a sprint, and the sprint itself while it lasts. */
+function SprintAlert({ view }: { view: PlayerView }) {
+  const sp = view.sprint;
+  if (sp.phase === "off") return null;
+  if (sp.phase === "warn") {
+    return (
+      <div role="alert" className="mx-auto mb-3 flex w-full max-w-6xl items-center gap-4 rounded-2xl px-4 py-3" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)", border: "2px solid var(--warning)" }}>
+        <span className="num min-w-[2ch] text-center text-5xl font-semibold leading-none">{sp.secs}</span>
+        <div>
+          <div className="text-base font-semibold">SPRINT tra {sp.secs} s</div>
+          <div className="text-xs">Passo alla resistenza {sp.cfg.level}. ERG spento.</div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div role="status" className="mx-auto mb-3 w-full max-w-6xl rounded-2xl px-4 py-4 text-center" style={{ background: "var(--z7)", color: "#fff" }}>
+      <div className="text-[11px] font-medium uppercase tracking-wider opacity-80">
+        Sprint {sp.n} di {sp.total} · resistenza {sp.cfg.level}
+      </div>
+      <div className="num mt-1 text-6xl font-semibold leading-none">
+        {fmt(view.power)}
+        <span className="ml-1 text-xl font-medium opacity-80">W</span>
+      </div>
+      <div className="num mt-3 flex justify-around text-xs opacity-90">
+        <div>
+          <b className="block text-xl">{sp.secs}″</b>restano
+        </div>
+        <div>
+          <b className="block text-xl">{fmt(sp.peak)}</b>picco W
+        </div>
+        <div>
+          <b className="block text-xl">{fmt(view.cadence)}</b>rpm
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Switch({ on }: { on: boolean }) {
+  return (
+    <span className="relative inline-block h-6 w-10 shrink-0 rounded-full" style={{ background: on ? "var(--brand)" : "var(--border)" }} aria-hidden>
+      <span className="absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white" style={{ left: on ? 19 : 3, boxShadow: "0 1px 3px rgba(0,0,0,.3)" }} />
+    </span>
+  );
+}
+
+/** Footer: turns the automatic sprints on or off; tapping the text opens their settings. */
+function SprintToggle({ view, engine, onSettings }: { view: PlayerView; engine: PlayerEngine; onSettings: () => void }) {
+  const c = view.sprint.cfg;
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <button type="button" onClick={onSettings} className="min-w-0 text-left">
+        <span className="block text-sm font-medium">Sprint automatici</span>
+        <span className="num block truncate text-xs text-muted">≥ {c.watts} W · resistenza {c.level} · avviso {c.leadSecs} s</span>
+      </button>
+      <button type="button" role="switch" aria-checked={c.on} aria-label="Sprint automatici" onClick={() => engine.setSprint({ on: !c.on })}>
+        <Switch on={c.on} />
+      </button>
+    </div>
+  );
+}
+
+function OptionRow<T extends number>({ label, options, value, text, onPick }: { label: string; options: readonly T[]; value: T; text: (v: T) => string; onPick: (v: T) => void }) {
+  return (
+    <div className="mt-4">
+      <div className="mb-1.5 text-xs text-muted">{label}</div>
+      <div className="flex gap-1.5" role="radiogroup" aria-label={label}>
+        {options.map((o) => (
+          <button
+            key={o}
+            type="button"
+            role="radio"
+            aria-checked={o === value}
+            onClick={() => onPick(o)}
+            className="num flex-1 rounded-xl px-1 py-2 text-sm font-medium"
+            style={o === value ? { background: "var(--accent-bg)", color: "var(--accent-ink)", border: "1px solid var(--accent-ink)" } : { border: "1px solid var(--border)" }}
+          >
+            {text(o)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SprintSheet({ view, engine, onClose }: { view: PlayerView; engine: PlayerEngine; onClose: () => void }) {
+  const c = view.sprint.cfg;
+  const levels = view.levels.length || 10;
+  return (
+    <Sheet>
+      <h2 className="text-base font-medium">Sprint automatici</h2>
+      <p className="mt-1 text-sm text-muted">Sopra la soglia il rullo passa in resistenza e a fine step torna in ERG. In resistenza la potenza dipende da rapporto, cadenza e livello.</p>
+      <OptionRow label="Da quale potenza" options={SPRINT_WATTS} value={c.watts} text={(v) => `${v} W`} onPick={(v) => engine.setSprint({ watts: v })} />
+      <OptionRow label="Avviso prima" options={SPRINT_LEADS} value={c.leadSecs} text={(v) => `${v} s`} onPick={(v) => engine.setSprint({ leadSecs: v })} />
+      <OptionRow label="Solo step brevi" options={SPRINT_MAX_STEPS} value={c.maxStepSecs} text={(v) => (v === 0 ? "tutti" : `≤ ${v} s`)} onPick={(v) => engine.setSprint({ maxStepSecs: v })} />
+      <div className="mt-4">
+        <div className="mb-1.5 text-xs text-muted">Resistenza di partenza (poi si ricorda l&apos;ultima usata)</div>
+        <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Livello di resistenza">
+          {Array.from({ length: levels }, (_, i) => i).map((i) => (
+            <button
+              key={i}
+              type="button"
+              role="radio"
+              aria-checked={i === c.level}
+              onClick={() => engine.setSprint({ level: i })}
+              className="num rounded-lg py-1.5 text-sm font-medium"
+              style={i === c.level ? { background: "var(--brand)", color: "var(--on-brand)" } : { border: "1px solid var(--border)" }}
+            >
+              {i}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button className="mt-5 w-full rounded-xl px-4 py-2.5 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={onClose}>Fatto</button>
+    </Sheet>
+  );
+}
+
+/** "Ricalibra": the rest of the session at 100 / 95 / 90 / 85 % of the planned watts. */
+function RecalSheet({ view, workout, engine, onClose }: { view: PlayerView; workout: PlayerWorkout; engine: PlayerEngine; onClose: () => void }) {
+  const s = view.session;
+  const [pick, setPick] = useState<number>(s.scale);
+  const next = workout.steps[Math.min(workout.steps.length - 1, s.stepIndex + 1)];
+  return (
+    <Sheet>
+      <h2 className="text-base font-medium">Ricalibra la seduta</h2>
+      <p className="mt-1 text-sm text-muted">Abbassa la potenza di tutti gli step che restano. Il riscaldamento e ciò che hai già fatto non cambiano.</p>
+      <div className="mt-4 grid grid-cols-4 gap-2" role="radiogroup" aria-label="Percentuale della potenza prevista">
+        {SCALE_OPTIONS.map((o) => (
+          <button
+            key={o}
+            type="button"
+            role="radio"
+            aria-checked={pick === o}
+            onClick={() => setPick(o)}
+            className="num rounded-2xl px-1 py-2.5 text-center text-base font-semibold"
+            style={pick === o ? { background: "var(--accent-bg)", color: "var(--accent-ink)", border: "1px solid var(--accent-ink)" } : { border: "1px solid var(--border)" }}
+          >
+            {Math.round(o * 100)}%
+            <span className="block text-[10px] font-normal text-muted">{o === 1 ? "com'è" : `−${Math.round((1 - o) * 100)}%`}</span>
+          </button>
+        ))}
+      </div>
+      {next && (
+        <p className="num mt-3 text-xs text-muted">
+          Prossimo step: <b className="text-[color:var(--foreground)]">{stepText(next, pick)}</b>
+          {pick < 1 ? ` (previsto ${stepText(next)})` : ""}
+        </p>
+      )}
+      <div className="mt-4 grid grid-cols-1 gap-2">
+        <button
+          className="rounded-xl px-4 py-2.5 text-sm font-medium"
+          style={{ background: "var(--brand)", color: "var(--on-brand)" }}
+          onClick={() => {
+            engine.recalibrate(pick);
+            onClose();
+          }}
+        >
+          {pick === 1 ? "Torna alla potenza prevista" : `Applica ${Math.round(pick * 100)}%`}
+        </button>
+        <button className="rounded-xl px-4 py-2 text-sm text-muted" onClick={onClose}>Annulla</button>
+      </div>
+    </Sheet>
+  );
+}
+
 function ModeSelector({ view, engine }: { view: PlayerView; engine: PlayerEngine }) {
   const s = view.session;
+  const sprinting = view.sprint.phase !== "off";
+  const active = sprinting ? "resistance" : s.mode;
   const opt = (mode: "erg" | "resistance", text: string) => (
     <button
       role="radio"
-      aria-checked={s.mode === mode}
+      aria-checked={active === mode}
       className="num flex-1 rounded-lg px-3 py-2 text-sm"
-      style={s.mode === mode ? { background: "var(--accent-bg)", color: "var(--accent-ink)", fontWeight: 500 } : { color: "var(--muted)" }}
+      style={active === mode ? { background: "var(--accent-bg)", color: "var(--accent-ink)", fontWeight: 500 } : { color: "var(--muted)" }}
       onClick={() => engine.setMode(mode)}
     >
       {text}
@@ -318,7 +504,7 @@ function ModeSelector({ view, engine }: { view: PlayerView; engine: PlayerEngine
   return (
     <div role="radiogroup" aria-label="Modalità del rullo" className="flex min-w-0 flex-1 gap-1 rounded-xl p-1 lg:max-w-sm" style={{ background: "var(--neutral-bg)" }}>
       {opt("erg", `ERG · ${fmt(view.target)} W`)}
-      {opt("resistance", `Resistenza · ${s.level}`)}
+      {opt("resistance", sprinting ? `Sprint · ${view.sprint.cfg.level}` : `Resistenza · ${s.level}`)}
     </div>
   );
 }
@@ -440,10 +626,14 @@ function FinishSheet({ view, engine, onClose }: { view: PlayerView; engine: Play
 export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: () => void }) {
   const { engine, view } = usePlayer(workout);
   const [asking, setAsking] = useState(false);
+  const [recal, setRecal] = useState(false);
+  const [sprintSettings, setSprintSettings] = useState(false);
   const notes = useMemo(() => workoutNotes(workout.description), [workout.description]);
   const s = view.session;
   const step = workout.steps[s.stepIndex];
   const showFinish = s.status === "done";
+  // The toggle is offered when the workout has a step that could be a sprint at any of the thresholds.
+  const hasSprint = workout.steps.some((st) => Math.max(st.from, st.to) >= SPRINT_WATTS[0]);
 
   const close = () => (view.recording ? setAsking(true) : onExit());
 
@@ -453,12 +643,14 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
     () =>
       guardBack(() => {
         if (showFinish) onExit();
+        else if (recal) setRecal(false);
+        else if (sprintSettings) setSprintSettings(false);
         else if (asking) setAsking(false);
         else if (recording) setAsking(true);
         else onExit();
         return true;
       }),
-    [asking, showFinish, recording, onExit],
+    [asking, recal, sprintSettings, showFinish, recording, onExit],
   );
 
   return (
@@ -477,9 +669,16 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <SprintAlert view={view} />
+        {s.scale < 1 && (
+          <div className="mx-auto mb-3 flex w-full max-w-6xl items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
+            <span>Seduta al {Math.round(s.scale * 100)}%</span>
+            <button type="button" className="text-xs font-normal underline underline-offset-2" onClick={() => engine.recalibrate(1)}>Annulla</button>
+          </div>
+        )}
         <div className="player-grid mx-auto w-full max-w-6xl">
           <Metrics view={view} step={step} />
-          <Profile workout={workout} view={view} />
+          <Profile workout={workout} view={view} onRecal={() => setRecal(true)} />
           <DfaCard view={view} />
           {notes && (
             <section className={`${card} p-4`} style={{ ...cardStyle, gridArea: "notes" }} aria-label="Note allenamento">
@@ -492,6 +691,11 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
       </main>
 
       <footer className="border-t px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+        {hasSprint && (
+          <div className="mx-auto mb-3 w-full max-w-6xl">
+            <SprintToggle view={view} engine={engine} onSettings={() => setSprintSettings(true)} />
+          </div>
+        )}
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:flex-row sm:items-center">
           <div className="player-wide-only flex min-w-0 flex-1 flex-wrap items-center gap-1">
             {(["trainer", "hr", "power"] as DeviceKind[]).map((k) => (
@@ -516,6 +720,8 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
           }}
         />
       )}
+      {recal && !showFinish && <RecalSheet view={view} workout={workout} engine={engine} onClose={() => setRecal(false)} />}
+      {sprintSettings && !showFinish && <SprintSheet view={view} engine={engine} onClose={() => setSprintSettings(false)} />}
       {showFinish && <FinishSheet view={view} engine={engine} onClose={onExit} />}
     </div>
   );

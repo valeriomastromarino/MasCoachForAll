@@ -24,14 +24,32 @@ export type SessionState = {
   /** Index into the trainer's resistance steps. */
   level: number;
   stillSecs: number;
+  /** "Ricalibra": fraction of the planned watts (1 = as planned), applied from step `scaleFrom` on. */
+  scale: number;
+  scaleFrom: number;
 };
 
+/** The fractions the player offers to recalibrate to. */
+export const SCALE_OPTIONS = [1, 0.95, 0.9, 0.85] as const;
+
 export function initialSession(level = 3): SessionState {
-  return { status: "ready", autoPaused: false, pos: 0, elapsed: 0, stepIndex: 0, offset: 0, mode: "erg", level, stillSecs: 0 };
+  return { status: "ready", autoPaused: false, pos: 0, elapsed: 0, stepIndex: 0, offset: 0, mode: "erg", level, stillSecs: 0, scale: 1, scaleFrom: 0 };
+}
+
+/** Watts planned at `pos`, reduced by the recalibration when this step is at or after the one it was applied on. */
+export function plannedTarget(s: SessionState, steps: PlayerStep[], pos = s.pos): number {
+  const base = targetAt(steps, pos);
+  return stepIndexAt(steps, pos) >= s.scaleFrom ? Math.round(base * s.scale) : base;
 }
 
 export function ergTarget(s: SessionState, steps: PlayerStep[]): number {
-  return Math.max(0, targetAt(steps, s.pos) + s.offset);
+  return Math.max(0, plannedTarget(s, steps) + s.offset);
+}
+
+/** Recalibrates the rest of the session (from the current step) to a fraction of the plan; 1 puts it back. */
+export function recalibrate(s: SessionState, scale: number): SessionState {
+  if (scale >= 1) return { ...s, scale: 1, scaleFrom: 0, offset: 0 };
+  return { ...s, scale, scaleFrom: s.stepIndex, offset: 0 };
 }
 
 /** Advances the session by `dt` seconds. `pedalling` comes from cadence (or power when there is no cadence). */
@@ -70,7 +88,7 @@ export function skip(s: SessionState, dir: 1 | -1, steps: PlayerStep[]): Session
 /** − / + : 5 W in ERG, one step of resistance otherwise. */
 export function adjust(s: SessionState, dir: 1 | -1, levels: number, steps: PlayerStep[]): SessionState {
   if (s.mode === "resistance") return { ...s, level: Math.min(levels - 1, Math.max(0, s.level + dir)) };
-  const base = targetAt(steps, s.pos);
+  const base = plannedTarget(s, steps);
   return { ...s, offset: Math.max(-base, s.offset + dir * ERG_STEP_W) };
 }
 
