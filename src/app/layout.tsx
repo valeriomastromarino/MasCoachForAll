@@ -28,7 +28,7 @@ export const viewport: Viewport = {
 };
 
 // Applies the saved theme before first paint (no flash): saved choice, else Night if the device is dark.
-const themeScript = `(function(){try{var t=localStorage.getItem("mascoach-theme");if(t!=="day"&&t!=="night"&&t!=="paper"){t=matchMedia("(prefers-color-scheme: dark)").matches?"night":"day"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="day"}})();`;
+const themeScript = `(function(){try{var t=localStorage.getItem("mascoach-theme");if(t!=="day"&&t!=="night"&&t!=="paper"){t=matchMedia("(prefers-color-scheme: dark)").matches?"night":"day"}document.documentElement.dataset.theme=t;var a=JSON.parse(localStorage.getItem("mascoach-accent"));if(a&&isFinite(a.h)&&isFinite(a.s)){var d=document.documentElement;d.dataset.accent="1";d.style.setProperty("--accent-h",a.h);d.style.setProperty("--accent-s",a.s)}}catch(e){document.documentElement.dataset.theme="day"}})();`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

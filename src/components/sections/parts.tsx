@@ -95,6 +95,38 @@ const READINESS_SHARE: Record<ReadinessLevel, number> = { verde: 1, giallo: 0.6,
 export function ReadinessHero({ status, size = "full", children }: { status: DashboardData["status"]; size?: "full" | "short"; children?: React.ReactNode }) {
   const r = status.readiness;
   const share = READINESS_SHARE[r.level];
+  // Slim version (phone app): icon, verdict and level on one line, the bar under it, one short paragraph. No scale labels.
+  if (size === "short") {
+    return (
+      <section className="rounded-[20px] px-4 py-3.5" style={{ background: "var(--brand)", color: "var(--on-brand)" }} aria-label="Stato di oggi">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base font-medium"
+            style={{ background: "var(--on-brand)", color: "var(--brand)" }}
+            aria-hidden
+          >
+            {LEVEL_STYLE[r.level].icon}
+          </span>
+          <div className="min-w-0 flex-1 text-2xl font-medium leading-none tracking-tight">{r.headline}</div>
+          <span className="shrink-0 text-[11px] opacity-85">{r.level === "grigio" ? "dati insufficienti" : LEVEL_LABEL[r.level]}</span>
+        </div>
+        <div
+          className="mt-3 h-2 overflow-hidden rounded-full"
+          style={{ background: "color-mix(in srgb, var(--on-brand) 28%, transparent)" }}
+          role="meter"
+          aria-label="Prontezza"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(share * 100)}
+          aria-valuetext={r.headline}
+        >
+          <div className="h-full rounded-full transition-[width]" style={{ width: `${share * 100}%`, background: "var(--on-brand)" }} />
+        </div>
+        <p className="mt-2.5 text-[13px] leading-snug opacity-95">{r.advice}</p>
+        {children}
+      </section>
+    );
+  }
   return (
     <section className="rounded-[24px] p-5" style={{ background: "var(--brand)", color: "var(--on-brand)" }} aria-label="Stato di oggi">
       <div className="text-[10px] font-medium uppercase tracking-[0.1em] opacity-85">Stato di oggi</div>
@@ -129,7 +161,7 @@ export function ReadinessHero({ status, size = "full", children }: { status: Das
         <span>Riduci</span>
         <span>Pronto</span>
       </div>
-      <p className={`${size === "short" ? "mt-3" : "mt-4"} text-sm leading-snug opacity-95`}>{r.advice}</p>
+      <p className="mt-4 text-sm leading-snug opacity-95">{r.advice}</p>
       {children}
     </section>
   );

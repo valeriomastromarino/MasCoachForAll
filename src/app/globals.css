@@ -156,6 +156,23 @@
   --cat-indoor-ink: #8a5a22;
 }
 
+/*
+ * Colour chosen in Impostazioni (lib/accent.ts): hue and saturation on <html> replace the terracotta of the brand and the accent.
+ * Logo, zones and the colours of the data do not change.
+ */
+:root[data-accent] {
+  --brand: hsl(var(--accent-h) calc(var(--accent-s) * 1%) 44%);
+  --brand-strong: hsl(var(--accent-h) calc(var(--accent-s) * 1%) 36%);
+  --accent-ink: hsl(var(--accent-h) calc(var(--accent-s) * 1%) 38%);
+  --accent-bg: hsl(var(--accent-h) calc(var(--accent-s) * 1.1%) 91%);
+}
+:root[data-accent][data-theme="night"] {
+  --brand: hsl(var(--accent-h) calc(var(--accent-s) * 1%) 50%);
+  --brand-strong: hsl(var(--accent-h) calc(var(--accent-s) * 1%) 40%);
+  --accent-ink: hsl(var(--accent-h) calc(var(--accent-s) * 1.2%) 72%);
+  --accent-bg: hsl(var(--accent-h) calc(var(--accent-s) * 0.7%) 20%);
+}
+
 /* Fine paper grain over the whole page (Paper theme only). */
 :root[data-theme="paper"] body::before {
   content: "";
