@@ -34,10 +34,11 @@ describe("FIT writer", () => {
     expect(messages.recordMesgs[0].power).toBe(150);
     expect(messages.recordMesgs[0].heartRate).toBe(120);
     expect(messages.recordMesgs[0].speed).toBeCloseTo(30 / 3.6, 2);
-    // DFA α1 as a developer field "DFA_a1" (× 1000), only where the strap gave a value.
-    expect(messages.fieldDescriptionMesgs[0].fieldName).toBe("DFA_a1");
-    expect(messages.recordMesgs[0].developerFields?.[0]).toBeCloseTo(950, 0);
-    expect(messages.recordMesgs[100].developerFields?.[0]).toBeUndefined();
+    // DFA α1 as a developer field "Alpha1" (float32, the name Intervals.icu reads), only where the strap gave a value.
+    expect(messages.fieldDescriptionMesgs[0].fieldName).toBe("Alpha1");
+    expect(messages.recordMesgs[0].developerFields?.[0]).toBeCloseTo(0.95, 3);
+    // No value: the float32 "invalid" pattern, which the decoder reads as NaN.
+    expect(Number.isNaN(messages.recordMesgs[100].developerFields?.[0] ?? NaN)).toBe(true);
     expect(messages.lapMesgs).toHaveLength(2);
     expect(messages.lapMesgs[1].avgPower).toBe(220);
 

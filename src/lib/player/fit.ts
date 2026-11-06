@@ -37,15 +37,19 @@ type Field = [number, BaseType, number?];
 /** Developer fields appended to a message: [field number, size in bytes], all of developer data index DFA_DEV.index. */
 type MessageDef = { global: number; fields: Field[]; dev?: [number, number][] };
 
-/** Developer field "DFA_a1" on every record (uint16, α1 × 1000), declared with developer_data_id + field_description. */
-const DFA_DEV = { index: 0, fieldNumber: 0, scale: 1000 };
+/**
+ * Developer field "Alpha1" on every record (float32, the α1 value as it is), declared with developer_data_id + field_description.
+ * Intervals.icu shows DFA α1 only from a developer field named exactly "Alpha1" (the name the Garmin alphaHRV app uses);
+ * with another name (the first version used "DFA_a1") the data stays in the file but is not read.
+ */
+const DFA_DEV = { index: 0, fieldNumber: 0, name: "Alpha1", baseType: 0x88, size: 4 };
 
 const MSG = {
   fileId: { global: 0, fields: [[0, "enum"], [1, "uint16"], [2, "uint16"], [3, "uint32z"], [4, "uint32"]] },
   event: { global: 21, fields: [[253, "uint32"], [0, "enum"], [1, "enum"]] },
   developerDataId: { global: 207, fields: [[0, "byte", 16], [1, "byte", 16], [3, "uint8"], [4, "uint32"]] },
   fieldDescription: { global: 206, fields: [[0, "uint8"], [1, "uint8"], [2, "uint8"], [3, "string", 16], [8, "string", 8], [6, "uint8"]] },
-  record: { global: 20, fields: [[253, "uint32"], [3, "uint8"], [4, "uint8"], [7, "uint16"], [6, "uint16"], [5, "uint32"]], dev: [[DFA_DEV.fieldNumber, 2]] },
+  record: { global: 20, fields: [[253, "uint32"], [3, "uint8"], [4, "uint8"], [7, "uint16"], [6, "uint16"], [5, "uint32"]], dev: [[DFA_DEV.fieldNumber, DFA_DEV.size]] },
   hrv: { global: 78, fields: [[0, "uint16", 5]] },
   lap: {
     global: 19,
@@ -101,11 +105,13 @@ class Writer {
         this.bytes(ok ? Math.max(0, Math.round(x)) : BASE[type].invalid, BASE[type].size);
       }
     });
-    // Developer values follow the regular ones, in the order of def.dev (uint16 each).
-    def.dev?.forEach(([, size], i) => {
+    // Developer values follow the regular ones, in the order of def.dev (float32 each, all bits set = no value).
+    def.dev?.forEach((_, i) => {
       const x = values[def.fields.length + i];
-      const ok = typeof x === "number" && Number.isFinite(x);
-      this.bytes(ok ? Math.max(0, Math.min(0xfffe, Math.round(x))) : 0xffff, size);
+      const buf = new DataView(new ArrayBuffer(4));
+      if (typeof x === "number" && Number.isFinite(x)) buf.setFloat32(0, x, true);
+      else buf.setUint32(0, 0xffffffff, true);
+      for (let k = 0; k < 4; k++) this.chunks.push(buf.getUint8(k));
     });
   }
 
@@ -140,9 +146,9 @@ export function encodeFit(rec: Recording): Uint8Array {
   const elapsedS = Math.max(1, (last - first) / 1000 + 1);
 
   w.write("fileId", [4, 255, 0, 1, fitTime(rec.startedAt)]);
-  // Developer field "DFA_a1": declared before the records that use it.
+  // Developer field "Alpha1": declared before the records that use it.
   w.write("developerDataId", [chars("MasCoach", 16), chars("mascoach-dfa", 16), DFA_DEV.index, 1]);
-  w.write("fieldDescription", [DFA_DEV.index, DFA_DEV.fieldNumber, 0x84, chars("DFA_a1", 16), chars("", 8), DFA_DEV.scale]);
+  w.write("fieldDescription", [DFA_DEV.index, DFA_DEV.fieldNumber, DFA_DEV.baseType, chars(DFA_DEV.name, 16), chars("", 8), 1]);
   w.write("event", [fitTime(first), EVENT.timer, EVENT_TYPE.start]);
 
   let r = 0;
@@ -154,7 +160,7 @@ export function encodeFit(rec: Recording): Uint8Array {
       w.write("event", [fitTime(pz.from), EVENT.timer, EVENT_TYPE.stopAll]);
       if (pz.to !== null) w.write("event", [fitTime(Math.max(pz.to, pz.from)), EVENT.timer, EVENT_TYPE.start]);
     }
-    w.write("record", [fitTime(s.t), s.hr, s.cadence, s.power, scale(s.speed === null ? null : s.speed / 3.6, 1000), s.distance * 100, s.dfa == null ? null : s.dfa * DFA_DEV.scale]);
+    w.write("record", [fitTime(s.t), s.hr, s.cadence, s.power, scale(s.speed === null ? null : s.speed / 3.6, 1000), s.distance * 100, s.dfa == null ? null : s.dfa]);
     // RR intervals that arrived up to this second, five per HRV message (in seconds, scale 1000).
     const batch: number[] = [];
     while (r < rec.rr.length && rec.rr[r].t <= s.t) batch.push(rec.rr[r++].ms / 1000);
