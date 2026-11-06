@@ -248,9 +248,25 @@ async function life(method: string, id: string, q: URLSearchParams, body: unknow
   return fail(405, "Metodo non previsto");
 }
 
-/** Puts a workout from the Intervals.icu library on a day of the calendar. */
-async function addWorkout(body: { workoutId?: number; date?: string } | null): Promise<ApiResult> {
+/** Sessions the athlete adds by hand from the calendar: not on the bike, so they have no steps, only a type and a duration. */
+const EXTRA_SESSIONS = { pesi: { type: "WeightTraining", name: "Pesi" }, pilates: { type: "Pilates", name: "Pilates" } } as const;
+
+/** Puts a workout from the Intervals.icu library on a day of the calendar, or a session of weights or Pilates (`kind`, `mins`). */
+async function addWorkout(body: { workoutId?: number; date?: string; kind?: string; mins?: number } | null): Promise<ApiResult> {
   if (!intervalsConfigured()) return DEMO_ONLY();
+  if (body?.kind !== undefined) {
+    const extra = EXTRA_SESSIONS[body.kind as keyof typeof EXTRA_SESSIONS];
+    if (!extra || !ISO_DATE.test(body.date ?? "") || typeof body.mins !== "number" || !(body.mins >= 10 && body.mins <= 240)) return fail(400, "Richiesta non valida");
+    const created = await createEvent({
+      category: "WORKOUT",
+      type: extra.type,
+      name: extra.name,
+      start_date_local: `${body.date}T00:00:00`,
+      moving_time: Math.round(body.mins) * 60,
+      external_id: `mascoach-app-${Date.now()}`,
+    });
+    return ok({ id: String(created?.id ?? "") });
+  }
   if (!body || typeof body.workoutId !== "number" || !ISO_DATE.test(body.date ?? "")) return fail(400, "Richiesta non valida");
   const { workouts } = await fetchLibrary();
   const w = workouts.find((x) => x.id === body.workoutId);
@@ -441,7 +457,7 @@ export async function handleApi(method: string, path: string, body: unknown = nu
     }
     if (method === "GET" && p.startsWith("/api/rulli/workout/")) return await trainerWorkout(seg(/^\/api\/rulli\/workout\/([^/]+)$/));
     if (method === "POST" && p === "/api/rulli/upload") return await trainerUpload(body as Parameters<typeof trainerUpload>[0]);
-    if (p === "/api/calendar/events" && method === "POST") return await addWorkout(body as { workoutId?: number; date?: string } | null);
+    if (p === "/api/calendar/events" && method === "POST") return await addWorkout(body as { workoutId?: number; date?: string; kind?: string; mins?: number } | null);
     if (p.startsWith("/api/calendar/events/")) {
       const id = seg(/^\/api\/calendar\/events\/([^/]+)$/);
       if (method === "PATCH") return await moveWorkout(id, body as { date?: string } | null);

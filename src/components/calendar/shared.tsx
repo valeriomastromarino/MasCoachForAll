@@ -3,6 +3,7 @@
 // Pieces shared by the calendar grid and its pop-ups.
 import { IconX } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
+import { useCompact } from "@/lib/compact";
 import type { ActivityCategory } from "@/lib/activities";
 import type { CoachMark } from "@/lib/coach/marks";
 import type { WorkoutBlock } from "@/lib/workout";
@@ -31,6 +32,8 @@ export function Modal({ title, subtitle, onClose, children }: {
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // Phone app: the pop-up sits under the bottom bar (it lives inside the pager), so leave room for it.
+  const compact = useCompact();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -51,7 +54,7 @@ export function Modal({ title, subtitle, onClose, children }: {
         role="dialog"
         aria-modal="true"
         className="card max-h-[92dvh] w-full overflow-y-auto rounded-b-none p-5 sm:max-w-xl sm:rounded-b-2xl"
-        style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+        style={{ paddingBottom: compact ? "calc(1.25rem + var(--nav-h))" : "calc(1.25rem + env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">

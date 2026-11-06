@@ -1,5 +1,5 @@
 // The five pages of the phone app that live side by side in the pager: swipe sideways or tap the bottom bar.
-export const TAB_PATHS = ["/", "/calendario", "/coach", "/rulli", "/altro"] as const;
+export const TAB_PATHS = ["/", "/calendario", "/coach", "/attivita", "/altro"] as const;
 
 export const tabIndex = (path: string): number => TAB_PATHS.indexOf(path as (typeof TAB_PATHS)[number]);
 

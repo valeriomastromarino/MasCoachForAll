@@ -1,12 +1,12 @@
 "use client";
 
-// The frame of every page: logo on top and the page itself. On the phone app the five main pages (Oggi, Calendario, Coach, Rulli, Altro)
-// sit side by side in a pager: the page follows the finger, and the dots under the logo follow it too.
+// The frame of every page: logo on top and the page itself. On the phone app the five main pages (Oggi, Calendario, Coach, Uscite, Altro)
+// sit side by side in a pager: the page follows the finger, and the page name at the right of the logo follows.
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useCompact } from "@/lib/compact";
 import { setPagerPos } from "@/lib/pagerPos";
 import { TopBarView } from "../brand/TopBar";
-import RulliHome from "../player/RulliHome";
+import Archive from "../archive/Archive";
 import Altro from "../sections/Altro";
 import Calendario from "../sections/Calendario";
 import Coach from "../sections/Coach";
@@ -19,7 +19,7 @@ const PAGES: { render: () => React.ReactNode; fill?: boolean }[] = [
   { render: () => <Oggi /> },
   { render: () => <Calendario /> },
   { render: () => <Coach />, fill: true },
-  { render: () => <RulliHome /> },
+  { render: () => <Archive /> },
   { render: () => <Altro /> },
 ];
 

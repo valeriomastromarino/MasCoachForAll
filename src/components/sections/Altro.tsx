@@ -1,6 +1,6 @@
 "use client";
 
-// The phone app's "Altro": what isn't in the five tabs (Oggi, Calendario, Coach, Rulli), one tap each.
+// The phone app's "Altro": what isn't in the five tabs (Oggi, Calendario, Coach, Uscite), one tap each.
 // Forma, Potenza, Cuore and Recupero are the tabs of "Analisi"; the full app keeps them as four pages.
 import { IconChartLine, IconChevronRight } from "@tabler/icons-react";
 import Link from "next/link";
@@ -9,7 +9,7 @@ import { sectionById, SETTINGS } from "../nav/sections";
 const ANALISI = { id: "analisi", href: "/analisi", label: "Analisi", description: "Forma, potenza, cuore e recupero", icon: IconChartLine, color: "var(--form-ink)" };
 
 export default function Altro() {
-  const items = [ANALISI, sectionById("stagione"), sectionById("uscite"), sectionById("test"), SETTINGS];
+  const items = [ANALISI, sectionById("rulli"), sectionById("stagione"), sectionById("test"), SETTINGS];
   return (
     <main className="mx-auto w-full max-w-xl space-y-4 px-4 py-4 sm:py-6">
       <nav aria-label="Altre sezioni" className="card overflow-hidden">

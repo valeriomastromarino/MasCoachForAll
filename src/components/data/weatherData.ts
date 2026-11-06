@@ -9,7 +9,7 @@ const PLACE_KEY = "mascoach-place";
 const FORECAST_KEY = "mascoach-forecast";
 const CHANGED = "mascoach-weather";
 /** A saved position older than this is refreshed quietly when the permission is already granted. */
-const PLACE_MAX_AGE_MS = 3 * 3600_000;
+const PLACE_MAX_AGE_MS = 3600_000;
 const FORECAST_MAX_AGE_MS = 60 * 60_000;
 
 export type Place = { lat: number; lon: number; at: number };
@@ -61,6 +61,22 @@ function currentPosition(): Promise<Place> {
   });
 }
 
+/** Ticks every minute and when the app comes back to the front, so position and forecast are checked while it stays open. */
+function useTick(): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setTick((t) => t + 1);
+    const id = setInterval(bump, 60_000);
+    const onVisible = () => document.visibilityState === "visible" && bump();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+  return tick;
+}
+
 /** The saved position (if any) and a function that asks for it: the phone shows its permission prompt only then. */
 export function usePlace(): { place: Place | null; status: PlaceStatus; ask: () => void } {
   const raw = useSyncExternalStore(subscribe, placeSnapshot, () => "");
@@ -69,6 +85,7 @@ export function usePlace(): { place: Place | null; status: PlaceStatus; ask: () 
     return p && Number.isFinite(p.lat) && Number.isFinite(p.lon) ? p : null;
   }, [raw]);
   const [status, setStatus] = useState<PlaceStatus>("idle");
+  const tick = useTick();
 
   const ask = useCallback(() => {
     setStatus("asking");
@@ -90,7 +107,7 @@ export function usePlace(): { place: Place | null; status: PlaceStatus; ask: () 
         if (r.state === "granted") ask();
       })
       .catch(() => {});
-  }, [savedAt, ask]);
+  }, [savedAt, ask, tick]);
 
   return { place, status, ask };
 }
@@ -105,6 +122,7 @@ export function useForecast(place: Place | null): { days: DayWeather[]; error: b
   const lat = place?.lat;
   const lon = place?.lon;
   const key = lat === undefined || lon === undefined ? null : keyOf(lat, lon);
+  const tick = useTick();
 
   const cached = useMemo(() => {
     const c = parse<Cached>(raw);
@@ -128,7 +146,7 @@ export function useForecast(place: Place | null): { days: DayWeather[]; error: b
         if (e.name !== "AbortError") setError(true);
       });
     return () => ctrl.abort();
-  }, [lat, lon, key, fetchedAt]);
+  }, [lat, lon, key, fetchedAt, tick]);
 
   return { days: cached?.days ?? [], error };
 }

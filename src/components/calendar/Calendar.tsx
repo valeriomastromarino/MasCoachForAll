@@ -358,7 +358,6 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
           night={open.date <= today ? (nights.get(open.date) ?? null) : null}
           activities={byDay.get(open.date)?.acts ?? []}
           workouts={byDay.get(open.date)?.plans ?? []}
-          ftp={ftp}
           onOpenActivity={(a) => setOpen({ kind: "activity", a })}
           onOpenWorkout={(w) => setOpen({ kind: "workout", w })}
           onClose={() => setOpen(null)}

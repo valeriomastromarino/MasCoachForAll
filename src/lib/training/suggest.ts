@@ -175,6 +175,14 @@ export function carbsFor(c: { mins: number; cls: WorkoutClass }): string {
   return c.cls === "recupero" || c.cls === "z2" ? "30-45 g/h" : "45-60 g/h";
 }
 
+/** Food and drink for a session: carbohydrates (prompt §8.2), about 0,6 L of water an hour, and a word on what to eat before. An indication, not a recorded value. */
+export function fuelFor(c: { mins: number; cls: WorkoutClass }): { carbs: string; water: string; before: string } {
+  const hard = !(c.cls === "recupero" || c.cls === "z2");
+  const litres = Math.max(0.5, Math.round((c.mins / 60) * 0.6 * 10) / 10);
+  const before = c.mins < 60 ? "niente di particolare" : hard || c.mins > 120 ? "spuntino con carboidrati 1-2 h prima" : "colazione normale, anche a digiuno se ti trovi bene";
+  return { carbs: carbsFor(c), water: `${litres.toString().replace(".", ",")} L`, before };
+}
+
 function hardOrder(p: SuggestInput["phenotype"]): WorkoutClass[][] {
   // The weak end first: a glycolytic profile gains most from threshold and aerobic work, a diesel one from VO2 and bursts.
   if (p === "glicolitico") return [["soglia", "sweetspot"], ["vo2", "anaerobico"]];

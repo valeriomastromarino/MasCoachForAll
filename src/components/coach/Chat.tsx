@@ -4,6 +4,7 @@
 // from the data. What it writes to Intervals.icu, to the sheet or to the plan is shown first and done only after a "sì".
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { type Action, chat, type ChatContext, type ChatState, emptyState } from "@/lib/coach/chat";
+import { COACH_PREFILL_EVENT, takeCoachPrefill } from "@/lib/coach/chat/prefill";
 import { normalize } from "@/lib/coach/chat/text";
 import { useCompact } from "@/lib/compact";
 import { isApp } from "@/lib/native";
@@ -58,6 +59,16 @@ export function CoachChat({ data }: { data: DashboardData }) {
   /** The written coach is not reachable here (single-file app, no key): the chat uses its rules. */
   const [aiOff, setAiOff] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  // A request written by another page (calendar: "Chiedi al coach una tabella") waits in the message box.
+  useEffect(() => {
+    const take = () => {
+      const t = takeCoachPrefill();
+      if (t) setDraft(t);
+    };
+    take();
+    window.addEventListener(COACH_PREFILL_EVENT, take);
+    return () => window.removeEventListener(COACH_PREFILL_EVENT, take);
+  }, []);
   const started = useRef(false);
 
   const ctx: ChatContext | null = useMemo(() => {

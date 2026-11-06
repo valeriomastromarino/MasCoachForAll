@@ -1,16 +1,16 @@
 "use client";
 
-import { IconCalendarEvent, IconMap, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconCalendarEvent, IconMap, IconPlus, IconTable, IconTrash } from "@tabler/icons-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { LibraryData } from "@/lib/api/handlers";
+import { setCoachPrefill } from "@/lib/coach/chat/prefill";
 import { isTestName } from "@/lib/activities";
 import type { CalendarActivity, CalendarWorkout } from "@/lib/calendar";
+import { openCoach } from "../nav/openCoach";
 import { forgetRide, prefetchRide } from "../data/rides";
 import { fmt, fmtDuration } from "../format";
 import { PedalaLink } from "../player/PedalaLink";
 import { CATEGORY_STYLE, CoachBadge, dayLabel, Description, Modal, SectionTitle, send, tint, WorkoutProfile } from "./shared";
-import { apiFetch } from "../data/transport";
 
 export type NightLevel = "verde" | "giallo" | "rosso";
 export type Night = { level: NightLevel; hrv: number | null; rhr: number | null; sleepHours: number | null; sleepScore: number | null };
@@ -302,29 +302,17 @@ export function ActivityModal({ a, onClose, onChanged }: { a: CalendarActivity; 
 
 // ── Day ─────────────────────────────────────────────────────────────────────────────────────────────
 
-// The library rarely changes: load it once per visit.
-let libraryCache: Promise<LibraryData | { error: string }> | null = null;
-function loadLibrary(ftp: number | null) {
-  libraryCache ??= apiFetch(`/api/library${ftp ? `?ftp=${ftp}` : ""}`)
-    .then(async (r) => {
-      const json = await r.json();
-      return r.ok ? (json as LibraryData) : { error: json.error ?? r.statusText };
-    })
-    .catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) }))
-    .then((res) => {
-      // Don't keep a failure: the next pop-up tries again.
-      if ("error" in res) libraryCache = null;
-      return res;
-    });
-  return libraryCache;
-}
+const EXTRA_KINDS = [
+  { kind: "pesi", label: "Pesi", hint: "Forza in palestra" },
+  { kind: "pilates", label: "Pilates", hint: "Mobilità e core" },
+] as const;
+const EXTRA_MINS = [30, 45, 60, 75, 90];
 
 export function DayModal({
   date,
   night,
   activities,
   workouts,
-  ftp,
   onOpenActivity,
   onOpenWorkout,
   onClose,
@@ -334,35 +322,30 @@ export function DayModal({
   night: Night | null;
   activities: CalendarActivity[];
   workouts: CalendarWorkout[];
-  ftp: number | null;
   onOpenActivity: (a: CalendarActivity) => void;
   onOpenWorkout: (w: CalendarWorkout) => void;
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const [library, setLibrary] = useState<LibraryData | { error: string } | null>(null);
-  const [pick, setPick] = useState<number | null>(null);
+  const [kind, setKind] = useState<(typeof EXTRA_KINDS)[number]["kind"] | null>(null);
+  const [mins, setMins] = useState(60);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    loadLibrary(ftp).then((l) => alive && setLibrary(l));
-    return () => {
-      alive = false;
-    };
-  }, [ftp]);
-
-  const folders = library && "folders" in library ? library.folders : [];
-  const chosen = folders.flatMap((f) => f.workouts).find((w) => w.id === pick) ?? null;
-
   const add = async () => {
-    if (pick === null) return;
+    if (!kind) return;
     setBusy(true);
-    const err = await send("/api/calendar/events", "POST", { workoutId: pick, date });
+    const err = await send("/api/calendar/events", "POST", { kind, mins, date });
     setBusy(false);
     if (err) setError(err);
     else onChanged();
+  };
+
+  // The coach writes the table: the request is ready in the chat, to read and send.
+  const askCoach = () => {
+    setCoachPrefill(`Fammi una tabella di allenamento per ${dayLabel(date)}.`);
+    onClose();
+    openCoach();
   };
 
   return (
@@ -419,49 +402,55 @@ export function DayModal({
         </>
       )}
 
-      <SectionTitle>Aggiungi allenamento dalla libreria Intervals.icu</SectionTitle>
-      {!library ? (
-        <p className="text-sm text-muted">Carico la libreria…</p>
-      ) : "error" in library ? (
-        <ErrorLine error={library.error} />
-      ) : (
-        <>
-          <select
-            value={pick ?? ""}
-            onChange={(e) => setPick(e.target.value ? Number(e.target.value) : null)}
-            className="w-full rounded-xl px-3 py-2 text-sm"
-            style={{ background: "var(--background)", border: "1px solid var(--border)" }}
-            aria-label="Allenamento dalla libreria"
+      <SectionTitle>Aggiungi</SectionTitle>
+      <div className="grid grid-cols-2 gap-2">
+        {EXTRA_KINDS.map((k) => (
+          <button
+            key={k.kind}
+            type="button"
+            onClick={() => setKind(kind === k.kind ? null : k.kind)}
+            aria-pressed={kind === k.kind}
+            className="rounded-xl px-3 py-2.5 text-left"
+            style={{ background: kind === k.kind ? "var(--accent-bg)" : "var(--background)", border: `1px solid ${kind === k.kind ? "var(--accent-ink)" : "var(--border)"}`, color: kind === k.kind ? "var(--accent-ink)" : undefined }}
           >
-            <option value="">Scegli un allenamento…</option>
-            {folders.map((f) => (
-              <optgroup key={f.id ?? "none"} label={`${f.name} (${f.workouts.length})`}>
-                {f.workouts.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                    {w.secs !== null ? ` · ${fmtDuration(w.secs)}` : ""}
-                    {w.tss !== null ? ` · ${fmt(w.tss)} TSS` : ""}
-                  </option>
-                ))}
-              </optgroup>
+            <span className="block text-sm font-medium">{k.label}</span>
+            <span className="block text-[11px] text-muted">{k.hint}</span>
+          </button>
+        ))}
+      </div>
+      {kind && (
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Durata">
+            {EXTRA_MINS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMins(m)}
+                className="num rounded-full px-3 py-1 text-xs"
+                style={{ background: mins === m ? "var(--accent-bg)" : "transparent", color: mins === m ? "var(--accent-ink)" : "var(--muted)", border: `1px solid ${mins === m ? "var(--accent-ink)" : "var(--border)"}` }}
+              >
+                {m} min
+              </button>
             ))}
-          </select>
-          {chosen && (
-            <div className="mt-3 space-y-3">
-              {chosen.blocks.length > 0 && <WorkoutProfile blocks={chosen.blocks} height={52} />}
-              {chosen.description && <Description text={chosen.description} />}
-            </div>
-          )}
+          </div>
           <button
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-medium disabled:opacity-50"
             style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
-            disabled={pick === null || busy}
+            disabled={busy}
             onClick={add}
           >
-            <IconPlus size={16} /> {busy ? "Aggiungo…" : "Metti in questo giorno"}
+            <IconPlus size={16} /> {busy ? "Aggiungo…" : `Metti ${EXTRA_KINDS.find((k) => k.kind === kind)?.label} in questo giorno`}
           </button>
-        </>
+        </div>
       )}
+      <button
+        type="button"
+        onClick={askCoach}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium"
+        style={{ background: "var(--brand)", color: "var(--on-brand)" }}
+      >
+        <IconTable size={16} aria-hidden /> Chiedi al coach una tabella
+      </button>
       <ErrorLine error={error} />
     </Modal>
   );

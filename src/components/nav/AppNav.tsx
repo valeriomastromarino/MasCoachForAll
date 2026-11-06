@@ -9,15 +9,15 @@ import { isActive, type Section, SECTIONS, SETTINGS } from "./sections";
 import { tabIndex } from "./tabs";
 import { useCurrentPath } from "./useCurrentPath";
 
-/** Phone app: four big tabs. Everything that isn't today, the coach or the trainer is under "Altro". */
+/** Phone app: four big tabs. Everything that isn't today, the calendar, the coach or the rides is under "Altro". */
 const ALTRO = { href: "/altro", label: "Altro", color: "var(--muted)" };
 type Tab = { id: string; href: string; label: string; icon: Section["icon"]; color: string };
-const tabOf = (id: "oggi" | "coach" | "rulli"): Tab => SECTIONS.find((s) => s.id === id)!;
+const tabOf = (id: "oggi" | "coach" | "uscite"): Tab => SECTIONS.find((s) => s.id === id)!;
 const CALENDARIO: Tab = { id: "calendario", href: "/calendario", label: "Calendario", icon: IconCalendarEvent, color: "var(--accent-ink)" };
 const tabOn = (s: Tab, pathname: string) => (s.href === "/" ? pathname === "/" : pathname === s.href || pathname.startsWith(s.href + "/"));
 
 function CompactBar({ pathname }: { pathname: string }) {
-  const tabs: Tab[] = [tabOf("oggi"), CALENDARIO, tabOf("coach"), tabOf("rulli")];
+  const tabs: Tab[] = [tabOf("oggi"), CALENDARIO, tabOf("coach"), tabOf("uscite")];
   const inTabs = tabs.some((s) => tabOn(s, pathname));
   // On one of the five pages the pager slides to the tapped one; from any other page the tap opens it normally.
   const slide = (href: string) => (e: React.MouseEvent) => {

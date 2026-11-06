@@ -7,8 +7,9 @@ import type { DashboardData } from "@/lib/dashboard";
 import { loadProfile, PROFILE_EVENT, profileSnapshot } from "@/lib/profile/profile";
 import { PHASE_INFO, planFromToday, weekFor } from "@/lib/training/season";
 import { loadSeason, SEASON_EVENT, seasonSnapshot } from "@/lib/training/seasonStore";
-import { type Place, planWeek, type Proposal, suggestWorkout, type SuggestInput, type Suggestion } from "@/lib/training/suggest";
+import { classifyWorkout, fuelFor, type Place, planWeek, type Proposal, suggestWorkout, type SuggestInput, type Suggestion } from "@/lib/training/suggest";
 import Link from "next/link";
+import { addDays } from "@/lib/dates";
 import { Description, WorkoutProfile, send } from "../calendar/shared";
 import { useLibrary, useLife, useOverrides, usePlanned } from "../data/trainingData";
 
@@ -50,6 +51,26 @@ function TapToOpen({ enabled, open, onToggle, children }: { enabled: boolean; op
         {open ? "Chiudi ▴" : "Dettagli ▾"}
       </span>
     </button>
+  );
+}
+
+/** Food and drink for the workout: carbohydrates, water and what to eat before. */
+function Fuel({ mins, cls }: { mins: number; cls: Parameters<typeof fuelFor>[0]["cls"] }) {
+  const f = fuelFor({ mins, cls });
+  return (
+    <div className="mt-3" aria-label="Alimentazione">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl px-3 py-2" style={{ background: "var(--background)" }}>
+          <div className="num text-sm font-medium">{f.carbs}</div>
+          <div className="text-[11px] text-muted">carboidrati</div>
+        </div>
+        <div className="rounded-xl px-3 py-2" style={{ background: "var(--background)" }}>
+          <div className="num text-sm font-medium">{f.water}</div>
+          <div className="text-[11px] text-muted">acqua</div>
+        </div>
+      </div>
+      <div className="mt-1.5 text-[11px] text-muted">Prima: {f.before}. Indicazione, non un dato registrato.</div>
+    </div>
   );
 }
 
@@ -105,6 +126,10 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
   const suggestion: Suggestion | null = useMemo(() => (input ? suggestWorkout(input) : null), [input]);
   const week = useMemo(() => (input && planned ? planWeek(input, planned.map((w) => ({ date: w.date, workout: { ...w, id: 0 } }))) : []), [input, planned]);
   const todayPlanned = planned?.find((w) => w.date === today) ?? null;
+  // Nothing today: show the next workout already on the calendar ("Domani", or the day).
+  const nextPlanned = planned?.filter((w) => w.date > today).sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+  const shownPlanned = todayPlanned ?? (suggestion?.kind === "rest" ? nextPlanned : null);
+  const whenLabel = shownPlanned && shownPlanned.date !== today ? (shownPlanned.date === addDays(today, 1) ? "Domani" : dayName(shownPlanned.date)) : null;
   const weekPlan = weekFor(season, today);
 
   const schedule = async (p: Proposal, date: string) => {
@@ -141,10 +166,17 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
   let body: React.ReactNode;
   if (!suggestion || planned === null) {
     body = <p className="mt-3 text-sm text-muted">Scelgo dalla tua libreria…</p>;
-  } else if (todayPlanned && !showOther) {
+  } else if (shownPlanned && !showOther) {
+    const todayPlanned = shownPlanned;
+    const cls = classifyWorkout({ ...todayPlanned, id: 0 }).cls;
     body = (
       <div className="mt-3">
-        <div className="text-xs text-muted">Hai già in programma su Intervals</div>
+        <div className="text-xs text-muted">{whenLabel ? "Oggi niente in programma" : "Hai già in programma su Intervals"}</div>
+        {whenLabel && (
+          <span className="mt-1.5 inline-block rounded-full px-2 py-0.5 text-[11px]" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
+            {whenLabel}
+          </span>
+        )}
         <TapToOpen enabled={compact} open={open} onToggle={() => setOpen((o) => !o)}>
           <div className="mt-1 font-medium">{todayPlanned.name}</div>
           <div className="num text-xs text-muted">
@@ -162,6 +194,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
             <Description text={steps(todayPlanned.description)} />
           </div>
         )}
+        {todayPlanned.secs ? <Fuel mins={Math.round(todayPlanned.secs / 60)} cls={cls} /> : null}
         <button type="button" onClick={() => setShowOther(true)} className="mt-3 text-xs text-faint underline">
           Proponimi un&apos;altra cosa
         </button>
@@ -197,9 +230,9 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
             <Description text={steps(p.workout.description)} />
           </div>
         )}
+        <Fuel mins={p.mins} cls={p.cls} />
         <ul className="mt-3 space-y-1 text-xs text-muted">
           {(!compact || open) && p.reasons.map((r) => <li key={r}>{r}</li>)}
-          <li>Carboidrati: {p.carbs}{compact ? "" : " (indicazione, non un dato registrato)"}.</li>
           {(!compact || open) && p.ftpNote && <li>{p.ftpNote}.</li>}
         </ul>
         <div className="mt-4 flex flex-wrap items-center gap-2">
