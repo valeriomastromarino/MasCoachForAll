@@ -1,0 +1,10 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "MasCoach: dev (localhost:3000)", "type": "shell", "command": "npm run dev", "isBackground": true, "problemMatcher": [] },
+    { "label": "MasCoach: check (tipi, lint, test)", "type": "shell", "command": "npm run check", "group": "test", "problemMatcher": ["$tsc"] },
+    { "label": "MasCoach: compila APK", "type": "shell", "command": "npm run build:apk", "group": { "kind": "build", "isDefault": true }, "problemMatcher": [] },
+    { "label": "MasCoach: emulatore Android", "type": "shell", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}\\..\\ambiente coding locale\\android-controllo-email\\scripts\\emulator.ps1\"", "problemMatcher": [] },
+    { "label": "MasCoach: installa APK sull'emulatore", "type": "shell", "command": "& \"$env:LOCALAPPDATA\\Android\\Sdk\\platform-tools\\adb.exe\" install -r MasCoach.apk", "dependsOn": ["MasCoach: compila APK"], "problemMatcher": [] }
+  ]
+}
