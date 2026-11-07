@@ -10,6 +10,7 @@ import { loadSeason, SEASON_EVENT, seasonSnapshot } from "@/lib/training/seasonS
 import { classifyWorkout, fuelFor, type Place, planWeek, type Proposal, suggestWorkout, type SuggestInput, type Suggestion } from "@/lib/training/suggest";
 import Link from "next/link";
 import { addDays } from "@/lib/dates";
+import { fmt, fmtDuration } from "../format";
 import { Description, WorkoutProfile, send } from "../calendar/shared";
 import { useLibrary, useLife, useOverrides, usePlanned } from "../data/trainingData";
 
@@ -144,10 +145,16 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
 
   if (data.source === "demo") return null;
 
+  // A bike ride already done today replaces the plan: show what was actually ridden.
+  const ride =
+    data.activities
+      .filter((a) => a.date.slice(0, 10) === today && a.movingTime > 0 && ["strada", "offroad", "rulli"].includes(a.category))
+      .sort((a, b) => b.movingTime - a.movingTime)[0] ?? null;
+
   const header = (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-sm font-medium">Allenamento di oggi</h2>
-      <div className="flex gap-1" role="group" aria-label="Dove ti alleni oggi">
+      {!ride && <div className="flex gap-1" role="group" aria-label="Dove ti alleni oggi">
         {PLACES.filter(([p]) => !compact || p !== "any").map(([p, label]) => (
           <button
             key={p}
@@ -159,12 +166,34 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
             {label}
           </button>
         ))}
-      </div>
+      </div>}
     </div>
   );
 
   let body: React.ReactNode;
-  if (!suggestion || planned === null) {
+  if (ride) {
+    const pill = "num rounded-full px-2.5 py-0.5 text-xs";
+    body = (
+      <Link href={`/attivita/${ride.id}`} className="mt-3 block rounded-2xl p-3 active:scale-[0.99]" style={{ background: "var(--background)", border: "1px solid var(--border)" }}>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+            Fatto oggi
+          </span>
+          <span className="text-[11px] text-faint">{ride.indoor ? "rulli" : "fuori"}</span>
+        </div>
+        <div className="mt-1 text-base font-medium">{ride.name}</div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className={pill} style={{ background: "var(--neutral-bg)" }}>{fmtDuration(ride.movingTime)}</span>
+          {ride.distanceKm !== null && ride.distanceKm > 0 && <span className={pill} style={{ background: "var(--neutral-bg)" }}>{fmt(ride.distanceKm, 0)} km</span>}
+          {ride.tss !== null && <span className={pill} style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>{fmt(ride.tss)} TSS</span>}
+          {ride.np !== null && <span className={pill} style={{ background: "var(--neutral-bg)" }}>NP {fmt(ride.np, 0)} W</span>}
+          {ride.IF !== null && <span className={pill} style={{ background: "var(--neutral-bg)" }}>IF {fmt(ride.IF, 2)}</span>}
+          {ride.avgHr !== null && <span className={pill} style={{ background: "var(--neutral-bg)" }}>{fmt(ride.avgHr, 0)} bpm</span>}
+        </div>
+        <div className="mt-2 text-[11px] text-faint">Tocca per aprire il dettaglio</div>
+      </Link>
+    );
+  } else if (!suggestion || planned === null) {
     body = <p className="mt-3 text-sm text-muted">Scelgo dalla tua libreria…</p>;
   } else if (shownPlanned && !showOther) {
     const todayPlanned = shownPlanned;
