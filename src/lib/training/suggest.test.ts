@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LibraryWorkout } from "@/lib/calendar";
 import { addDays } from "@/lib/dates";
 import { planSeason, type SeasonSetup } from "./season";
-import { carbsFor, classifyWorkout, parseCap, planWeek, suggestWorkout, type RecentActivity, type SuggestInput } from "./suggest";
+import { carbsFor, classifyWorkout, fuelFor, parseCap, planWeek, suggestWorkout, toleratedCarbs, type RecentActivity, type SuggestInput } from "./suggest";
 
 let id = 0;
 /** Blocks are [minutes, zone] pairs. */
@@ -149,6 +149,24 @@ describe("suggestWorkout", () => {
     expect(carbsFor({ mins: 90, cls: "z2" })).toBe("30-45 g/h");
     expect(carbsFor({ mins: 90, cls: "soglia" })).toBe("45-60 g/h");
     expect(carbsFor({ mins: 180, cls: "z2" })).toBe("60-90 g/h");
+  });
+
+  it("never suggests more carbs than the athlete tolerates (prompt §8.2)", () => {
+    expect(toleratedCarbs("Meno di 30")).toBe(30);
+    expect(toleratedCarbs("30-60")).toBe(60);
+    expect(toleratedCarbs("60-90")).toBe(90);
+    expect(toleratedCarbs("Oltre 90")).toBeNull();
+    expect(toleratedCarbs("Non so")).toBeNull();
+    expect(toleratedCarbs(undefined)).toBeNull();
+    expect(carbsFor({ mins: 180, cls: "z2" }, 60)).toBe("60 g/h");
+    expect(carbsFor({ mins: 90, cls: "soglia" }, 30)).toBe("30 g/h");
+    expect(carbsFor({ mins: 90, cls: "z2" }, 30)).toBe("30 g/h");
+    expect(carbsFor({ mins: 180, cls: "z2" }, 90)).toBe("60-90 g/h");
+    expect(carbsFor({ mins: 45, cls: "z2" }, 30)).toContain("0 g/h");
+    expect(fuelFor({ mins: 180, cls: "z2" }, 60).cappedAt).toBe(60);
+    expect(fuelFor({ mins: 90, cls: "z2" }, 60).cappedAt).toBeNull();
+    const capped = pick({ profile: { carboTollerati: "Meno di 30" } });
+    expect(capped.main.carbs).toBe("30 g/h");
   });
 
   it("gives alternatives of other types and says when the library has nothing that fits", () => {

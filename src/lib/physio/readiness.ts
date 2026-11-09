@@ -1,6 +1,6 @@
 // Daily readiness: autonomic markers first (HRV and resting HR read together, Altini), then sleep and
 // training-load context (TSB). The load metrics explain *why*, the body's response decides *what to do*.
-// The rules follow the coach prompt v8.0 (§5.5): the coach reads the level, it never recomputes it.
+// The rules follow the coach prompt v8.1 (§5.5): the coach reads the level, it never recomputes it.
 import type { AutonomicAssessment } from "./autonomic";
 import type { HrvAnalysis } from "./hrv";
 import { formZone } from "./pmc";

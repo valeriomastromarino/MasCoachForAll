@@ -1,4 +1,4 @@
-// Picks the day's workout from the Intervals.icu library (never invents one) with the coach's rules (prompt v8.0-p):
+// Picks the day's workout from the Intervals.icu library (never invents one) with the coach's rules (prompt v8.1-p):
 // readiness first, then the week so far, the days and hours the athlete gave, the place (indoor/outdoor) and the
 // power profile. Pure and deterministic: the same inputs give the same workout, and every choice comes with its reasons.
 import { addDays } from "@/lib/dates";
@@ -102,6 +102,8 @@ export type SuggestProfile = {
   sedutaMin?: string;
   ruliMax?: string;
   lunga?: string;
+  /** Carbohydrates the athlete tolerates now ("Meno di 30", "30-60", "60-90", "Oltre 90", "Non so"). */
+  carboTollerati?: string;
 };
 
 export type SuggestInput = {
@@ -168,19 +170,38 @@ export function weekday(date: string): number {
 
 const daysBetween = (a: string, b: string) => Math.round((new Date(`${b}T12:00:00`).getTime() - new Date(`${a}T12:00:00`).getTime()) / 86400000);
 
-/** Carbohydrates per hour for a session (prompt §8.2): none under an hour, more with duration and intensity. */
-export function carbsFor(c: { mins: number; cls: WorkoutClass }): string {
-  if (c.mins < 60) return "0 g/h (solo acqua)";
-  if (c.mins > 150) return "60-90 g/h";
-  return c.cls === "recupero" || c.cls === "z2" ? "30-45 g/h" : "45-60 g/h";
+/** The most carbohydrates the athlete tolerates now, g/h, from the athlete sheet; null when there is no limit to respect ("Oltre 90", "Non so", no answer). */
+export function toleratedCarbs(answer: string | undefined | null): number | null {
+  if (!answer) return null;
+  if (/meno di 30/i.test(answer)) return 30;
+  const m = answer.match(/^\s*(\d+)\s*-\s*(\d+)\s*$/);
+  return m ? Number(m[2]) : null;
 }
 
-/** Food and drink for a session: carbohydrates (prompt §8.2), about 0,6 L of water an hour, and a word on what to eat before. An indication, not a recorded value. */
-export function fuelFor(c: { mins: number; cls: WorkoutClass }): { carbs: string; water: string; before: string } {
+/** The g/h range for a session (prompt §8.2): none under an hour, more with duration and intensity. */
+function carbRange(c: { mins: number; cls: WorkoutClass }): [number, number] | null {
+  if (c.mins < 60) return null;
+  if (c.mins > 150) return [60, 90];
+  return c.cls === "recupero" || c.cls === "z2" ? [30, 45] : [45, 60];
+}
+
+/** Carbohydrates per hour for a session (prompt §8.2), never above what the athlete tolerates (`cap`, g/h). */
+export function carbsFor(c: { mins: number; cls: WorkoutClass }, cap: number | null = null): string {
+  const r = carbRange(c);
+  if (!r) return "0 g/h (solo acqua)";
+  const [lo, hi] = r;
+  if (cap === null || cap >= hi) return `${lo}-${hi} g/h`;
+  return cap <= lo ? `${cap} g/h` : `${lo}-${cap} g/h`;
+}
+
+/** Food and drink for a session: carbohydrates (prompt §8.2, capped at what the athlete tolerates), about 0,6 L of water an hour, and a word on what to eat before. An indication, not a recorded value. */
+export function fuelFor(c: { mins: number; cls: WorkoutClass }, cap: number | null = null): { carbs: string; water: string; before: string; cappedAt: number | null } {
   const hard = !(c.cls === "recupero" || c.cls === "z2");
   const litres = Math.max(0.5, Math.round((c.mins / 60) * 0.6 * 10) / 10);
   const before = c.mins < 60 ? "niente di particolare" : hard || c.mins > 120 ? "spuntino con carboidrati 1-2 h prima" : "colazione normale, anche a digiuno se ti trovi bene";
-  return { carbs: carbsFor(c), water: `${litres.toString().replace(".", ",")} L`, before };
+  const r = carbRange(c);
+  const cappedAt = r && cap !== null && cap < r[1] ? cap : null;
+  return { carbs: carbsFor(c, cap), water: `${litres.toString().replace(".", ",")} L`, before, cappedAt };
 }
 
 function hardOrder(p: SuggestInput["phenotype"]): WorkoutClass[][] {
@@ -367,7 +388,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     tss: Math.round(c.tss),
     indoor: c.indoor,
     reasons: why,
-    carbs: carbsFor(c),
+    carbs: carbsFor(c, toleratedCarbs(profile.carboTollerati)),
     warnings,
     ftpNote: c.indoor ? (input.indoorFtp ? `Percentuali sulla FTP rulli: ${input.indoorFtp} W` : null) : input.ftp ? `Percentuali sulla FTP outdoor: ${input.ftp} W` : null,
   });

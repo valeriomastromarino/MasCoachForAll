@@ -1,6 +1,6 @@
 // The chat's answers that only read: how you are, what to do, why, the week, the plan, the last ride, records, FTP, zones,
 // the library, carbs, comparisons, explanations. Every number comes from the app's own data and engines.
-import { classifyWorkout, CLASS_LABEL, CLASS_SAY, carbsFor, type WorkoutClass } from "@/lib/training/suggest";
+import { classifyWorkout, CLASS_LABEL, CLASS_SAY, carbsFor, toleratedCarbs, type WorkoutClass } from "@/lib/training/suggest";
 import { addDays, weekStart } from "@/lib/dates";
 import { planFromToday, PHASE_INFO, RAMP_TARGET, weekFor } from "@/lib/training/season";
 import { restrictionOn } from "@/lib/training/life";
@@ -297,8 +297,10 @@ export function libreria(ctx: ChatContext, state: ChatState, text: string): Chat
 export function carbo(ctx: ChatContext, state: ChatState): ChatResult {
   const p = state.options[state.index];
   const lines = ["Sotto i 60 minuti: solo acqua (0 g/h).", "60-150 minuti: 30-45 g/h in Z1-Z2, 45-60 g/h con sweet spot, soglia o VO2max.", "Oltre i 150 minuti: 60-90 g/h.", "Sopra i 60 g/h serve glucosio e fruttosio (2:1). Per salire di 10 g/h servono 2-4 settimane di abitudine."];
+  const cap = toleratedCarbs(ctx.profile?.carboTollerati);
+  if (cap !== null) lines.push(`Tu adesso ne tolleri fino a ${cap} g/h: non andare oltre finché non ti abitui.`);
   const out: string[] = [];
-  if (p) out.push(`Per ${p.workout.name} (${minsText(p.mins)}): ${carbsFor({ mins: p.mins, cls: p.cls })}.`);
+  if (p) out.push(`Per ${p.workout.name} (${minsText(p.mins)}): ${carbsFor({ mins: p.mins, cls: p.cls }, cap)}.`);
   return done({ text: out.length ? out[0] : "Carboidrati, la regola:", lines: out.length ? lines : lines, chips: ["Ho preso 60 g/h", "Cosa faccio oggi?"] }, state);
 }
 

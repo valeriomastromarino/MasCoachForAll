@@ -7,7 +7,7 @@ import type { DashboardData } from "@/lib/dashboard";
 import { loadProfile, PROFILE_EVENT, profileSnapshot } from "@/lib/profile/profile";
 import { PHASE_INFO, planFromToday, weekFor } from "@/lib/training/season";
 import { loadSeason, SEASON_EVENT, seasonSnapshot } from "@/lib/training/seasonStore";
-import { classifyWorkout, fuelFor, type Place, planWeek, type Proposal, suggestWorkout, type SuggestInput, type Suggestion } from "@/lib/training/suggest";
+import { classifyWorkout, fuelFor, type Place, planWeek, type Proposal, suggestWorkout, type SuggestInput, type Suggestion, toleratedCarbs } from "@/lib/training/suggest";
 import Link from "next/link";
 import { addDays } from "@/lib/dates";
 import { fmt, fmtDuration } from "../format";
@@ -55,9 +55,9 @@ function TapToOpen({ enabled, open, onToggle, children }: { enabled: boolean; op
   );
 }
 
-/** Food and drink for the workout: carbohydrates, water and what to eat before. */
-function Fuel({ mins, cls }: { mins: number; cls: Parameters<typeof fuelFor>[0]["cls"] }) {
-  const f = fuelFor({ mins, cls });
+/** Food and drink for the workout: carbohydrates (never above what the athlete tolerates, `cap` g/h), water and what to eat before. */
+function Fuel({ mins, cls, cap }: { mins: number; cls: Parameters<typeof fuelFor>[0]["cls"]; cap: number | null }) {
+  const f = fuelFor({ mins, cls }, cap);
   return (
     <div className="mt-3" aria-label="Alimentazione">
       <div className="grid grid-cols-2 gap-2">
@@ -70,7 +70,9 @@ function Fuel({ mins, cls }: { mins: number; cls: Parameters<typeof fuelFor>[0][
           <div className="text-[11px] text-muted">acqua</div>
         </div>
       </div>
-      <div className="mt-1.5 text-[11px] text-muted">Prima: {f.before}. Indicazione, non un dato registrato.</div>
+      <div className="mt-1.5 text-[11px] text-muted">
+        Prima: {f.before}.{f.cappedAt !== null && ` Carboidrati fermi a ${f.cappedAt} g/h, quanto tolleri ora.`} Indicazione, non un dato registrato.
+      </div>
     </div>
   );
 }
@@ -86,6 +88,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
     return setup ? planFromToday(setup, data.today, data.status.ctl, life) : null;
   }, [rawSeason, data.today, data.status.ctl, life]);
   const stored = useMemo(() => (raw ? loadProfile() : null), [raw]);
+  const carbCap = toleratedCarbs(stored?.profile?.carboTollerati);
   const library = useLibrary();
   const [placeChoice, setPlaceChoice] = useState<Place>("any");
   const [chosen, setChosen] = useState(0);
@@ -223,7 +226,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
             <Description text={steps(todayPlanned.description)} />
           </div>
         )}
-        {todayPlanned.secs ? <Fuel mins={Math.round(todayPlanned.secs / 60)} cls={cls} /> : null}
+        {todayPlanned.secs ? <Fuel mins={Math.round(todayPlanned.secs / 60)} cls={cls} cap={carbCap} /> : null}
         <button type="button" onClick={() => setShowOther(true)} className="mt-3 text-xs text-faint underline">
           Proponimi un&apos;altra cosa
         </button>
@@ -259,7 +262,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
             <Description text={steps(p.workout.description)} />
           </div>
         )}
-        <Fuel mins={p.mins} cls={p.cls} />
+        <Fuel mins={p.mins} cls={p.cls} cap={carbCap} />
         <ul className="mt-3 space-y-1 text-xs text-muted">
           {(!compact || open) && p.reasons.map((r) => <li key={r}>{r}</li>)}
           {(!compact || open) && p.ftpNote && <li>{p.ftpNote}.</li>}
