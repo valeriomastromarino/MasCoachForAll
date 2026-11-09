@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { useCompact } from "@/lib/compact";
 import { setPagerPos } from "@/lib/pagerPos";
 import { TopBarView } from "../brand/TopBar";
+import { useChartTouchDismiss } from "../chartTouch";
 import Archive from "../archive/Archive";
 import Altro from "../sections/Altro";
 import Calendario from "../sections/Calendario";
@@ -112,6 +113,7 @@ function TabPager({ index }: { index: number }) {
 function Shell({ children, header }: { children: React.ReactNode; header?: React.ReactNode }) {
   const path = useCurrentPath();
   const compact = useCompact();
+  useChartTouchDismiss();
   const index = tabIndex(path);
   if (compact && index >= 0) {
     return (

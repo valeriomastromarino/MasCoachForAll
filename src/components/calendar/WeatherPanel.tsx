@@ -53,23 +53,26 @@ export function WeatherPanel({
 
   if (!place) {
     return (
-      <section className="card mt-3 flex items-center gap-3 px-4 py-3" aria-label="Meteo e vento">
-        <IconMapPin size={22} style={{ color: "var(--accent-ink)" }} aria-hidden />
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium">Meteo e vento intorno a te</div>
-          <div className="text-xs text-muted">
-            {status === "denied"
-              ? "La posizione è bloccata: abilitala nelle impostazioni del telefono per vedere la mappa."
-              : status === "unavailable"
-                ? "Posizione non disponibile. Riprova all'aperto o con il GPS acceso."
-                : "Serve la posizione del telefono. Resta solo su questo dispositivo."}
+      // Text on top, the button across the card under it: side by side the text was squeezed into five short lines on the phone.
+      <section className="card mt-3 px-4 py-3.5" aria-label="Meteo e vento">
+        <div className="flex items-start gap-3">
+          <IconMapPin size={22} className="mt-0.5 shrink-0" style={{ color: "var(--accent-ink)" }} aria-hidden />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">Meteo e vento intorno a te</div>
+            <div className="mt-0.5 text-xs leading-snug text-muted">
+              {status === "denied"
+                ? "La posizione è bloccata: abilitala nelle impostazioni del telefono per vedere la mappa."
+                : status === "unavailable"
+                  ? "Posizione non disponibile. Riprova all'aperto o con il GPS acceso."
+                  : "Serve la posizione del telefono. Resta solo su questo dispositivo."}
+            </div>
           </div>
         </div>
         <button
           type="button"
           onClick={ask}
           disabled={status === "asking"}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm font-medium"
+          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium"
           style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
         >
           <IconCurrentLocation size={16} aria-hidden /> {status === "asking" ? "Cerco…" : "Usa la posizione"}

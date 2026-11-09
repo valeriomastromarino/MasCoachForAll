@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import { FirstRunGate } from "@/components/firstrun/FirstRun";
+import { InlineScript } from "@/components/InlineScript";
 import { AppNav } from "@/components/nav/AppNav";
 import { AppShell } from "@/components/nav/AppShell";
 import "./globals.css";
@@ -33,11 +33,13 @@ const themeScript = `(function(){try{var t=localStorage.getItem("mascoach-theme"
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="it" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* A plain inline script in <head> runs while the HTML is parsed, before the first paint (Next guide "Preventing flash
+            before hydration"). With next/script "beforeInteractive" it ran only after the JavaScript loaded: every page
+            opened in the light theme and turned dark a moment later. The root layout is rendered once, so React never re-creates it. */}
+        <InlineScript html={themeScript} />
+      </head>
       <body className="min-h-full">
-        {/* Injected in the server HTML only: a plain <script> re-rendered by React on the client triggers a warning. */}
-        <Script id="mascoach-theme" strategy="beforeInteractive">
-          {themeScript}
-        </Script>
         {/* The side rail sits right next to the centred page (not at the window edge); phones, also in landscape, get a bottom bar. */}
         <FirstRunGate>
           <div className="mx-auto flex w-full max-w-[calc(72rem+5rem)] rail:pl-4">

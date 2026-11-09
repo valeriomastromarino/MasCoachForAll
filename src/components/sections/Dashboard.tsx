@@ -80,10 +80,11 @@ export function Dashboard({ data }: { data: DashboardData }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-1">
+        {/* The three columns end on the same line: the first card and the last one of the middle column stretch to the tallest. */}
+        <div className="min-w-0 lg:col-span-1 lg:[&>section]:h-full">
           <TodayWorkout data={data} />
         </div>
-        <div className="min-w-0 space-y-4 lg:col-span-1">
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-1 lg:[&>*:last-child]:flex-1">
           <WindToday today={data.today} />
           <MonthSummary data={data} />
         </div>

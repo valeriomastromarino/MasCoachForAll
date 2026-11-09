@@ -32,8 +32,8 @@ export function OggiCompact({ data }: { data: DashboardData }) {
 
       <div className="grid grid-cols-3 gap-2">
         <Tile label="Forma" value={fmt(status.tsb)} hint={status.formZone ?? undefined} href="/analisi" />
-        <Tile label="HRV 7 gg" value={fmt(hrv7, 0, " ms")} href="/analisi/recupero" />
-        <Tile label="Sonno" value={status.sleepHours !== null ? fmtDuration(status.sleepHours * 3600) : "–"} href="/analisi/recupero" />
+        <Tile label="HRV 7 gg" value={fmt(hrv7, 0, " ms")} hint={status.hrv.status} href="/analisi/recupero" />
+        <Tile label="Sonno" value={status.sleepHours !== null ? fmtDuration(status.sleepHours * 3600) : "–"} hint={status.sleepHours !== null ? "stanotte" : undefined} href="/analisi/recupero" />
       </div>
     </div>
   );

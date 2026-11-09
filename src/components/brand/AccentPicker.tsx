@@ -3,6 +3,7 @@
 // Impostazioni → Aspetto: the main colour of the app, six ready ones and two sliders (hue, saturation).
 import { useSyncExternalStore } from "react";
 import { ACCENT_KEY, ACCENT_PRESETS, type Accent, loadAccent, saveAccent, swatch } from "@/lib/accent";
+import { ColorSlider } from "./ColorSlider";
 
 const subscribe = (cb: () => void) => {
   window.addEventListener("mascoach-accent", cb);
@@ -20,6 +21,9 @@ const snapshot = () => {
     return "";
   }
 };
+
+/** The whole hue circle, as the track of the "Tinta" slider. */
+const HUES = "linear-gradient(90deg,hsl(0 60% 50%),hsl(60 60% 50%),hsl(120 60% 45%),hsl(180 60% 45%),hsl(240 60% 55%),hsl(300 60% 50%),hsl(360 60% 50%))";
 
 export function AccentPicker() {
   const raw = useSyncExternalStore(subscribe, snapshot, () => "");
@@ -46,19 +50,20 @@ export function AccentPicker() {
           );
         })}
       </div>
-      <label className="mt-4 block text-xs text-muted">
-        Tinta
-        <div
-          className="mt-1.5 h-2.5 rounded-full"
-          style={{ background: "linear-gradient(90deg,hsl(0 60% 50%),hsl(60 60% 50%),hsl(120 60% 45%),hsl(180 60% 45%),hsl(240 60% 55%),hsl(300 60% 50%),hsl(360 60% 50%))" }}
-          aria-hidden
-        />
-        <input type="range" min={0} max={360} value={h} onChange={(e) => saveAccent({ h: Number(e.target.value), s })} className="mt-1 w-full" style={{ accentColor: "var(--brand)" }} />
-      </label>
-      <label className="mt-2 block text-xs text-muted">
+      <div className="mt-4 text-xs text-muted">Tinta</div>
+      <ColorSlider label="Tinta" value={h} min={0} max={360} track={HUES} thumb={`hsl(${h} 60% 48%)`} onChange={(v) => saveAccent({ h: v, s })} />
+      <div className="mt-2 text-xs text-muted">
         Intensità <span className="num">{s}%</span>
-        <input type="range" min={0} max={80} value={s} onChange={(e) => saveAccent({ h, s: Number(e.target.value) })} className="mt-1 w-full" style={{ accentColor: "var(--brand)" }} />
-      </label>
+      </div>
+      <ColorSlider
+        label="Intensità"
+        value={s}
+        min={0}
+        max={80}
+        track={`linear-gradient(90deg, hsl(${h} 0% 55%), hsl(${h} 80% 45%))`}
+        thumb={`hsl(${h} ${s}% 44%)`}
+        onChange={(v) => saveAccent({ h, s: v })}
+      />
       {accent && (
         <button type="button" onClick={() => saveAccent(null)} className="mt-2 text-xs underline" style={{ color: "var(--accent-ink)" }}>
           Torna a terracotta

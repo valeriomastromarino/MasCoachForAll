@@ -107,8 +107,8 @@ export function ReadinessHero({ status, size = "full", children }: { status: Das
           >
             {LEVEL_STYLE[r.level].icon}
           </span>
+          {/* The verdict alone: the level label next to it only repeated the same word ("Pronto … pronto"). */}
           <div className="min-w-0 flex-1 text-2xl font-medium leading-none tracking-tight">{r.headline}</div>
-          <span className="shrink-0 text-[11px] opacity-85">{r.level === "grigio" ? "dati insufficienti" : LEVEL_LABEL[r.level]}</span>
         </div>
         <div
           className="mt-3 h-2 overflow-hidden rounded-full"
@@ -346,7 +346,7 @@ export function ZonesTable({ zones, unit, colored }: { zones: DashboardData["pow
             <td className="py-1.5">
               <span
                 className="mr-2 inline-block w-8 rounded-md py-0.5 text-center text-[11px] font-medium"
-                style={{ background: colored ? `var(--z${i + 1})` : "var(--neutral-bg)", color: "var(--foreground)" }}
+                style={{ background: colored ? `var(--z${i + 1})` : "var(--neutral-bg)", color: colored ? (i === 6 ? "var(--z7-ink)" : "var(--z-ink)") : "var(--foreground)" }}
               >
                 {z.id}
               </span>

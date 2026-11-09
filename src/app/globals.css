@@ -14,12 +14,13 @@
   --surface: #ffffff;
   --border: #ece8e2;
   --foreground: #2a2623;
-  --muted: #7a716b;
-  --faint: #a89f97;
+  /* Secondary and tertiary text: at least 6:1 and 4.5:1 on page, cards and pills (readable on a phone outdoors). */
+  --muted: #5e5753;
+  --faint: #736961;
   --grid: #efebe5;
 
   --accent-bg: #f3e3da;
-  --accent-ink: #9f5f45;
+  --accent-ink: #8f563e;
   --map-bg: #eeeae4;
 
   --fitness: #6fa6ee;
@@ -46,6 +47,9 @@
   --z5: #ee9b6e;
   --z6: #e4776f;
   --z7: #6b3a28;
+  /* Text on a zone chip: dark on the light zones, white on the dark Z7. */
+  --z-ink: #2a2623;
+  --z7-ink: #ffffff;
 
   --good: #2f8f5b;
   --good-bg: #e6f8ee;
@@ -75,7 +79,7 @@
   --border: #35291f;
   --foreground: #f1ece6;
   --muted: #b5aaa0;
-  --faint: #7d7168;
+  --faint: #94887e;
   --grid: #2b221d;
 
   --accent-bg: #3d2b22;
@@ -106,6 +110,8 @@
   --z5: #ffb98a;
   --z6: #ff9d9d;
   --z7: #d99a7c;
+  --z-ink: #1a1512;
+  --z7-ink: #1a1512;
 
   --good: #8fe3b4;
   --good-bg: #1d3a2e;
@@ -121,7 +127,8 @@
   --card-shadow: 0 0 0 1px #2f251f;
   --tip-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
   --map-filter: invert(1) hue-rotate(180deg) grayscale(0.85) brightness(0.8) contrast(0.9);
-  --brand: #b0694d;
+  /* A shade deeper than before so the white text of the status card reads at 4.5:1. */
+  --brand: #a76449;
   --brand-strong: #8f5239;
   --on-brand: #ffffff;
   --cat-indoor: #d9a15f;
@@ -134,12 +141,12 @@
   --surface: #fbf9f4;
   --border: #e9e3d6;
   --foreground: #2f2b25;
-  --muted: #6f675a;
-  --faint: #a39a8a;
+  --muted: #5d564b;
+  --faint: #72695a;
   --grid: #ece6da;
 
   --accent-bg: #f1e1d6;
-  --accent-ink: #9f5f45;
+  --accent-ink: #8f563e;
   --map-bg: #efebe2;
 
   --neutral-bg: #efeadf;
@@ -261,6 +268,12 @@ body {
 /* Map tiles toned to the theme: light grey on Day/Paper, dark on Night. */
 .pastel-tiles {
   filter: var(--map-filter);
+}
+
+/* On high-density phone screens Leaflet leaves hairline gaps between tiles, drawn as light lines on the dark map: overlap them by half a pixel. */
+.leaflet-tile-container img.leaflet-tile {
+  width: 256.5px !important;
+  height: 256.5px !important;
 }
 
 /* Leaflet controls follow the theme too. */

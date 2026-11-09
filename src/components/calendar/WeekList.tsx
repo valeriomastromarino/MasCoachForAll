@@ -162,7 +162,7 @@ export function WeekList({
           const isToday = d === today;
           const empty = !x.acts.length && !x.plans.length;
           const nightLine = night && (
-            <button onClick={() => onOpenDay(d)} className="num flex items-center gap-1.5 text-[11px] leading-none text-muted">
+            <button onClick={() => onOpenDay(d)} className="num -my-1.5 flex min-h-7 items-center gap-1.5 text-[11px] leading-none text-muted">
               <span className="h-2 w-2 rounded-full" style={{ background: NIGHT_COLOR[night.level] }} />
               HRV {fmt(night.hrv, 0)} · FC {fmt(night.rhr)}
               {night.sleepHours !== null && ` · ${fmtDuration(night.sleepHours * 3600)}`}
@@ -170,7 +170,8 @@ export function WeekList({
           );
           return (
             <div key={d} className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-3 py-1">
-              <button onClick={() => onOpenDay(d)} className="pt-2 text-left" aria-label={dayLabel(d)}>
+              {/* self-start: a button centres its content, so the day used to float halfway down a tall day. */}
+              <button onClick={() => onOpenDay(d)} className="self-start pt-2 text-left" aria-label={dayLabel(d)}>
                 <span className="block text-xs leading-none" style={{ color: isToday ? "var(--accent-ink)" : "var(--muted)" }}>
                   {dayLabel(d, { weekday: "short" })}
                 </span>

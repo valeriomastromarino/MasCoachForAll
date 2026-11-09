@@ -149,7 +149,7 @@ export function IntervalsKeyCard() {
       ) : (
         <>
           <p className="mt-2 text-xs text-muted">
-            Su Intervals.icu apri Settings → Developer Settings e copia la API key. La chiave resta solo in questo browser e viene
+            Su Intervals.icu apri Settings → Developer Settings e copia la API key. La chiave resta solo su questo dispositivo e viene
             usata per parlare direttamente con Intervals.icu.
           </p>
           <label className="mt-4 block text-xs text-muted">

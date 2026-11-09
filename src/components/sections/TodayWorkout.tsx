@@ -326,7 +326,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
       )}
       {!compact && week.length > 0 && (
         <details className="mt-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
-          <summary className="cursor-pointer text-xs text-muted">Proposta per la settimana</summary>
+          <summary className="-my-1.5 cursor-pointer py-1.5 text-xs text-muted">Proposta per la settimana</summary>
           <div className="mt-2 text-[11px] text-faint">Da domani si suppone la prontezza verde: si aggiorna ogni mattina con i dati veri.</div>
           <ul className="mt-2 divide-y" style={{ borderColor: "var(--border)" }}>
             {week.map(({ date, suggestion: s, planned: already }) => {

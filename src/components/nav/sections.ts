@@ -52,7 +52,7 @@ export const SECTIONS: Section[] = [
   { id: "recupero", href: "/recupero", label: "Recupero", description: "HRV, FC a riposo, sonno e peso", icon: IconMoon, color: "var(--hrv-ink)", primary: true },
   { id: "uscite", href: "/attivita", label: "Uscite", description: "Archivio di tutte le attività", icon: IconBike, color: "var(--muted)" },
   { id: "test", href: "/test", label: "Test", description: "Test FTP e soglie", icon: IconStopwatch, color: "var(--fatigue-ink)" },
-  { id: "rulli", href: "/rulli", label: "Rulli", description: "Allenamenti sui rulli: ERG, resistenza, cardio e DFA α1", icon: IconTrainer, color: "var(--fitness-ink)" },
+  { id: "rulli", href: "/rulli", label: "Rulli", description: "Allenamenti sui rulli: ERG, resistenza, cardio e DFA α1", icon: IconTrainer, color: "var(--fitness-ink)" },
   { id: "coach", href: "/coach", label: "Coach", description: "Chiedi al coach: allenamento, piano, ferie, infortuni, analisi", icon: IconMessageChatbot, color: "var(--accent-ink)" },
   { id: "allenamenti", href: "/allenamenti", label: "Allenamenti", description: "Creazione allenamenti", icon: IconCalendarEvent, color: "var(--muted)", soon: true },
 ];

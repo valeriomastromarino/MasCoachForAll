@@ -21,10 +21,15 @@ if (isApp()) {
     void CapApp.addListener("backButton", ({ canGoBack }) => handleBack(canGoBack, () => void CapApp.exitApp()));
   });
 
-  // System bars take the colour of the chosen theme.
+  // System bars take the colour of the chosen theme. The page fades to the new background in 0.2 s, so the colour is read from a
+  // probe without the fade: reading the page one frame after the switch gave the old colour, and Night kept light bars.
+  const probe = document.createElement("div");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = "position:fixed;width:0;height:0;pointer-events:none;background:var(--background);transition:none";
+  document.body.appendChild(probe);
   const paint = () =>
     requestAnimationFrame(() => {
-      const bg = getComputedStyle(document.body).backgroundColor.match(/\d+/g);
+      const bg = getComputedStyle(probe).backgroundColor.match(/\d+/g);
       if (!bg) return;
       const [r, g, b] = bg.map(Number);
       const hex = `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;

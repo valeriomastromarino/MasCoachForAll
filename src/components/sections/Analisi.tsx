@@ -42,10 +42,13 @@ function Clamp({ children, reset }: { children: React.ReactNode; reset: string }
         </div>
         {cut && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24" style={{ background: "linear-gradient(to bottom, transparent, var(--background))" }} aria-hidden />}
       </div>
+      {/* px-4 like the page above: the button used to run from edge to edge of the screen, wider than the cards. */}
       {state.tall && (
-        <button type="button" onClick={() => setState({ key: reset, open: !open, tall: true })} className="card mt-3 w-full px-4 py-2.5 text-sm text-muted">
-          {open ? "Mostra meno" : "Mostra tutto"}
-        </button>
+        <div className="px-4 pb-4">
+          <button type="button" onClick={() => setState({ key: reset, open: !open, tall: true })} className="card mt-3 w-full px-4 py-2.5 text-sm text-muted">
+            {open ? "Mostra meno" : "Mostra tutto"}
+          </button>
+        </div>
       )}
     </div>
   );

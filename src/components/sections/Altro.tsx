@@ -20,7 +20,7 @@ export default function Altro() {
               <Icon size={22} stroke={1.8} style={{ color: "var(--accent-ink)" }} aria-hidden />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{s.label}</span>
-                <span className="block truncate text-xs text-muted">{s.description}</span>
+                <span className="mt-0.5 line-clamp-2 block text-xs leading-snug text-muted">{s.description}</span>
               </span>
               <IconChevronRight size={18} className="text-muted" aria-hidden />
             </Link>

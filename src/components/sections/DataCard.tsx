@@ -13,7 +13,7 @@ export function DataCard() {
     <section className="card flex max-w-xl items-center gap-3 p-5">
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium">{capitalize(data.athlete.name)}</h3>
-        <p className="mt-0.5 text-xs text-muted">{data.source === "demo" ? "Dati demo: imposta INTERVALS_API_KEY in .env.local per i tuoi dati" : "Dati da Intervals.icu"}</p>
+        <p className="mt-0.5 text-xs text-muted">{data.source === "demo" ? "Dati demo: collega il tuo Intervals.icu per vedere i tuoi" : "Dati da Intervals.icu"}</p>
       </div>
       <button
         type="button"
