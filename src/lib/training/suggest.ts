@@ -11,7 +11,7 @@ import { addDays, weekStart } from "@/lib/dates";
 import type { LibraryWorkout } from "@/lib/calendar";
 import { CLASS_LABEL, CLASS_SAY, type Classified, classifyWorkout, HARD, type WorkoutClass } from "./classify";
 import { type LifeEvent, restrictionOn } from "./life";
-import { PHASE_INFO, type PhaseInfo, type PlanWeek, type SeasonPlan, weekFor } from "./season";
+import { type DayChoice, PHASE_INFO, type PhaseInfo, type PlanWeek, type SeasonPlan, weekFor } from "./season";
 
 export { CLASS_LABEL, CLASS_SAY, classifyWorkout, type Classified, type WorkoutClass };
 
@@ -60,6 +60,8 @@ export type SuggestInput = {
   rampRate?: number | null;
   /** Holidays, illness and injury from the calendar: they can forbid or limit the day. */
   life?: LifeEvent[];
+  /** Days the athlete fixed in the Stagione page (a library workout, or rest): they are kept, and the week is laid out around them. */
+  chosen?: DayChoice[];
   /** Workouts already on the Intervals.icu calendar: the week is laid out around them. */
   planned?: { date: string; workout: LibraryWorkout }[];
   /** How the athlete says they feel today: it lowers the readiness by one level (prompt §5.5), never raises it. */
@@ -103,6 +105,12 @@ export function parseCap(s: string | undefined): number | null {
   if (!m) return null;
   const n = Number(m[1].replace(",", "."));
   return Math.round(/h/i.test(m[2]) ? n * 60 : n);
+}
+
+/** Fasted workouts only when the athlete's sheet accepts them ("Solo Z1-Z2": only the easy ones). */
+export function fastedOk(profile: SuggestProfile | undefined, c: Classified): boolean {
+  const d = profile?.digiuno;
+  return !!d && d !== "Mai" && (!/z1|z2/i.test(d) || c.cls === "z2" || c.cls === "recupero");
 }
 
 /** 0 = Monday … 6 = Sunday. */
@@ -235,11 +243,18 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
     if (profile.giorni?.length && !profile.giorni.includes(d)) return false;
     if (restrictionOn(iso, life)?.kind === "rest") return false;
     if (pw?.raceDay === iso) return false;
+    // A rest the athlete chose in the Stagione page.
+    if (iso > date && input.chosen?.some((c) => c.date === iso && c.id === null)) return false;
     return true;
   };
   // What is done (before today) and what is fixed on the calendar (after today).
   const recent = input.recent.filter((a) => a.date.slice(0, 10) >= monday && a.date.slice(0, 10) < date);
-  const planned = (input.planned ?? []).filter((p) => p.date > date && p.date <= addDays(monday, 6)).map((p) => ({ date: p.date, c: classifyWorkout(p.workout) }));
+  // Workouts the athlete fixed in the Stagione page count like the calendar's.
+  const fixedChoices = (input.chosen ?? []).flatMap((c) => {
+    const w = c.id !== null ? input.library.find((x) => x.id === c.id) : undefined;
+    return w ? [{ date: c.date, workout: w }] : [];
+  });
+  const planned = [...(input.planned ?? []), ...fixedChoices].filter((p) => p.date > date && p.date <= addDays(monday, 6)).map((p) => ({ date: p.date, c: classifyWorkout(p.workout) }));
   const busyQuality = new Set<number>();
   for (const a of recent) if (isQuality(a)) busyQuality.add(weekday(a.date.slice(0, 10)));
   for (const p of planned) if (p.c.quality) busyQuality.add(weekday(p.date));
@@ -396,9 +411,6 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
   const readiness = input.feeling?.drop ? lowerLevel(readinessIn) : readinessIn;
   const dow = weekday(date);
 
-  if (profile.giorni && profile.giorni.length > 0 && !profile.giorni.includes(dow)) {
-    return { kind: "rest", reason: "Oggi non è tra i giorni in cui puoi allenarti: riposo." };
-  }
   const lifeRule = restrictionOn(date, [
     ...(input.life ?? []),
     ...(input.season?.stops ?? []).map((s, i) => ({ id: `stop${i}`, category: "HOLIDAY" as const, from: s.from, to: s.to })),
@@ -410,6 +422,46 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     return { kind: "rest", reason: "Sei in un periodo di stop: riposo." };
   }
   if (pw?.raceDay === date) return { kind: "rest", reason: "Oggi c'è la gara A: niente allenamento, solo la gara. Riscaldamento breve con qualche accelerazione, e buona gara." };
+
+  // A day the athlete fixed in the Stagione page wins, unless today's readiness, an illness or today's requests say otherwise.
+  const choice = input.chosen?.find((c) => c.date === date);
+  if (choice) {
+    const whose = choice.mine ? "L'hai scelto tu nella Stagione." : "Dalla settimana che hai fissato nella Stagione.";
+    if (choice.id === null) return { kind: "rest", reason: `Riposo. ${whose}` };
+    const w = input.library.find((x) => x.id === choice.id);
+    const c = w ? classifyWorkout(w) : null;
+    const asked = ov.wantClass || ov.easier || ov.maxMins;
+    const safe =
+      c !== null &&
+      !asked &&
+      !(lifeRule?.kind === "easy" && (c.quality || c.maxZone > 2)) &&
+      (readiness === "verde" || (readiness === "grigio" && !c.hard)) &&
+      !(c.hard && input.tsbYesterday !== null && input.tsbYesterday < -30);
+    if (c && safe) {
+      const indoor = c.indoor || (c.quality && placeFrom(profile.intervalliDove) === "indoor");
+      const info = pw ? PHASE_INFO[pw.phase] : null;
+      return {
+        kind: "workout",
+        main: {
+          workout: c.w,
+          cls: c.cls,
+          label: CLASS_LABEL[c.cls],
+          mins: Math.round(c.mins),
+          tss: Math.round(c.tss),
+          indoor,
+          reasons: [whose, ...(info && pw ? [`${info.label}: ${info.focus}. TSS di riferimento della settimana ${pw.tssTarget}.`] : []), `${c.w.name}: ${Math.round(c.mins)} minuti, TSS ${Math.round(c.tss)}.`],
+          carbs: carbsFor(c, toleratedCarbs(profile.carboTollerati)),
+          warnings: [],
+          ftpNote: indoor ? (input.indoorFtp ? `Percentuali sulla FTP rulli: ${input.indoorFtp} W` : null) : input.ftp ? `Percentuali sulla FTP outdoor: ${input.ftp} W` : null,
+        },
+        alternatives: [],
+      };
+    }
+  }
+
+  if (profile.giorni && profile.giorni.length > 0 && !profile.giorni.includes(dow)) {
+    return { kind: "rest", reason: "Oggi non è tra i giorni in cui puoi allenarti: riposo." };
+  }
 
   const recent = input.recent.filter((a) => a.date.slice(0, 10) < date && daysBetween(a.date.slice(0, 10), date) <= 14);
   const trainedStreak = (() => {
@@ -534,7 +586,6 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
   // ── From the library ───────────────────────────────────────────────────────────────────────────
   const place: Place = input.place && input.place !== "any" ? input.place : slot.place;
   const noMtb = profile.disciplina && !/mtb/i.test(profile.disciplina);
-  const fastedOk = (c: Classified) => !!profile.digiuno && profile.digiuno !== "Mai" && (!/z1|z2/i.test(profile.digiuno) || c.cls === "z2" || c.cls === "recupero");
   const trainerCap = parseCap(profile.ruliMax);
   const tssCap = slot.kind === "long" ? Math.max(120, 4.5 * ctl) : Math.max(60, 2.2 * ctl + 30);
   const recentNames = new Map(recent.map((a) => [a.name.trim().toLowerCase(), daysBetween(a.date.slice(0, 10), date)]));
@@ -542,7 +593,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     if (c.cls === "test" || c.cls === "gara") return false;
     if (input.exclude?.includes(c.w.id)) return false;
     if (noMtb && c.mtb) return false;
-    if (c.fasted && !fastedOk(c)) return false;
+    if (c.fasted && !fastedOk(profile, c)) return false;
     // Structured quality work rides fine on the trainer even when the name does not say "Indoor".
     if (place === "indoor" && !c.indoor && !(c.quality && c.mins <= (trainerCap ?? 60) + 5)) return false;
     if (place === "outdoor" && c.indoor) return false;
@@ -624,7 +675,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
 }
 
 /** `planned` is what is already on the Intervals.icu calendar that day: it is kept, and counted for the days after it. */
-export type WeekDay = { date: string; suggestion: Suggestion | null; planned: LibraryWorkout | null };
+export type WeekDay = { date: string; suggestion: Suggestion | null; planned: LibraryWorkout | null; /** The day was fixed in the Stagione page. */ chosen?: boolean };
 
 /** Seven days from `input.date`: today with the real readiness, the next days assuming green, each one counting what came before. */
 export function planWeek(input: SuggestInput, planned: { date: string; workout: LibraryWorkout }[] = []): WeekDay[] {
@@ -657,7 +708,7 @@ export function planWeek(input: SuggestInput, planned: { date: string; workout: 
       feeling: i === 0 ? input.feeling : null,
       override: i === 0 ? input.override : undefined,
     });
-    out.push({ date, suggestion: s, planned: null });
+    out.push({ date, suggestion: s, planned: null, ...(input.chosen?.some((c) => c.date === date) ? { chosen: true } : {}) });
     if (s.kind === "workout") count(date, s.main.workout);
   }
   return out;

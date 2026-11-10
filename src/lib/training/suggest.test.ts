@@ -4,7 +4,7 @@ import { addDays } from "@/lib/dates";
 import { workoutBlocks, zoneOfFraction } from "@/lib/workout";
 import { QUALITY } from "./classify";
 import { planSeason, type SeasonSetup } from "./season";
-import { carbsFor, classifyWorkout, fuelFor, parseCap, planWeek, suggestWorkout, toleratedCarbs, type RecentActivity, type SuggestInput, type SuggestProfile } from "./suggest";
+import { carbsFor, classifyWorkout, fastedOk, fuelFor, parseCap, planWeek, suggestWorkout, toleratedCarbs, type RecentActivity, type SuggestInput, type SuggestProfile } from "./suggest";
 
 let id = 0;
 /** Blocks are [minutes, zone] pairs. */
@@ -129,6 +129,16 @@ describe("suggestWorkout", () => {
       const all = names(pick({ readiness: r }));
       expect(all.some((n) => /Fasted|Benchmark|Race Week/.test(n))).toBe(false);
     }
+  });
+
+  it("accepts fasted workouts as the athlete's sheet says (the Stagione sheet uses the same rule)", () => {
+    const easy = classifyWorkout(LIB.find((w) => w.name === "Fasted MTB 90")!);
+    const hard = { ...classifyWorkout(LIB.find((w) => w.name === "VO2 Max 5x4")!), fasted: true };
+    expect(fastedOk(undefined, easy)).toBe(false);
+    expect(fastedOk({ digiuno: "Mai" }, easy)).toBe(false);
+    expect(fastedOk({ digiuno: "Solo Z1-Z2" }, easy)).toBe(true);
+    expect(fastedOk({ digiuno: "Solo Z1-Z2" }, hard)).toBe(false);
+    expect(fastedOk({ digiuno: "Sì" }, hard)).toBe(true);
   });
 
   it("prefers a workout not done in the last days", () => {

@@ -7,6 +7,7 @@ import type { DashboardData } from "@/lib/dashboard";
 import { loadProfile, PROFILE_EVENT, profileSnapshot } from "@/lib/profile/profile";
 import { PHASE_INFO, planFromToday, weekFor } from "@/lib/training/season";
 import { loadSeason, SEASON_EVENT, seasonSnapshot } from "@/lib/training/seasonStore";
+import { choicesOf } from "@/lib/training/weeks";
 import { classifyWorkout, fuelFor, type Place, planWeek, type Proposal, suggestWorkout, type SuggestInput, type Suggestion, toleratedCarbs } from "@/lib/training/suggest";
 import Link from "next/link";
 import { addDays } from "@/lib/dates";
@@ -88,6 +89,8 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
     return setup ? planFromToday(setup, data.today, data.status.ctl, life) : null;
   }, [rawSeason, data.today, data.status.ctl, life]);
   const stored = useMemo(() => (raw ? loadProfile() : null), [raw]);
+  // Days fixed in the Stagione page.
+  const fixedDays = useMemo(() => choicesOf(rawSeason ? loadSeason() : null), [rawSeason]);
   const carbCap = toleratedCarbs(stored?.profile?.carboTollerati);
   const library = useLibrary();
   const [placeChoice, setPlaceChoice] = useState<Place>("any");
@@ -110,6 +113,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
     return {
       // What is already on the Intervals.icu calendar: the week is laid out around it.
       planned: (planned ?? []).map((w) => ({ date: w.date, workout: { ...w, id: 0 } })),
+      chosen: fixedDays,
       date: today,
       readiness: data.status.readiness.level,
       tsbYesterday: data.status.tsbYesterday,
@@ -127,7 +131,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
       feeling: overrides.feeling ?? null,
       override: { maxMins: overrides.maxMins, easier: overrides.easier, wantClass: overrides.wantClass, restToday: overrides.restToday },
     };
-  }, [library, today, data, stored, place, season, life, overrides, planned]);
+  }, [library, today, data, stored, place, season, life, overrides, planned, fixedDays]);
 
   const suggestion: Suggestion | null = useMemo(() => (input ? suggestWorkout(input) : null), [input]);
   const week = useMemo(() => (input && planned ? planWeek(input, planned.map((w) => ({ date: w.date, workout: { ...w, id: 0 } }))) : []), [input, planned]);

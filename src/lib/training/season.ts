@@ -65,7 +65,15 @@ export type SeasonSetup = {
   lightWeeks?: string[];
   /** Load weeks (Monday dates) the athlete wants as a block: three quality sessions instead of two, same load. */
   blockWeeks?: string[];
+  /**
+   * Weeks the athlete touched in the Stagione page (Monday → its days as they stood): what is there stays put while the
+   * rest of the plan is rebuilt. `mine` marks the days the athlete moved or changed, the others were the proposal.
+   */
+  weekPlans?: Record<string, DayChoice[]>;
 };
+
+/** A day fixed in a week of the season: a library workout (`id`) or rest (`null`). */
+export type DayChoice = { date: string; id: number | null; mine: boolean };
 
 export type WeekKind = "carico" | "scarico" | "stop" | "taper" | "gara";
 

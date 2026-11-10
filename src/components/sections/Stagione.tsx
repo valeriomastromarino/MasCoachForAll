@@ -3,18 +3,18 @@
 // Season: the first planning screen asks for the goals (peak period, optional A race), the ramp rate the athlete accepts,
 // the hours and the days off; then it shows the plan week by week (lib/training/season.ts).
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { useCompact } from "@/lib/compact";
-import { addDays, weekStart } from "@/lib/dates";
+import { addDays } from "@/lib/dates";
 import type { CalendarData } from "@/lib/api/handlers";
 import type { DashboardData } from "@/lib/dashboard";
 import { loadProfile } from "@/lib/profile/profile";
-import { PHASE_INFO, type PhaseId, planFromToday, type PlanWeek, RAMP_TARGET, type RampLevel, type SeasonSetup } from "@/lib/training/season";
+import { planFromToday, RAMP_TARGET, type RampLevel, type SeasonSetup } from "@/lib/training/season";
 import { clearSeason, loadSeason, SEASON_EVENT, saveSeason, seasonSnapshot } from "@/lib/training/seasonStore";
 import { scheduleCloudPush } from "../data/cloud";
 import { useLife } from "../data/trainingData";
 import { apiFetch } from "../data/transport";
 import { Chip, Divider, Err, Grid2, Label, Note, One, Text } from "../firstrun/FirstRun";
 import { fmtDay } from "../format";
+import { SeasonWeeks } from "./SeasonWeeks";
 import { SectionPage } from "./SectionPage";
 
 const subscribe = (cb: () => void) => {
@@ -34,17 +34,6 @@ const HORIZONS: [string, number][] = [
   ["12 mesi", 52],
 ];
 
-const PHASE_COLOR: Record<PhaseId, string> = {
-  base_1: "var(--hrv)",
-  base_2: "var(--hrv)",
-  base_3: "var(--hrv)",
-  build_1: "var(--fitness)",
-  build_2: "var(--fitness)",
-  peak: "var(--form)",
-  taper: "var(--fatigue)",
-  recupero: "var(--faint)",
-  mantenimento: "var(--muted)",
-};
 
 const hoursFrom = (oreMax: string | undefined): string => (oreMax && /^\d+$/.test(oreMax) ? oreMax : "");
 
@@ -268,20 +257,10 @@ function SetupForm({ data, initial, onSaved }: { data: DashboardData; initial: S
 
 // ── Plan ─────────────────────────────────────────────────────────────────────────────────────────
 
-const KIND_LABEL: Record<PlanWeek["kind"], string> = { carico: "Carico", scarico: "Leggera", stop: "Stop", taper: "Tapering", gara: "Gara" };
-const weekLabel = (w: PlanWeek) => `${fmtDay(w.start)} – ${fmtDay(w.end)}`;
-
 function PlanView({ data, setup, onEdit }: { data: DashboardData; setup: SeasonSetup; onEdit: () => void }) {
   // Holidays, illness and injuries written on the Intervals.icu calendar (or by the chat) shape the plan at once.
   const life = useLife(data.today);
   const plan = useMemo(() => planFromToday(setup, data.today, data.status.ctl, life), [setup, data.today, data.status.ctl, life]);
-  const current = weekStart(data.today);
-  // Phone app: the next 8 weeks, the rest on request.
-  const compact = useCompact();
-  const [allWeeks, setAllWeeks] = useState(false);
-  const listed = compact && !allWeeks ? plan.weeks.filter((w) => w.start >= current).slice(0, 8) : plan.weeks;
-  const maxTss = Math.max(...plan.weeks.map((w) => w.tssTarget), 1);
-  const next = plan.weeks.find((w) => w.start >= current && w.kind !== "stop");
   const stat = (label: string, value: string, hint?: string) => (
     <div className="rounded-xl px-3 py-2" style={{ background: "var(--background)" }}>
       <div className="text-xs text-muted">{label}</div>
@@ -310,71 +289,12 @@ function PlanView({ data, setup, onEdit }: { data: DashboardData; setup: SeasonS
           </Note>
         ))}
         <Note>
-          È una mappa: ogni giorno si ricalcola con i tuoi dati veri, e il TSS di riferimento di una settimana non è un obbligo. Una settimana andata male sposta tutto quello che viene dopo.
+          È una mappa: ogni giorno si ricalcola con i tuoi dati veri, e il TSS di riferimento di una settimana non è un obbligo. Quello che fissi tu in una settimana resta com&apos;è.
         </Note>
       </section>
 
-      <section className="card p-4">
-        <h2 className="text-sm font-medium">Carico settimanale (TSS di riferimento)</h2>
-        <div className="mt-3 flex h-28 items-end gap-px overflow-x-auto" role="img" aria-label="TSS di riferimento per settimana, colorato per fase">
-          {plan.weeks.map((w) => (
-            <div
-              key={w.start}
-              title={`${weekLabel(w)} · ${PHASE_INFO[w.phase].label} · TSS ${w.tssTarget}`}
-              className="min-w-[5px] flex-1 rounded-t-sm"
-              style={{
-                height: `${Math.max(3, (w.tssTarget / maxTss) * 100)}%`,
-                background: PHASE_COLOR[w.phase],
-                opacity: w.kind === "scarico" || w.kind === "stop" ? 0.45 : 1,
-                outline: w.start === current ? "2px solid var(--foreground)" : undefined,
-              }}
-            />
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted">
-          {(["base_1", "build_1", "peak", "taper", "recupero", "mantenimento"] as PhaseId[]).map((p) => (
-            <span key={p} className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 rounded-sm" style={{ background: PHASE_COLOR[p] }} />
-              {p === "base_1" ? "Base" : p === "build_1" ? "Build" : PHASE_INFO[p].label}
-            </span>
-          ))}
-          <span>Barre chiare: settimane leggere o di stop</span>
-        </div>
-      </section>
-
-      <section className="card p-4">
-        <h2 className="text-sm font-medium">Settimana per settimana</h2>
-        {next && (
-          <p className="mt-1 text-xs text-muted">
-            Questa settimana: {PHASE_INFO[next.phase].label}, {KIND_LABEL[next.kind].toLowerCase()}, TSS di riferimento {next.tssTarget}.
-          </p>
-        )}
-        <ul className="mt-3 divide-y" style={{ borderColor: "var(--border)" }}>
-          {listed.map((w) => (
-            <li key={w.start} className="flex items-start gap-3 py-2 text-sm" style={{ borderColor: "var(--border)", background: w.start === current ? "var(--background)" : undefined }}>
-              <span className="w-24 shrink-0 text-xs text-muted">{weekLabel(w)}</span>
-              <span className="min-w-0 flex-1">
-                <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ background: "var(--background)", color: "var(--foreground)", border: `1px solid ${PHASE_COLOR[w.phase]}` }}>
-                  {PHASE_INFO[w.phase].label}
-                </span>
-                <span className="ml-2 text-xs text-muted">{KIND_LABEL[w.kind]}</span>
-                {w.note && <span className="mt-0.5 block text-xs text-faint">{w.note}</span>}
-              </span>
-              <span className="num shrink-0 text-right text-xs">
-                <span className="block font-medium">TSS {w.tssTarget}</span>
-                <span className="text-muted">
-                  CTL {Math.round(w.ctlEnd)} · ~{w.hoursApprox} h
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
-        {compact && plan.weeks.length > listed.length && !allWeeks && (
-          <button type="button" onClick={() => setAllWeeks(true)} className="mt-3 w-full rounded-xl px-4 py-2 text-sm text-muted" style={{ border: "1px solid var(--border)" }}>
-            Mostra tutte le {plan.weeks.length} settimane
-          </button>
-        )}
-      </section>
+      {/* Version B, chosen on 10 November 2026: the weeks as tabs, each one day by day. */}
+      <SeasonWeeks data={data} setup={setup} plan={plan} />
     </div>
   );
 }

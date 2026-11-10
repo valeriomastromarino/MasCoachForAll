@@ -65,7 +65,18 @@ type Block = LibraryWorkout["blocks"][number];
 /** A block's target as a fraction of FTP: the written value, or the middle of its zone. A short step without target is an all-out effort. */
 const fraction = (b: Block): number => b.pct ?? (b.free && b.secs <= 30 ? 1.6 : ZONE_MID[b.zone] ?? 0.5);
 
+// The season's weeks classify the same library thousands of times: each workout is read once.
+const seen = new WeakMap<LibraryWorkout, Classified>();
+
 export function classifyWorkout(w: LibraryWorkout): Classified {
+  const hit = seen.get(w);
+  if (hit) return hit;
+  const out = classify(w);
+  seen.set(w, out);
+  return out;
+}
+
+function classify(w: LibraryWorkout): Classified {
   const blocks = w.blocks ?? [];
   const total = w.secs ?? blocks.reduce((s, b) => s + b.secs, 0);
   const sec = { z1: 0, z2: 0, tempo: 0, sweet: 0, thr: 0, vo2: 0, ana: 0, spr: 0 };

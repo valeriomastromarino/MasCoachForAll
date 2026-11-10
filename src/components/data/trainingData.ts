@@ -74,6 +74,46 @@ export function refreshPlanned() {
   if (plannedKey) void loadPlanned(plannedKey);
 }
 
+// ── Workouts on the calendar over the whole season (the Stagione weeks) ────────────────────────────
+type SeasonCalendar = { key: string; list: CalendarData["workouts"] | null };
+const seasonCalendar = createStore<SeasonCalendar>({ key: "", list: null });
+let seasonCalendarKey = "";
+async function loadSeasonCalendar(key: string) {
+  const [from, weeks, ftp] = key.split("|");
+  // The API gives at most 70 days per call.
+  const chunks = Math.ceil((Number(weeks) * 7) / 70);
+  const parts = await Promise.all(
+    Array.from({ length: chunks }, (_, i) => getJson<CalendarData>(`/api/calendar?from=${addDays(from, i * 70)}&to=${addDays(from, i * 70 + 69)}&ftp=${ftp}`)),
+  );
+  const seen = new Set<string>();
+  const list: CalendarData["workouts"] = [];
+  for (const p of parts) {
+    for (const w of p?.workouts ?? []) {
+      if (seen.has(w.id)) continue;
+      seen.add(w.id);
+      list.push(w);
+    }
+  }
+  seasonCalendar.set({ key, list });
+}
+/** Planned workouts from the Monday `from` for `weeks` weeks; null while loading. */
+export function useSeasonCalendar(from: string, weeks: number, ftp: number | null): CalendarData["workouts"] | null {
+  const key = `${from}|${weeks}|${ftp ?? ""}`;
+  const v = useSyncExternalStore(seasonCalendar.subscribe, seasonCalendar.get, () => ({ key: "", list: null }));
+  useEffect(() => {
+    if (seasonCalendarKey !== key) {
+      seasonCalendarKey = key;
+      void loadSeasonCalendar(key);
+    }
+  }, [key]);
+  return v.key === key ? v.list : null;
+}
+/** After a workout was written, moved or removed on Intervals.icu from the Stagione page; resolves once the season's calendar is read again. */
+export function refreshSeasonCalendar(): Promise<void> {
+  refreshPlanned();
+  return seasonCalendarKey ? loadSeasonCalendar(seasonCalendarKey) : Promise.resolve();
+}
+
 // ── Holidays, illness, injuries ──────────────────────────────────────────────────────────────────
 const life = createStore<LifeEvent[]>([]);
 let lifeKey = "";

@@ -5,6 +5,7 @@ import type { DashboardData } from "@/lib/dashboard";
 import type { AthleteProfile } from "@/lib/profile/profile";
 import type { LifeCategory, LifeEvent } from "@/lib/training/life";
 import type { SeasonPlan, SeasonSetup } from "@/lib/training/season";
+import { choicesOf } from "@/lib/training/weeks";
 import { type Place, type Proposal, type SuggestInput, type WorkoutClass } from "@/lib/training/suggest";
 
 /** What the athlete told the chat about today: it only ever applies to `date`. */
@@ -107,6 +108,7 @@ export function suggestInput(ctx: ChatContext, over: Partial<SuggestInput> = {})
     rampRate: data.status.rampRate,
     life: ctx.life,
     planned: ctx.planned.map((w) => ({ date: w.date, workout: { ...w, id: 0 } })),
+    chosen: choicesOf(ctx.setup),
     feeling: o?.feeling ?? null,
     override: o ? { maxMins: o.maxMins, easier: o.easier, wantClass: o.wantClass, restToday: o.restToday } : undefined,
     ...over,
