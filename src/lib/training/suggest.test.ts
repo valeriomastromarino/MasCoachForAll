@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { LibraryWorkout } from "@/lib/calendar";
 import { addDays } from "@/lib/dates";
+import { workoutBlocks, zoneOfFraction } from "@/lib/workout";
+import { QUALITY } from "./classify";
 import { planSeason, type SeasonSetup } from "./season";
-import { carbsFor, classifyWorkout, fuelFor, parseCap, planWeek, suggestWorkout, toleratedCarbs, type RecentActivity, type SuggestInput } from "./suggest";
+import { carbsFor, classifyWorkout, fuelFor, parseCap, planWeek, suggestWorkout, toleratedCarbs, type RecentActivity, type SuggestInput, type SuggestProfile } from "./suggest";
 
 let id = 0;
 /** Blocks are [minutes, zone] pairs. */
@@ -93,9 +95,9 @@ describe("suggestWorkout", () => {
   });
 
   it("stops at the weekly limit of hard sessions", () => {
-    const s = pick({ recent: [act("2026-10-30", "x", 0.9, 80), act("2026-10-28", "y", 0.88, 80)] });
+    const s = pick({ recent: [act("2026-10-30", "x", 0.9, 80), act("2026-11-01", "y", 0.88, 80)] });
     expect(s.main.cls).not.toMatch(/soglia|vo2|anaerobico/);
-    const aggressive = pick({ profile: { rischio: "Aggressivo" }, recent: [act("2026-10-30", "x", 0.9, 80), act("2026-10-28", "y", 0.88, 80)] });
+    const aggressive = pick({ profile: { rischio: "Aggressivo" }, recent: [act("2026-10-30", "x", 0.9, 80), act("2026-11-01", "y", 0.88, 80)] });
     expect(aggressive.main.cls).toMatch(/soglia|vo2|anaerobico|sweetspot|z2/);
   });
 
@@ -178,12 +180,12 @@ describe("suggestWorkout", () => {
 });
 
 describe("planWeek", () => {
-  it("builds seven days that respect the hard limit and leave a day off", () => {
+  it("builds seven days that respect the hard limit and leave a day off or of active recovery (prompt §11)", () => {
     const week = planWeek({ ...base, date: "2026-11-02", profile: { rischio: "Bilanciato" } });
     expect(week).toHaveLength(7);
     const hard = week.filter((d) => d.suggestion?.kind === "workout" && /soglia|vo2|anaerobico/.test(d.suggestion.main.cls));
     expect(hard.length).toBeLessThanOrEqual(2);
-    expect(week.some((d) => d.suggestion?.kind === "rest")).toBe(true);
+    expect(week.some((d) => d.suggestion?.kind === "rest" || (d.suggestion?.kind === "workout" && d.suggestion.main.cls === "recupero"))).toBe(true);
   });
   it("keeps what is already planned and counts it for the next days", () => {
     const threshold = LIB.find((w) => w.name === "Threshold 4x8")!;
@@ -220,18 +222,17 @@ describe("with a season plan", () => {
   const at = (date: string, over: Partial<SuggestInput> = {}) => suggestWorkout({ ...base, date, season: plan, ...over });
   const cls = (s: ReturnType<typeof at>) => (s.kind === "workout" ? s.main.cls : "riposo");
 
-  it("keeps hard work out of the base and brings it in with the build", () => {
-    for (const phase of ["base_1", "base_2"]) {
-      const c = cls(at(midweek(weekOf(phase))));
-      expect(["z2", "recupero", "tempo", "sprint"]).toContain(c);
-    }
+  it("brings quality into the base too, and hard work into the build", () => {
+    for (const phase of ["base_1", "base_2"]) expect(["vo2", "sweetspot", "tempo"]).toContain(cls(at(midweek(weekOf(phase)))));
     expect(["soglia", "vo2", "anaerobico", "sweetspot"]).toContain(cls(at(midweek(weekOf("build_2")))));
   });
 
-  it("allows no hard session in a lighter week, and says which phase and TSS it follows", () => {
-    const light = plan.weeks.find((w) => w.kind === "scarico" && w.hardMax === 0 && w.phase !== "recupero")!;
+  it("keeps at most one quality session in a lighter week, and says which phase and TSS it follows", () => {
+    const light = plan.weeks.find((w) => w.kind === "scarico" && w.phase !== "recupero")!;
+    const days = planWeek({ ...base, date: light.start, season: plan });
+    const quality = days.filter((d) => d.suggestion?.kind === "workout" && QUALITY.includes(d.suggestion.main.cls));
+    expect(quality.length).toBeLessThanOrEqual(1);
     const s = at(midweek(light));
-    expect(["soglia", "vo2", "anaerobico"]).not.toContain(cls(s));
     if (s.kind === "workout") expect(s.main.reasons.join(" ")).toContain("TSS di riferimento");
   });
 
@@ -313,5 +314,134 @@ describe("life events, feelings and today's requests", () => {
     const fine = pick({ override: { wantClass: "soglia" } });
     expect(fine.main.cls).toBe("soglia");
     expect(fine.main.warnings).toHaveLength(0);
+  });
+});
+
+// ── The method of 10 November 2026: a week built first, quality all season ─────────────────────────
+
+/** Blocks as [minutes, fraction of FTP]. */
+function wp(name: string, blocks: [number, number][], tss: number): LibraryWorkout {
+  return { id: ++id, name, type: "Ride", secs: Math.round(blocks.reduce((s, b) => s + b[0] * 60, 0)), tss, description: null, blocks: blocks.map(([m, pct]) => ({ secs: Math.round(m * 60), zone: zoneOfFraction(pct), pct })) };
+}
+const set3 = (n: number, work: [number, number], rest: [number, number], between: [number, number]) => [...rep(n, work, rest), between, ...rep(n, work, rest), between, ...rep(n, work, rest)];
+const LIB2: LibraryWorkout[] = [
+  ...LIB,
+  wp("Rønnestad 30/15 3x13 Indoor", [[15, 0.6], ...set3(13, [0.5, 1.2], [0.25, 0.55], [2, 0.5]), [9, 0.5]], 70),
+  wp("VO2 5x3 Indoor", [[15, 0.6], ...rep(5, [3, 1.15], [3, 0.5]), [10, 0.5]], 62),
+  wp("Sweet Spot 3x10 Indoor", [[12, 0.6], ...rep(3, [10, 0.9], [4, 0.5]), [5, 0.5]], 57),
+  wp("Sweet Spot 2x20 Indoor", [[10, 0.6], ...rep(2, [20, 0.9], [5, 0.5]), [5, 0.5]], 64),
+  wp("Tempo 3x12 Indoor", [[10, 0.6], ...rep(3, [12, 0.82], [4, 0.5]), [2, 0.5]], 58),
+  wp("Threshold 2x15 Indoor", [[12, 0.6], ...rep(2, [15, 0.98], [5, 0.5]), [8, 0.5]], 66),
+  wp("Long Z2 3h", [[15, 0.55], [150, 0.68], [15, 0.5]], 130),
+  wp("Long Z2 3h + finale SST", [[15, 0.55], [120, 0.68], ...rep(2, [12, 0.9], [6, 0.6]), [9, 0.5]], 150),
+  wp("Zone 2 Endurance 100", [[10, 0.55], [80, 0.68], [10, 0.5]], 70),
+];
+/** The athlete of the sheet: Tue, Wed, Thu, Sat, Sun; long ride on Sunday; intervals on the trainer (1 h at most), long Z2 outside. */
+const SHEET: SuggestProfile = { giorni: [1, 2, 3, 5, 6], lunga: "Domenica", intervalliDove: "Rulli", z2Dove: "Fuori", ruliMax: "1 h", sedutaMin: "45 min", durataFeriali: "2 h", durataWeekend: "5 h", disciplina: "Strada" };
+
+describe("classifyWorkout with the targets of the steps", () => {
+  const c = (name: string) => classifyWorkout(LIB2.find((w) => w.name === name)!);
+  it("reads 30/15 as VO2max in short repeats, hard and quality", () => {
+    const r = c("Rønnestad 30/15 3x13 Indoor");
+    expect([r.cls, r.shortIntervals, r.hard, r.quality]).toEqual(["vo2", true, true, true]);
+    expect(c("VO2 5x3 Indoor").shortIntervals).toBe(false);
+  });
+  it("keeps a long ride with sweet spot in its last part as the long Z2 ride, not a quality session", () => {
+    const r = c("Long Z2 3h + finale SST");
+    expect([r.cls, r.lateWork, r.quality]).toEqual(["z2", true, false]);
+    expect(c("Long Z2 3h").lateWork).toBe(false);
+  });
+  it("reads short steps without a power target as sprints, and steps in watts with the FTP", () => {
+    const efforts = Array.from({ length: 6 }, () => [{ secs: 20, zone: 2, pct: null, free: true }, { secs: 300, zone: 1, pct: 0.5 }]).flat();
+    const sprints: LibraryWorkout = { id: 900, name: "Power Sprints 6x", type: "Ride", secs: 3600, tss: 45, description: null, blocks: [{ secs: 1200, zone: 2, pct: 0.6 }, ...efforts, { secs: 480, zone: 1, pct: 0.5 }] };
+    expect(classifyWorkout(sprints).cls).toBe("sprint");
+    expect(workoutBlocks([{ duration: 600, power: { units: "w", value: 280 } }], 260)[0].zone).toBe(5);
+    expect(workoutBlocks([{ duration: 600, power: { units: "w", value: 280 } }], null)[0].zone).toBe(1);
+  });
+  it("does not call a threshold ride with three short bursts a sprint session", () => {
+    const breakaway = wp("Breakaway Simulation", [[15, 0.5], [0.5, 1.6], [8, 1.0], [4, 0.65], [0.5, 1.6], [10, 1.0], [4, 0.65], [0.5, 1.6], [12, 1.0], [15, 0.5]], 81);
+    expect(classifyWorkout(breakaway).cls).toBe("soglia");
+  });
+});
+
+describe("the week is built first", () => {
+  const setup: SeasonSetup = { start: "2026-11-05", horizonWeeks: 40, raceA: { date: "2027-07-17", name: "Granfondo" }, peak: { start: "2027-05-31", weeks: 8 }, ramp: "prudente", stops: [], maxHours: 10 };
+  const plan = planSeason(setup, 36);
+  const loadWeek = (phase: string) => plan.weeks.find((w) => w.phase === phase && w.kind === "carico")!;
+  const week = (w: { start: string }, over: Partial<SuggestInput> = {}) => planWeek({ ...base, library: LIB2, date: w.start, season: plan, profile: SHEET, ...over });
+  const main = (d: ReturnType<typeof week>[number]) => (d.suggestion?.kind === "workout" ? d.suggestion.main : null);
+  const isQ = (d: ReturnType<typeof week>[number]) => !!main(d) && QUALITY.includes(main(d)!.cls);
+
+  it("base: VO2max on Tuesday as short repeats on the trainer, sweet spot or tempo on Thursday, the long ride on Sunday", () => {
+    const days = week(loadWeek("base_1"));
+    expect(days[0].suggestion).toMatchObject({ kind: "rest" });
+    expect(days[4].suggestion).toMatchObject({ kind: "rest" });
+    const tue = main(days[1])!;
+    expect([tue.slot, tue.cls]).toEqual(["A", "vo2"]);
+    expect(classifyWorkout(tue.workout).shortIntervals).toBe(true);
+    expect(tue.mins).toBeLessThanOrEqual(65);
+    const thu = main(days[3])!;
+    expect(thu.slot).toBe("B");
+    expect(["sweetspot", "tempo"]).toContain(thu.cls);
+    const sun = main(days[6])!;
+    expect([sun.slot, sun.cls]).toEqual(["long", "z2"]);
+    expect(sun.mins).toBeGreaterThanOrEqual(150);
+    for (const i of [2, 5]) expect(["z2", "recupero"]).toContain(main(days[i])!.cls);
+  });
+
+  it("never more than two quality sessions in a load week, never on consecutive days, in any phase", () => {
+    for (const phase of ["base_1", "base_2", "base_3", "build_1", "build_2", "peak", "mantenimento"]) {
+      const w = plan.weeks.find((x) => x.phase === phase && x.kind === "carico");
+      if (!w) continue;
+      const q = week(w).map(isQ);
+      expect(q.filter(Boolean).length).toBeLessThanOrEqual(2);
+      for (let i = 1; i < 7; i++) expect(q[i - 1] && q[i]).toBe(false);
+    }
+  });
+
+  it("build: the long ride carries its work in the last part", () => {
+    const sun = main(week(loadWeek("build_2"))[6])!;
+    expect(sun.slot).toBe("long");
+    expect(classifyWorkout(sun.workout).lateWork).toBe(true);
+  });
+
+  it("a light week keeps one short quality session and a shorter long ride", () => {
+    const light = plan.weeks.find((w) => w.kind === "scarico" && w.phase.startsWith("base"))!;
+    const days = week(light);
+    expect(days.filter(isQ)).toHaveLength(1);
+    expect(main(days[6])!.mins).toBeLessThanOrEqual(125);
+  });
+
+  it("a block week asked by the athlete has three quality sessions, never two days in a row", () => {
+    const target = loadWeek("build_1");
+    const blockPlan = planSeason({ ...setup, blockWeeks: [target.start] }, 36);
+    const q = planWeek({ ...base, library: LIB2, date: target.start, season: blockPlan, profile: SHEET }).map(isQ);
+    expect(q.filter(Boolean)).toHaveLength(3);
+    for (let i = 1; i < 7; i++) expect(q[i - 1] && q[i]).toBe(false);
+  });
+
+  it("moves a missed quality day to the next free day that is not next to another one", () => {
+    const w = loadWeek("base_1");
+    const wednesday = addDays(w.start, 2);
+    const missed = suggestWorkout({ ...base, library: LIB2, date: wednesday, season: plan, profile: SHEET });
+    expect(missed.kind === "workout" && missed.main.slot).toBe("A");
+    const done = suggestWorkout({ ...base, library: LIB2, date: wednesday, season: plan, profile: SHEET, recent: [{ date: addDays(w.start, 1), name: "VO2 5x3 Indoor", IF: 0.88, tss: 62, movingTime: 3300 }] });
+    expect(done.kind === "workout" && done.main.slot).toBe("easy");
+  });
+
+  it("yellow keeps everything at Z2 or below, red stays within 45 minutes", () => {
+    const w = loadWeek("build_2");
+    const yellow = suggestWorkout({ ...base, library: LIB2, date: addDays(w.start, 1), season: plan, profile: SHEET, readiness: "giallo" });
+    expect(yellow.kind === "workout" && classifyWorkout(yellow.main.workout).maxZone).toBeLessThanOrEqual(2);
+    const yellowLong = suggestWorkout({ ...base, library: LIB2, date: addDays(w.start, 6), season: plan, profile: SHEET, readiness: "giallo" });
+    expect(yellowLong.kind === "workout" && classifyWorkout(yellowLong.main.workout).maxZone).toBeLessThanOrEqual(2);
+    const red = suggestWorkout({ ...base, library: LIB2, date: addDays(w.start, 1), season: plan, profile: SHEET, readiness: "rosso" });
+    expect(red.kind === "workout" && red.main.mins).toBeLessThanOrEqual(45);
+  });
+
+  it("the race day is the race", () => {
+    const s = suggestWorkout({ ...base, library: LIB2, date: "2027-07-17", season: plan, profile: SHEET });
+    expect(s).toMatchObject({ kind: "rest" });
+    if (s.kind === "rest") expect(s.reason).toContain("gara");
   });
 });

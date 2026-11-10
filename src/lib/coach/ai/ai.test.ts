@@ -31,7 +31,7 @@ describe("settimana di scarico nel piano", () => {
     const i = light.weeks.findIndex((w) => w.start === w2);
     expect(light.weeks[i].kind).toBe("scarico");
     expect(light.weeks[i].tssTarget).toBeLessThan(base.weeks[i].tssTarget);
-    expect(light.weeks[i].hardMax).toBe(0);
+    expect(light.weeks[i].qualityMax).toBe(1);
     expect(light.weeks[i + 1].kind).toBe("carico");
   });
 });

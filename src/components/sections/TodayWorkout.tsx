@@ -108,6 +108,8 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
   const input: SuggestInput | null = useMemo(() => {
     if (!library) return null;
     return {
+      // What is already on the Intervals.icu calendar: the week is laid out around it.
+      planned: (planned ?? []).map((w) => ({ date: w.date, workout: { ...w, id: 0 } })),
       date: today,
       readiness: data.status.readiness.level,
       tsbYesterday: data.status.tsbYesterday,
@@ -125,7 +127,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
       feeling: overrides.feeling ?? null,
       override: { maxMins: overrides.maxMins, easier: overrides.easier, wantClass: overrides.wantClass, restToday: overrides.restToday },
     };
-  }, [library, today, data, stored, place, season, life, overrides]);
+  }, [library, today, data, stored, place, season, life, overrides, planned]);
 
   const suggestion: Suggestion | null = useMemo(() => (input ? suggestWorkout(input) : null), [input]);
   const week = useMemo(() => (input && planned ? planWeek(input, planned.map((w) => ({ date: w.date, workout: { ...w, id: 0 } }))) : []), [input, planned]);

@@ -156,7 +156,8 @@ function SetupForm({ data, initial, onSaved }: { data: DashboardData; initial: S
     const maxHours = d.maxHours ? Number(d.maxHours) : null;
     if (d.maxHours && !(maxHours! >= 3 && maxHours! <= 30)) return setError("Le ore massime a settimana vanno da 3 a 30.");
     saveSeason({
-      start: today,
+      // Editing keeps the day the season began: phases and light weeks stay on their dates.
+      start: initial?.start ?? today,
       horizonWeeks: d.horizon,
       raceA: d.hasRace === "Sì" ? { date: d.raceDate, name: d.raceName || undefined, tipo: d.raceTipo || undefined } : null,
       peak: d.hasPeak === "Sì" ? { start: d.peakStart, weeks: peakWeeks } : null,

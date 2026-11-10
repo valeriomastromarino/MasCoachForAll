@@ -106,6 +106,7 @@ export function suggestInput(ctx: ChatContext, over: Partial<SuggestInput> = {})
     season: ctx.plan,
     rampRate: data.status.rampRate,
     life: ctx.life,
+    planned: ctx.planned.map((w) => ({ date: w.date, workout: { ...w, id: 0 } })),
     feeling: o?.feeling ?? null,
     override: o ? { maxMins: o.maxMins, easier: o.easier, wantClass: o.wantClass, restToday: o.restToday } : undefined,
     ...over,

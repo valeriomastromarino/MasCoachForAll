@@ -7,6 +7,12 @@ import { buildTimeline, type PlayerWorkout, totalSecs } from "./timeline";
 
 export const DEMO_WORKOUT_ID = "prova";
 
+/** Outdoor FTP of the athlete (the Ride settings). */
+export function outdoorFtp(athlete: IcuAthlete | null): number | null {
+  const s = athlete?.sportSettings?.find((x) => x.types?.includes("Ride")) ?? athlete?.sportSettings?.[0];
+  return s?.ftp || null;
+}
+
 /** Indoor FTP of the athlete (falls back to the outdoor one). */
 export function indoorFtp(athlete: IcuAthlete | null): number | null {
   const s = athlete?.sportSettings?.find((x) => x.types?.includes("VirtualRide")) ?? athlete?.sportSettings?.find((x) => x.types?.includes("Ride"));

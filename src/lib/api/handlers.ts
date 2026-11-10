@@ -29,7 +29,7 @@ import {
   uploadActivity,
 } from "../intervals/client";
 import { CLOUD_NOTE, CLOUD_TEST, type CloudPayload, decodeCloud, encodeCloud, isCloudPayload } from "../profile/cloud";
-import { DEMO_WORKOUT_ID, demoWorkout, indoorFtp, playerWorkout } from "../player/load";
+import { DEMO_WORKOUT_ID, demoWorkout, indoorFtp, outdoorFtp, playerWorkout } from "../player/load";
 import type { PlayerWorkout } from "../player/timeline";
 import {
   combineDurability,
@@ -314,8 +314,11 @@ const DEMO_LIBRARY: LibraryData = {
 
 async function library(q: URLSearchParams): Promise<ApiResult> {
   if (!intervalsConfigured()) return ok(DEMO_LIBRARY);
-  const ftp = Number(q.get("ftp")) || null;
-  const { workouts, folders } = await fetchLibrary();
+  // Steps written in watts ("10m 280w") need the FTP to find their zone: without it they all looked like Z1, and a
+  // threshold workout was classed as recovery. With no FTP in the request, the athlete's outdoor FTP is used.
+  const asked = Number(q.get("ftp")) || null;
+  const [{ workouts, folders }, athlete] = await Promise.all([fetchLibrary(), asked ? Promise.resolve(null) : fetchAthlete().catch(() => null)]);
+  const ftp = asked ?? outdoorFtp(athlete);
   return ok({ folders: buildLibrary(workouts, folders, ftp) } satisfies LibraryData);
 }
 

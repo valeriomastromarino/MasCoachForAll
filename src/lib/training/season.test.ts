@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planFromToday, planSeason, type SeasonSetup, weekFor, weeklyTssForRamp } from "./season";
+import { lightWeekAdvice, planFromToday, planSeason, type SeasonSetup, weekFor, weeklyTssForRamp } from "./season";
 
 const base: SeasonSetup = {
   start: "2026-11-05",
@@ -65,13 +65,14 @@ describe("planSeason", () => {
     }
   });
 
-  it("makes every 4th load week lighter, and keeps hard sessions out of it", () => {
+  it("makes every 4th load week lighter, with a single short quality session", () => {
     const p = planSeason(base, 36);
     const early = p.weeks.slice(0, 8);
     expect(early.map((w) => w.kind).slice(0, 4)).toEqual(["carico", "carico", "carico", "scarico"]);
     const light = early[3];
     expect(light.tssTarget).toBeLessThan(early[2].tssTarget * 0.8);
-    expect(light.hardMax).toBe(0);
+    expect(light.qualityMax).toBe(1);
+    expect(light.hardMax).toBe(1);
   });
 
   it("a higher ramp climbs faster, and the hours cap the load and say so", () => {
@@ -156,5 +157,69 @@ describe("planSeason with illness and injury", () => {
     const w = p.weeks.find((x) => x.start === "2026-11-23")!;
     expect(w.easyDays).toBeGreaterThanOrEqual(7);
     expect(w.hardMax).toBe(0);
+  });
+});
+
+describe("quality sessions through the season (method of 10 November 2026)", () => {
+  it("has two quality sessions in every load week from the first week of the base, one of them VO2max", () => {
+    const p = planSeason(base, 36);
+    for (const w of p.weeks.filter((x) => x.kind === "carico" && x.phase !== "recupero")) {
+      expect(w.qualityMax).toBe(2);
+      expect(w.hardMax).toBeGreaterThanOrEqual(1);
+    }
+    expect(p.weeks.find((w) => w.phase === "base_1")!.hardMax).toBe(1);
+    expect(p.weeks.find((w) => w.phase === "build_2" && w.kind === "carico")!.hardMax).toBe(2);
+  });
+
+  it("lets the athlete ask for a block week: three quality sessions, same load", () => {
+    const plain = planSeason(base, 36);
+    const target = plain.weeks.find((w) => w.phase === "build_1" && w.kind === "carico")!;
+    const p = planSeason({ ...base, blockWeeks: [target.start] }, 36);
+    const w = p.weeks.find((x) => x.start === target.start)!;
+    expect(w.block).toBe(true);
+    expect(w.qualityMax).toBe(3);
+    expect(w.tssTarget).toBe(target.tssTarget);
+    expect(w.note).toContain("blocco");
+  });
+
+  it("grows the dose through the base, and steps back a little in a light week", () => {
+    const p = planSeason(base, 36);
+    const baseWeeks = p.weeks.filter((w) => w.phase.startsWith("base"));
+    const load = baseWeeks.filter((w) => w.kind === "carico");
+    expect(load[0].step).toBe(0);
+    expect(load[load.length - 1].step).toBe(1);
+    for (let i = 1; i < load.length; i++) expect(load[i].step).toBeGreaterThanOrEqual(load[i - 1].step);
+    const light = baseWeeks.find((w) => w.kind === "scarico")!;
+    expect(light.step).toBeLessThan(p.weeks[p.weeks.indexOf(light) - 1].step);
+  });
+
+  it("names the race day, and has no quality in the week after the race", () => {
+    const p = planSeason({ ...base, peak: null, raceA: { date: "2027-05-09", name: "Granfondo" } }, 36);
+    const raceWeek = p.weeks.find((w) => w.kind === "gara")!;
+    expect(raceWeek.raceDay).toBe("2027-05-09");
+    const after = p.weeks[p.weeks.indexOf(raceWeek) + 1];
+    expect(after.phase).toBe("recupero");
+    expect(after.qualityMax).toBe(0);
+  });
+});
+
+describe("planFromToday keeps the season on its dates", () => {
+  it("leaves phases, light weeks and doses where they were when the plan is rebuilt weeks later", () => {
+    const now = planFromToday(base, "2026-11-05", 36);
+    const later = planFromToday(base, "2026-12-14", 41);
+    for (const w of later.weeks.slice(0, 16)) {
+      const same = now.weeks.find((x) => x.start === w.start)!;
+      expect([w.start, w.phase, w.kind, w.step]).toEqual([same.start, same.phase, same.kind, same.step]);
+    }
+  });
+});
+
+describe("lightWeekAdvice", () => {
+  const nights = (bad: string[]) => ["2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10"].map((date) => ({ date, anomaly: bad.includes(date) }));
+  it("suggests a light week after two anomalous nights in 7 days, or with the stress pattern", () => {
+    expect(lightWeekAdvice(nights([]), "stabile", "2026-11-10")).toBeNull();
+    expect(lightWeekAdvice(nights(["2026-11-08"]), "stabile", "2026-11-10")).toBeNull();
+    expect(lightWeekAdvice(nights(["2026-11-06", "2026-11-09"]), "stabile", "2026-11-10")).toContain("2 notti anomale");
+    expect(lightWeekAdvice(nights([]), "stress", "2026-11-10")).toContain("stress");
   });
 });
