@@ -6,6 +6,7 @@ import {
   IconActivityHeartbeat,
   IconAdjustmentsHorizontal,
   IconBolt,
+  IconCheck,
   IconHeart,
   IconMinus,
   IconPlayerPause,
@@ -258,11 +259,13 @@ const STATUS_TEXT: Record<DeviceView["status"], string> = {
   lost: "collegamento perso",
 };
 
-const DEVICE_INFO: Record<DeviceKind, { label: string; lost: string; icon: React.ReactNode; color: string }> = {
-  trainer: { label: "Rullo", lost: "Rullo scollegato", icon: <IconTrainer size={20} />, color: "var(--fitness-ink)" },
-  hr: { label: "Fascia cardio", lost: "Fascia cardio scollegata", icon: <IconHeart size={20} />, color: "var(--rhr-ink)" },
-  power: { label: "Pedali (facoltativi)", lost: "Pedali scollegati", icon: <IconBolt size={20} />, color: "var(--fatigue-ink)" },
+const DEVICE_INFO: Record<DeviceKind, { label: string; short: string; role: string; lost: string; icon: React.ReactNode; color: string }> = {
+  trainer: { label: "Rullo", short: "Rullo", role: "ERG e resistenza", lost: "Rullo scollegato", icon: <IconTrainer size={20} />, color: "var(--fitness-ink)" },
+  hr: { label: "Fascia cardio", short: "Fascia cardio", role: "FC e DFA α1", lost: "Fascia cardio scollegata", icon: <IconHeart size={20} />, color: "var(--rhr-ink)" },
+  power: { label: "Pedali (facoltativi)", short: "Pedali", role: "facoltativi", lost: "Pedali scollegati", icon: <IconBolt size={20} />, color: "var(--fatigue-ink)" },
 };
+/** What a ride needs connected before it starts; the pedals are optional. */
+const NEEDED: DeviceKind[] = ["trainer", "hr"];
 
 /**
  * One device. Manual management: «Collega» opens the chooser, «Ricollega» / «Riprova» try the device of this session
@@ -334,6 +337,95 @@ function Devices({ view, engine }: { view: PlayerView; engine: PlayerEngine }) {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Phone, before the ride starts: the devices at the top, since with manual management they are connected at every
+ * session and their full section is at the bottom of the screen. Version B of the preview, chosen on 10 November 2026:
+ * one row per device with «Collega»; with trainer and strap connected it becomes one green line; it goes away at the
+ * first pedal stroke. Computers already have the devices in the bottom bar (`player-flow-only` hides it there).
+ */
+function BeforeStart({ view, engine }: { view: PlayerView; engine: PlayerEngine }) {
+  const problem = useMemo(() => bluetoothProblem(), []);
+  if (view.session.status !== "ready") return null;
+  if (problem) {
+    return (
+      <p className="player-flow-only mx-auto mb-3 w-full max-w-6xl rounded-2xl px-4 py-3 text-sm" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
+        {problem}
+      </p>
+    );
+  }
+  const d = view.devices;
+  const ready = NEEDED.filter((k) => d[k].status === "connected").length;
+  if (ready === NEEDED.length) {
+    return (
+      <div role="status" className="player-flow-only mx-auto mb-3 flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+        {KINDS.filter((k) => d[k].status === "connected").map((k) => (
+          <span key={k} className="inline-flex min-w-0 items-center gap-1">
+            <IconCheck size={14} className="shrink-0" aria-hidden />
+            <span className="truncate">
+              {d[k].name ?? DEVICE_INFO[k].short}
+              {d[k].detail ? ` · ${d[k].detail}` : ""}
+            </span>
+          </span>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <section className="player-flow-only mx-auto mb-3 w-full max-w-6xl rounded-2xl px-3 pb-2 pt-2.5" style={{ ...cardStyle, border: "1.5px solid var(--accent-ink)" }} aria-label="Prima di partire">
+      <div className="flex items-baseline justify-between gap-2 px-1">
+        <h2 className="text-sm font-semibold">Prima di partire</h2>
+        <span className="num text-xs text-muted">
+          {ready} di {NEEDED.length} collegati
+        </span>
+      </div>
+      <div className="mt-1 divide-y" style={{ borderColor: "var(--border)" }}>
+        {KINDS.map((k) => (
+          <BeforeStartRow key={k} kind={k} d={d[k]} engine={engine} />
+        ))}
+      </div>
+      <p className="px-1 pt-1 text-[11px] leading-snug text-muted">Non trovi un dispositivo? «Mostra tutti» è negli strumenti in fondo.</p>
+    </section>
+  );
+}
+
+function BeforeStartRow({ kind, d, engine }: { kind: DeviceKind; d: DeviceView; engine: PlayerEngine }) {
+  const info = DEVICE_INFO[kind];
+  const ok = d.status === "connected";
+  const busy = d.status === "connecting";
+  const sub = ok ? `${d.name ?? "collegato"}${d.detail ? ` · ${d.detail}` : ""}` : busy ? `${d.detail ?? "mi collego"}…` : d.status === "lost" ? "collegamento perso" : (d.error ?? info.role);
+  const subColor = ok ? "var(--good)" : d.status === "lost" || d.error ? "var(--critical)" : "var(--muted)";
+  const action = d.status === "lost" ? "Ricollega" : d.retry ? "Riprova" : "Collega";
+  return (
+    <div className="flex items-center gap-2.5 px-1 py-2" style={{ borderColor: "var(--border)" }}>
+      <span className="shrink-0" style={{ color: info.color }} aria-hidden>
+        {info.icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] leading-tight">{info.short}</div>
+        <div className="truncate text-[11px] leading-tight" style={{ color: subColor }}>
+          {sub}
+        </div>
+      </div>
+      {ok ? (
+        <IconCheck size={18} className="mr-2 shrink-0" style={{ color: "var(--good)" }} aria-label="collegato" />
+      ) : busy ? (
+        <button type="button" className="h-8 shrink-0 rounded-lg px-3 text-xs text-muted" onClick={() => engine.disconnect(kind)}>
+          Annulla
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="h-8 shrink-0 rounded-lg px-3 text-xs font-semibold"
+          style={NEEDED.includes(kind) ? { background: "var(--accent-bg)", color: "var(--accent-ink)" } : { border: "1px solid var(--border)", color: "var(--muted)" }}
+          onClick={() => engine.connect(kind)}
+        >
+          {action}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -719,7 +811,8 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <DroppedAlert view={view} engine={engine} />
+        {/* Before the start the phone's «Prima di partire» card shows the devices (a dropped one included); after it, the alert. */}
+        {s.status === "ready" ? <BeforeStart view={view} engine={engine} /> : <DroppedAlert view={view} engine={engine} />}
         <SprintAlert view={view} />
         {s.scale < 1 && (
           <div className="mx-auto mb-3 flex w-full max-w-6xl items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>

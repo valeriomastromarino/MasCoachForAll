@@ -97,6 +97,9 @@ Tema Day / Night / Paper come l'app. Dall'alto in basso:
    (non collegato · in corso · collegato · collegamento perso) e pulsante: Collega, Annulla, Scollega, Ricollega / Riprova
    (stesso dispositivo della seduta), più «Un altro dispositivo» e «Mostra tutti». Uno strumento che cade durante la seduta
    compare anche in cima alla schermata con «Ricollega».
+   Sul telefono, finché la seduta non parte, in cima c'è la scheda **«Prima di partire»** (dal 10 novembre 2026):
+   una riga per strumento con «Collega», il conto «0 di 2 collegati» (rullo e fascia; i pedali sono facoltativi), una riga verde
+   con i nomi quando rullo e fascia sono collegati; alla prima pedalata sparisce. Da computer non c'è: gli strumenti sono nella barra in basso.
 7. **Selettore** `ERG · 125 W` | `Resistenza · 4` (numero del gradino accanto alla parola).
 8. **Barra comandi**: − · indietro / play-pausa / avanti · +.
    In ERG ogni tocco di − / + cambia l'obiettivo di **5 W**; in resistenza di **un gradino**.
