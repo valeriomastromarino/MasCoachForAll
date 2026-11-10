@@ -45,6 +45,9 @@ function shortDuration(secs: number): string {
   return `${Math.floor(secs / 3600)}h${secs % 3600 ? String(Math.round((secs % 3600) / 60)).padStart(2, "0") : ""}`;
 }
 
+/** An error message as a sentence, so the text after it does not run on («…il file FIT. Resta salvata…»). */
+const sentence = (s: string) => (/[.!?…]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
+
 function stepText(s: PlayerStep, k = 1): string {
   const w = (x: number) => Math.round(x * k);
   return `${shortDuration(s.secs)} @ ${s.ramp ? `${w(s.from)}→${w(s.to)}` : w(s.from)}W`;
@@ -112,7 +115,19 @@ function Profile({ workout, view, onRecal }: { workout: PlayerWorkout; view: Pla
   // Recalibrated: the steps from the one it was applied on are drawn (and shown) at the lower power.
   const k = (st: PlayerStep) => (st.index >= s.scaleFrom ? s.scale : 1);
   const label = statusLabel(view);
-  const trace = view.trace.map((p) => `${X(p.pos).toFixed(1)},${Y(p.w).toFixed(1)}`).join(" ");
+  // The ridden line breaks where a step was skipped (back or forward) instead of drawing across.
+  const gap = Math.max(5, (3 * total) / 1000);
+  const traces: string[] = [];
+  let points: string[] = [];
+  view.trace.forEach((p, i) => {
+    const prev = view.trace[i - 1];
+    if (prev && (p.pos < prev.pos || p.pos - prev.pos > gap)) {
+      traces.push(points.join(" "));
+      points = [];
+    }
+    points.push(`${X(p.pos).toFixed(1)},${Y(p.w).toFixed(1)}`);
+  });
+  if (points.length) traces.push(points.join(" "));
   return (
     <section className={`${card} p-4`} style={{ ...cardStyle, gridArea: "profile" }} aria-label="Profilo dell'allenamento">
       <div className="flex items-start justify-between gap-3">
@@ -152,7 +167,9 @@ function Profile({ workout, view, onRecal }: { workout: PlayerWorkout; view: Pla
             />
           );
         })}
-        {trace && <polyline points={trace} fill="none" stroke="var(--foreground)" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+        {traces.map((pts, i) => (
+          <polyline key={i} points={pts} fill="none" stroke="var(--foreground)" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        ))}
         <line x1={X(s.pos)} x2={X(s.pos)} y1={0} y2={H} stroke="var(--foreground)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
       </svg>
       <div className="num mt-1 flex justify-between text-xs text-muted">
@@ -232,40 +249,39 @@ function DfaCard({ view }: { view: PlayerView }) {
   );
 }
 
+const KINDS: DeviceKind[] = ["trainer", "hr", "power"];
+
 const STATUS_TEXT: Record<DeviceView["status"], string> = {
   off: "non collegato",
   connecting: "collegamento…",
   connected: "collegato",
-  reconnecting: "ricollego…",
-  lost: "connessione persa",
+  lost: "collegamento perso",
 };
 
-const DEVICE_INFO: Record<DeviceKind, { label: string; icon: React.ReactNode; color: string }> = {
-  trainer: { label: "Rullo", icon: <IconTrainer size={20} />, color: "var(--fitness-ink)" },
-  hr: { label: "Fascia cardio", icon: <IconHeart size={20} />, color: "var(--rhr-ink)" },
-  power: { label: "Pedali (facoltativi)", icon: <IconBolt size={20} />, color: "var(--fatigue-ink)" },
+const DEVICE_INFO: Record<DeviceKind, { label: string; lost: string; icon: React.ReactNode; color: string }> = {
+  trainer: { label: "Rullo", lost: "Rullo scollegato", icon: <IconTrainer size={20} />, color: "var(--fitness-ink)" },
+  hr: { label: "Fascia cardio", lost: "Fascia cardio scollegata", icon: <IconHeart size={20} />, color: "var(--rhr-ink)" },
+  power: { label: "Pedali (facoltativi)", lost: "Pedali scollegati", icon: <IconBolt size={20} />, color: "var(--fatigue-ink)" },
 };
 
+/**
+ * One device. Manual management: «Collega» opens the chooser, «Ricollega» / «Riprova» try the device of this session
+ * again, «Annulla» stops a connection in progress, «Scollega» closes it. Nothing connects by itself.
+ */
 function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d: DeviceView; engine: PlayerEngine; compact?: boolean }) {
   const info = DEVICE_INFO[kind];
   const ok = d.status === "connected";
-  const busy = d.status === "connecting" || d.status === "reconnecting";
-  const text =
-    ok && d.detail
-      ? `${d.detail} · collegato`
-      : busy && d.detail
-        ? `${d.status === "reconnecting" ? "ricollego: " : ""}${d.detail}…`
-        : d.status === "off" && !d.remembered && d.last
-          ? `tocca Collega e scegli «${d.last}»`
-          : STATUS_TEXT[d.status];
-  const color = ok ? "var(--good)" : d.status === "lost" ? "var(--critical)" : "var(--muted)";
+  const busy = d.status === "connecting";
+  const text = ok ? (d.detail ? `${d.detail} · collegato` : "collegato") : busy ? `${d.detail ?? "collegamento"}…` : STATUS_TEXT[d.status];
+  const color = ok ? "var(--good)" : d.status === "lost" || d.error ? "var(--critical)" : "var(--muted)";
+  const action = d.status === "lost" ? "Ricollega" : d.retry ? "Riprova" : "Collega";
   if (compact) {
     return (
       <button
         className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs"
-        onClick={() => (ok ? undefined : engine.connect(kind))}
+        onClick={() => (ok || busy ? undefined : engine.connect(kind))}
         title={d.error ?? undefined}
-        aria-label={`${info.label}: ${text}`}
+        aria-label={`${info.label}: ${text}${ok || busy ? "" : ` · ${action}`}`}
       >
         <span style={{ color: info.color }} aria-hidden>{info.icon}</span>
         <span className="truncate">{d.name ?? info.label}</span>
@@ -278,23 +294,25 @@ function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d:
       <span style={{ color: info.color }} aria-hidden>{info.icon}</span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm">{d.name ?? info.label}</div>
-        <div className={`text-xs ${d.error && !ok ? "" : "truncate"}`} style={{ color }}>{d.error && !ok ? d.error : text}</div>
+        <div className={`text-xs ${d.error && !ok && !busy ? "" : "truncate"}`} style={{ color }}>{d.error && !ok && !busy ? d.error : text}</div>
         {!ok && !busy && (
-          <button className="mt-0.5 text-xs text-muted underline underline-offset-2" onClick={() => engine.choose(kind, true)}>
-            Non lo trovi? Mostra tutti i dispositivi
-          </button>
+          <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
+            {d.retry && (
+              <button className="underline underline-offset-2" onClick={() => engine.choose(kind)}>
+                Un altro dispositivo
+              </button>
+            )}
+            <button className="underline underline-offset-2" onClick={() => engine.choose(kind, true)}>
+              {d.retry ? "Mostra tutti" : "Non lo trovi? Mostra tutti i dispositivi"}
+            </button>
+          </div>
         )}
       </div>
-      {ok || d.status === "reconnecting" ? (
-        <button className="text-xs text-muted" onClick={() => engine.disconnect(kind)}>Scollega</button>
+      {ok || busy ? (
+        <button className="text-xs text-muted" onClick={() => engine.disconnect(kind)}>{busy ? "Annulla" : "Scollega"}</button>
       ) : (
-        <button
-          className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-          style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
-          disabled={busy}
-          onClick={() => engine.connect(kind)}
-        >
-          {busy ? "…" : !d.remembered ? "Collega" : d.error ? "Riprova" : "Ricollega"}
+        <button className="rounded-lg px-3 py-1.5 text-xs font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={() => engine.connect(kind)}>
+          {action}
         </button>
       )}
     </div>
@@ -305,17 +323,49 @@ function Devices({ view, engine }: { view: PlayerView; engine: PlayerEngine }) {
   const problem = useMemo(() => bluetoothProblem(), []);
   return (
     <section className="player-flow-only" style={{ gridArea: "devices" }} aria-label="Strumenti collegati">
-      <div className="mb-2 mt-2 px-1 text-xs text-muted">Strumenti collegati</div>
+      <div className="mb-2 mt-2 px-1 text-xs text-muted">Strumenti collegati · si collegano a mano, a ogni seduta</div>
       {problem ? (
         <p className="rounded-2xl px-4 py-3 text-sm" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>{problem}</p>
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {(["trainer", "hr", "power"] as DeviceKind[]).map((k) => (
+          {KINDS.map((k) => (
             <DeviceCard key={k} kind={k} d={view.devices[k]} engine={engine} />
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+/** A device connected earlier in this session that is not any more: nothing reconnects by itself, so it shows at the top. */
+function DroppedAlert({ view, engine }: { view: PlayerView; engine: PlayerEngine }) {
+  const dropped = KINDS.filter((k) => view.devices[k].dropped);
+  if (!dropped.length) return null;
+  return (
+    <div className="mx-auto mb-3 w-full max-w-6xl space-y-2">
+      {dropped.map((k) => {
+        const d = view.devices[k];
+        const busy = d.status === "connecting";
+        return (
+          <div key={k} role="alert" className="flex items-center justify-between gap-3 rounded-xl px-3 py-2" style={{ background: "var(--critical-bg)", color: "var(--critical)" }}>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold">{DEVICE_INFO[k].lost}</span>
+              <span className="block truncate text-xs">{busy ? `${d.detail ?? "mi collego"}…` : (d.error ?? d.name ?? "")}</span>
+            </span>
+            {!busy && (
+              <button
+                type="button"
+                className="h-9 shrink-0 rounded-full px-4 text-xs font-semibold leading-none"
+                style={{ background: "var(--surface)", color: "var(--critical)", border: "1px solid var(--critical)" }}
+                onClick={() => engine.connect(k)}
+              >
+                Ricollega
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -602,7 +652,7 @@ function FinishSheet({ view, engine, onClose }: { view: PlayerView; engine: Play
         <div><div className="text-xs text-muted">Distanza</div>{fmt(s.distanceKm, 1, " km")}</div>
       </div>
       <div className="mt-4 rounded-xl px-3 py-2.5 text-sm" style={{ background: uploaded ? "var(--good-bg)" : rec.error ? "var(--warning-bg)" : "var(--neutral-bg)" }}>
-        {view.uploading ? "Carico su Intervals.icu…" : uploaded ? "Caricata su Intervals.icu." : rec.error ? `Non caricata: ${rec.error} Resta salvata su questo dispositivo e riprovo da Rulli.` : "Salvata sul dispositivo."}
+        {view.uploading ? "Carico su Intervals.icu…" : uploaded ? "Caricata su Intervals.icu." : rec.error ? `Non caricata: ${sentence(rec.error)} Resta salvata su questo dispositivo e riprovo da Rulli.` : "Salvata sul dispositivo."}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {uploaded && rec.uploadedId && (
@@ -669,6 +719,7 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <DroppedAlert view={view} engine={engine} />
         <SprintAlert view={view} />
         {s.scale < 1 && (
           <div className="mx-auto mb-3 flex w-full max-w-6xl items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm font-medium" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
@@ -698,7 +749,7 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
         )}
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:flex-row sm:items-center">
           <div className="player-wide-only flex min-w-0 flex-1 flex-wrap items-center gap-1">
-            {(["trainer", "hr", "power"] as DeviceKind[]).map((k) => (
+            {KINDS.map((k) => (
               <DeviceCard key={k} kind={k} d={view.devices[k]} engine={engine} compact />
             ))}
           </div>

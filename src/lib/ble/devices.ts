@@ -1,6 +1,7 @@
 // Bluetooth links to the trainer (FTMS), the heart-rate strap and a power meter (e.g. pedals).
 // The radio itself is in radio.ts: Web Bluetooth in Chrome / Edge, Android's own Bluetooth in the app.
-// A dropped link reconnects by itself with the device already chosen; choosing a device always needs a tap.
+// Manual management, chosen by the athlete on 10 November 2026 (reconnecting by itself caused trouble): no device is
+// remembered between sessions, each one is chosen with a tap, and a link that drops stays down until «Ricollega».
 import {
   type ControlResponse,
   type CyclingPowerMeasurement,
@@ -23,7 +24,8 @@ import { ChooserCancelled, type Gatt, type GattDevice, ServiceMissing, transport
 export type { GattDevice } from "./radio";
 
 export type DeviceKind = "trainer" | "hr" | "power";
-export type DeviceStatus = "off" | "connecting" | "connected" | "reconnecting" | "lost";
+/** `lost`: it was connected and dropped (nothing reconnects by itself). */
+export type DeviceStatus = "off" | "connecting" | "connected" | "lost";
 
 /** Why Bluetooth cannot work here, or null when it can. */
 export function bluetoothProblem(): string | null {
@@ -51,36 +53,25 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
   });
 }
 
+/** The device answers but lacks the service: trying it again would not help. */
+class NoService extends Error {}
+
 /** A missing service gets a clear message; time-outs and other errors pass through. */
 function missing(message: string) {
   return (e: unknown): never => {
-    throw e instanceof ServiceMissing ? new Error(message) : e;
+    throw e instanceof ServiceMissing ? new NoService(message) : e;
   };
 }
-const REMEMBER_KEY = (kind: DeviceKind) => `mascoach-ble-${kind}`;
-const LAST_KEY = (kind: DeviceKind) => `mascoach-ble-${kind}-last`;
 
-/** The device picked last time and whether it was found in the full list ("Mostra tutti i dispositivi"). */
-export type LastChoice = { name: string | null; any: boolean };
-
-export function lastChoice(kind: DeviceKind): LastChoice | null {
+/** Devices are not remembered any more: clears what the versions before 10 November 2026 saved. */
+export function forgetSavedDevices() {
   try {
-    const v = localStorage.getItem(LAST_KEY(kind));
-    return v ? (JSON.parse(v) as LastChoice) : null;
+    for (const kind of ["trainer", "hr", "power"] as DeviceKind[]) {
+      localStorage.removeItem(`mascoach-ble-${kind}`);
+      localStorage.removeItem(`mascoach-ble-${kind}-last`);
+    }
   } catch {
-    return null;
-  }
-}
-
-/**
- * The device chosen last time for this kind, if it can be reached without the chooser.
- * The app always can; Chrome on Android often keeps no permission between visits (empty getDevices).
- */
-export async function rememberedDevice(kind: DeviceKind): Promise<GattDevice | null> {
-  try {
-    return await transport().known(localStorage.getItem(REMEMBER_KEY(kind)), lastChoice(kind)?.name ?? null);
-  } catch {
-    return null;
+    // Storage blocked: nothing was saved either.
   }
 }
 
@@ -93,6 +84,7 @@ function chooserError(e: unknown): string {
 }
 
 abstract class Link {
+  /** The device chosen in this session (kept after a drop or a failed attempt for «Ricollega»; never saved). */
   device: GattDevice | null = null;
   /** The open link, while connected. */
   protected gatt: Gatt | null = null;
@@ -100,8 +92,9 @@ abstract class Link {
   error: string | null = null;
   /** The connection step in progress, shown while connecting: tells where a device gets stuck. */
   step: string | null = null;
-  private closing = false;
-  /** Grows at every disconnect, so a reconnection loop knows it belongs to a link already closed. */
+  /** It was connected at least once since it was chosen: a later drop or failed «Ricollega» is shown in big. */
+  wasConnected = false;
+  /** Grows at every connection and disconnection: an attempt or a drop that belongs to an older link is ignored. */
   private epoch = 0;
 
   constructor(
@@ -139,49 +132,57 @@ abstract class Link {
       this.set(this.status, chooserError(e));
       return;
     }
-    try {
-      localStorage.setItem(LAST_KEY(this.kind), JSON.stringify({ name: device.name ?? null, any } satisfies LastChoice));
-    } catch {
-      // Not remembered.
-    }
+    if (this.device && this.device !== device) this.disconnect();
+    this.wasConnected = false;
     await this.use(device);
   }
 
-  /** Connects to a device already allowed (e.g. from rememberedDevice). */
-  async use(device: GattDevice): Promise<void> {
-    if (this.device && this.device !== device) this.disconnect();
-    this.closing = false;
-    this.device = device;
-    try {
-      localStorage.setItem(REMEMBER_KEY(this.kind), device.id);
-    } catch {
-      // Not remembered: next time the chooser is needed anyway.
-    }
-    this.set("connecting", null);
-    let error: unknown = null;
-    // Android often fails the first attempts (Garmin watches especially): retry on a clean link, giving Android
-    // a few seconds to release the previous one.
-    for (let attempt = 0; attempt < CONNECT_TRIES && !this.closing; attempt++) {
-      if (attempt) await sleep(2000 * attempt);
-      try {
-        await this.connect();
-        return;
-      } catch (e) {
-        error = e;
-        this.dropLink();
-      }
-    }
-    if (!this.closing) this.set("off", error instanceof Error ? error.message : String(error));
+  /** «Ricollega» / «Riprova»: the device of this session again, without the chooser. Only on a tap. */
+  async retry(): Promise<void> {
+    if (this.device && this.status !== "connected" && this.status !== "connecting") await this.use(this.device);
   }
 
-  private async connect() {
+  private async use(device: GattDevice): Promise<void> {
+    const epoch = ++this.epoch;
+    this.device = device;
+    this.set("connecting", null);
+    let error: unknown = null;
+    // Android often fails the first attempts (Garmin watches especially): a few tries within this one tap, on a clean
+    // link, giving Android a few seconds to release the previous one. A device without the service is not retried.
+    for (let attempt = 0; attempt < CONNECT_TRIES; attempt++) {
+      if (attempt) await sleep(2000 * attempt);
+      if (epoch !== this.epoch) return;
+      try {
+        await this.connect(device, epoch);
+        return;
+      } catch (e) {
+        // «Annulla» or «Scollega» meanwhile: that one already closed the link and set the status.
+        if (epoch !== this.epoch) return;
+        error = e;
+        this.dropLink();
+        if (e instanceof NoService) break;
+      }
+    }
+    this.set("off", error instanceof Error ? error.message : String(error));
+  }
+
+  private async connect(device: GattDevice, epoch: number) {
+    // An attempt left behind by «Annulla» must not leave the device connected (the trainer takes one controller only).
+    const stale = () => {
+      if (epoch === this.epoch) return false;
+      if (this.device !== device) transport().disconnect(device);
+      return true;
+    };
     try {
-      const g = await this.stage("mi collego", transport().connect(this.device!, this.onDropped), 25000);
+      const g = await this.stage("mi collego", transport().connect(device, () => this.lost(epoch)), 25000);
+      if (stale()) throw new Error("annullato");
       this.gatt = g;
       await this.setup(g);
+      if (stale()) throw new Error("annullato");
     } finally {
       this.step = null;
     }
+    this.wasConnected = true;
     this.set("connected", null);
   }
 
@@ -198,35 +199,21 @@ abstract class Link {
     if (this.device) transport().disconnect(this.device);
   }
 
-  private onDropped = () => {
-    // Drops while connecting or retrying are handled by those loops.
-    if (this.closing || this.status !== "connected") return;
-    this.set("reconnecting");
-    void this.reconnect();
-  };
-
-  /** Keeps trying until it works or the user disconnects: mid-ride a strap that blinks out must come back by itself. */
-  private async reconnect() {
-    const epoch = this.epoch;
-    for (let attempt = 0; !this.closing && this.epoch === epoch; attempt++) {
-      await sleep(Math.min(1000 * 2 ** attempt, 8000));
-      // A disconnect followed by a new connection while waiting must not leave two loops running.
-      if (this.closing || this.epoch !== epoch) return;
-      try {
-        await this.connect();
-        return;
-      } catch {
-        // Try again: the device may still be out of range or busy.
-        this.dropLink();
-        if (attempt === 11) this.set("reconnecting", "Non riesco a ricollegarmi: continuo a provare. Controlla che il dispositivo sia acceso e vicino.");
-      }
-    }
+  /** The device went away. Nothing reconnects by itself: the player shows it and offers «Ricollega». */
+  private lost(epoch: number) {
+    // Drops while connecting are handled by the attempt in progress; an older link's drop is ignored.
+    if (epoch !== this.epoch || this.status !== "connected") return;
+    this.dropLink();
+    this.set("lost", null);
   }
 
+  /** «Scollega», or «Annulla» while connecting: closes the link and forgets the device. */
   disconnect() {
     this.epoch++;
-    this.closing = true;
     this.dropLink();
+    this.device = null;
+    this.wasConnected = false;
+    this.step = null;
     this.set("off", null);
   }
 }
@@ -392,6 +379,8 @@ export class HeartRateStrap extends Link {
   }
 
   protected async setup(g: Gatt) {
+    // Another strap may not send RR: found out again on every connection.
+    this.sendsRr = false;
     await this.stage("cerco il servizio cardio", g.need(UUID.heartRate)).catch(
       missing(`${this.name ?? "Il dispositivo"} non manda la frequenza cardiaca via Bluetooth: su un orologio Garmin attiva «Trasmetti frequenza cardiaca».`),
     );
@@ -426,6 +415,8 @@ export class PowerMeter extends Link {
   }
 
   protected async setup(g: Gatt) {
+    // Crank counts from before a drop would give one wrong cadence reading.
+    this.lastCrank = null;
     await this.stage("cerco il servizio potenza", g.need(UUID.cyclingPower)).catch(
       missing(`${this.name ?? "Il dispositivo"} non manda la potenza via Bluetooth.`),
     );

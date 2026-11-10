@@ -3,7 +3,7 @@
 // forgets the chosen device and cannot pair; the native side has none of those limits.
 import { Capacitor } from "@capacitor/core";
 
-/** A device the user picked (or one remembered from last time). */
+/** A device the user picked in this session (devices are never remembered: see devices.ts). */
 export type GattDevice = { id: string; name: string | null; raw: unknown };
 
 /** The device does not offer this service. */
@@ -27,8 +27,6 @@ export interface BleTransport {
   problem(): string | null;
   /** Opens the chooser (inside a tap). `any` lists every nearby device instead of those advertising `main`. */
   choose(main: number, extra: number[], any: boolean): Promise<GattDevice>;
-  /** A device used before, reachable without the chooser (null when the platform forgot it). */
-  known(id: string | null, name: string | null): Promise<GattDevice | null>;
   connect(device: GattDevice, onDrop: () => void): Promise<Gatt>;
   disconnect(device: GattDevice): void;
 }
@@ -101,16 +99,6 @@ const web: BleTransport = {
       throw e;
     }
   },
-  async known(id, name) {
-    try {
-      if (typeof navigator.bluetooth?.getDevices !== "function") return null;
-      const allowed = await navigator.bluetooth.getDevices();
-      const d = allowed.find((x) => x.id === id) ?? (name ? allowed.find((x) => x.name === name) : undefined);
-      return d ? wrapWeb(d) : null;
-    } catch {
-      return null;
-    }
-  },
   async connect(device, onDrop) {
     const raw = device.raw as BluetoothDevice;
     const old = dropHandlers.get(raw);
@@ -155,16 +143,6 @@ const native: BleTransport = {
     } catch (e) {
       if (e instanceof Error && /cancel|dismiss|no device selected/i.test(e.message)) throw new ChooserCancelled();
       throw e;
-    }
-  },
-  async known(id, name) {
-    if (!id) return null;
-    try {
-      const ble = await client();
-      const [d] = await ble.getDevices([id]);
-      return d ? { id: d.deviceId, name: d.name ?? name, raw: null } : null;
-    } catch {
-      return null;
     }
   },
   async connect(device, onDrop) {

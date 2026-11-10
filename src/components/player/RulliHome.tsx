@@ -4,7 +4,7 @@
 // still on this device (not yet on Intervals.icu).
 import { IconDownload, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { bluetoothProblem, type DeviceKind, lastChoice, rememberedDevice } from "@/lib/ble/devices";
+import { bluetoothProblem } from "@/lib/ble/devices";
 import type { CalendarData, CalendarWorkout } from "@/lib/calendar";
 import type { WorkoutBlock } from "@/lib/workout";
 import { addDays, toIsoDate } from "@/lib/dates";
@@ -38,46 +38,6 @@ function MiniProfile({ blocks, height, onBrand = false, className = "" }: { bloc
   );
 }
 
-const SENSORS: { kind: DeviceKind; label: string }[] = [
-  { kind: "trainer", label: "Rullo" },
-  { kind: "hr", label: "Fascia" },
-  { kind: "power", label: "Pedali" },
-];
-
-/** The devices of the last ride (they connect from the player): a dot for the ones the app remembers. */
-function SensorsCard() {
-  const [known, setKnown] = useState<Record<DeviceKind, string | null> | null>(null);
-  useEffect(() => {
-    let alive = true;
-    void Promise.all(SENSORS.map(async ({ kind }) => [kind, (await rememberedDevice(kind))?.name ?? lastChoice(kind)?.name ?? null] as const)).then((all) => {
-      if (alive) setKnown(Object.fromEntries(all) as Record<DeviceKind, string | null>);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return (
-    <section className="card px-4 py-3" aria-label="Sensori">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-medium">Sensori</h2>
-        <span className="text-[11px] text-muted">dall&apos;ultima volta · si collegano dal player</span>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {SENSORS.map(({ kind, label }) => {
-          const name = known?.[kind] ?? null;
-          return (
-            <span key={kind} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs" style={{ border: "1px solid var(--border)", color: name ? "var(--foreground)" : "var(--muted)" }}>
-              <span className="h-2 w-2 rounded-full" style={{ background: name ? "var(--good)" : "var(--faint)" }} aria-hidden />
-              {label}
-              {name ? ` · ${name}` : " · nessuno"}
-            </span>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function WorkoutRow({ w, today }: { w: CalendarWorkout; today: string }) {
   return (
     <li className="flex items-center gap-3 py-3">
@@ -100,8 +60,9 @@ function SessionRow({ r, onChange }: { r: Recording; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
   const s = summarize(r.samples);
   return (
-    <li className="flex flex-wrap items-center gap-3 py-2.5">
-      <div className="min-w-0 flex-1">
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
+      {/* On phones the text takes the whole line and the buttons go below it, instead of squeezing it into a narrow column. */}
+      <div className="min-w-0 grow basis-full sm:basis-0">
         <div className="truncate text-sm font-medium">{r.name}</div>
         <div className="num text-xs text-muted">
           {fmtWeekday(new Date(r.startedAt).toISOString())} · {fmtClock(s.secs)} · {fmt(s.avgPower, 0, " W")}
@@ -201,7 +162,6 @@ export default function RulliHome() {
           <PedalaLink id={next.id} className="mt-4 !h-11 w-full !text-sm" tone="onBrand" />
         </section>
       )}
-      {compact && !problem && <SensorsCard />}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="card p-5">
           <h2 className="text-sm font-medium">{compact && next ? "Prossimi giorni" : "Allenamenti dei prossimi giorni"}</h2>
@@ -249,6 +209,10 @@ export default function RulliHome() {
             <ul className="mt-1 list-disc space-y-1 pl-5">
               <li>Chrome o Edge su Windows o Android, con il Bluetooth acceso. Su iPhone non funziona.</li>
               <li>Chiudi le altre app che comandano il rullo (My E-Training, Zwift…): il rullo accetta un solo controllore.</li>
+              <li>
+                Rullo, fascia e pedali si collegano a mano nel player, a ogni seduta: l&apos;app non li ricorda e non si ricollega da sola. Se un
+                collegamento cade, in alto compare «Ricollega».
+              </li>
               <li>Il DFA α1 serve una fascia toracica che manda gli RR (es. Polar H10).</li>
               <li>
                 Orologio Garmin come fascia: sull&apos;orologio attiva «Trasmetti frequenza cardiaca»; se nel player non compare, tocca «Mostra tutti

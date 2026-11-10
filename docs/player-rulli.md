@@ -19,9 +19,10 @@ registra la seduta e la carica su **Intervals.icu**. Funziona anche **senza inte
 | Artefatto su claude.ai | ❌ | il Bluetooth è bloccato: l'artefatto ha solo il pulsante che apre il player nell'app |
 
 - Tutto il Bluetooth gira **nel browser** (Web Bluetooth). Vercel serve l'app e le API verso Intervals, niente altro.
-- **Collegamento a ogni seduta**: per sicurezza il browser chiede di scegliere ogni sensore da una finestra (un tocco a sensore).
-  Il ricollegamento automatico (`getDevices()` + `watchAdvertisements()`) esiste ma è instabile e varia per sistema:
-  lo si prova come comodità, mai come unica strada.
+- **Collegamento a mano, a ogni seduta** (dal 10 novembre 2026): ogni sensore si sceglie da una finestra (un tocco a sensore),
+  l'app non ricorda i dispositivi e non si ricollega da sola. Il ricollegamento automatico c'era (dispositivo ricordato
+  all'apertura del player, nuovi tentativi senza fine dopo una caduta) ma dava problemi: ora una caduta mostra
+  «Rullo scollegato · Ricollega» in alto e si riprova solo con un tocco.
 - Un rullo accetta **un solo controllore**: chiudere My E-Training, Zwift ecc. prima di pedalare. L'Edge non si usa.
 
 ## 3. Dispositivi
@@ -58,9 +59,8 @@ Gli **RR** arrivano nello stesso dato quando la fascia li manda (flag RR, valori
 - Orologio Garmin con «Trasmetti frequenza cardiaca»: su Windows compare nell'elenco filtrato, su Android spesso no
   (Android filtra solo su ciò che il dispositivo annuncia). Pulsante «Mostra tutti i dispositivi» = `requestDevice({ acceptAllDevices, optionalServices })`;
   se il dispositivo scelto non ha il servizio `0x180D` il player lo dice. Dall'orologio di solito arriva solo la FC, senza RR.
-  Su Android si collega spesso solo dopo qualche tentativo: 3 tentativi automatici (pause 2 e 4 s), ogni passo con limite di 15 s e
-  mostrato mentre è in corso. Chrome su Android di solito non ricorda il permesso tra una visita e l'altra (`getDevices` vuoto):
-  l'app ricorda nome e tipo di elenco (`mascoach-ble-<tipo>-last`) e «Collega» apre direttamente l'elenco giusto.
+  Su Android si collega spesso solo dopo qualche tentativo: dentro lo stesso tocco su «Collega» ci sono 3 tentativi (pause 2 e 4 s),
+  ogni passo con limite di 15 s e mostrato mentre è in corso; «Annulla» li ferma. Un dispositivo senza il servizio cardio non si riprova.
 - Fasce che non mandano RR e sensori ottici: FC sì, DFA "non disponibile".
 
 ### 3.4 Cadenza
@@ -94,7 +94,9 @@ Tema Day / Night / Paper come l'app. Dall'alto in basso:
 4. **DFA α1**: valore, etichetta (sopra/sotto VT1, sotto VT2), scala con VT2 = 0,5 e VT1 = 0,75, finestra 2′, % artefatti.
 5. **Note allenamento** (descrizione dell'evento Intervals).
 6. **Strumenti collegati**: un riquadro per rullo e cardio (più pedali se presenti) con nome, stato
-   (collega · in corso · collegato · connessione persa, ricollego…) e pulsante per collegare.
+   (non collegato · in corso · collegato · collegamento perso) e pulsante: Collega, Annulla, Scollega, Ricollega / Riprova
+   (stesso dispositivo della seduta), più «Un altro dispositivo» e «Mostra tutti». Uno strumento che cade durante la seduta
+   compare anche in cima alla schermata con «Ricollega».
 7. **Selettore** `ERG · 125 W` | `Resistenza · 4` (numero del gradino accanto alla parola).
 8. **Barra comandi**: − · indietro / play-pausa / avanti · +.
    In ERG ogni tocco di − / + cambia l'obiettivo di **5 W**; in resistenza di **un gradino**.

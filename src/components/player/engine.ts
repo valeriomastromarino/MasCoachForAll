@@ -1,7 +1,7 @@
 // Everything that runs during a trainer session: sensors, the session clock, recording, DFA α1,
 // the trainer target (with power match when pedals are connected), sounds and the screen wake lock.
 // A plain class (browser only) that the player screen subscribes to; see usePlayer.ts.
-import { type DeviceKind, type DeviceStatus, type GattDevice, HeartRateStrap, lastChoice, PowerMeter, rememberedDevice, Trainer } from "@/lib/ble/devices";
+import { type DeviceKind, type DeviceStatus, forgetSavedDevices, HeartRateStrap, PowerMeter, Trainer } from "@/lib/ble/devices";
 import type { IndoorBikeData } from "@/lib/ble/protocol";
 import { keepScreenOn, sessionService } from "@/lib/native";
 import { type DfaLive, dfaLive } from "@/lib/physio/dfa";
@@ -30,10 +30,10 @@ export type DeviceView = {
   name: string | null;
   error: string | null;
   detail: string | null;
-  /** Device "Collega" reaches without the chooser (this session's, or allowed by the browser). */
-  remembered: string | null;
-  /** Device picked last time, to look for in the chooser when the browser forgot it. */
-  last: string | null;
+  /** A device chosen in this session is there to try again («Ricollega» / «Riprova», no chooser). */
+  retry: boolean;
+  /** It was connected during this session and is not now: shown at the top of the player. */
+  dropped: boolean;
 };
 
 export type PlayerView = {
@@ -70,6 +70,10 @@ const SOFT_START_FROM = 0.5;
 const MATCH_WINDOW = 30;
 /** Longest stall played back in one go (seconds); a longer one means the app was frozen and the clock restarts. */
 const MAX_CATCH_UP = 1800;
+/** Without beat-to-beat intervals for this long the series is broken: the DFA α1 starts over. */
+const RR_GAP_MS = 10000;
+/** Points of the ridden-power line over the whole profile (it is 1000 units wide). */
+const TRACE_POINTS = 1000;
 const SOUND_KEY = "mascoach-rulli-suoni";
 const SPRINT_KEY = "mascoach-rulli-sprint";
 const KINDS: DeviceKind[] = ["trainer", "hr", "power"];
@@ -89,11 +93,16 @@ export class PlayerEngine {
   private hr: number | null = null;
   private hrAt = 0;
   private rr: number[] = [];
+  private rrAt = 0;
   private rec: Recording | null = null;
   private moving = false;
   private lastStep = 0;
   private distance = 0;
   private trace: { pos: number; w: number }[] = [];
+  /** The trace keeps one point per thousandth of the workout: the average of the seconds ridden in it. */
+  private traceBucket = -1;
+  private traceSum = 0;
+  private traceN = 0;
   private dfa: DfaLive | null = null;
   private dfaHistory: { t: number; a: number }[] = [];
   private powerWindow: number[] = [];
@@ -111,7 +120,6 @@ export class PlayerEngine {
   private sprintPeak: number | null = null;
   private finished: Recording | null = null;
   private uploading = false;
-  private remembered: Record<DeviceKind, GattDevice | null> = { trainer: null, hr: null, power: null };
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private audio: AudioContext | null = null;
@@ -128,6 +136,7 @@ export class PlayerEngine {
     this.hrStrap = new HeartRateStrap(changed, (hr, rr) => {
       this.hr = hr;
       this.hrAt = Date.now();
+      if (rr.length) this.rrAt = Date.now();
       for (const ms of rr) {
         this.rr.push(ms);
         if (this.rec?.status === "recording") this.rec.rr.push({ t: Date.now(), ms });
@@ -152,6 +161,8 @@ export class PlayerEngine {
     } catch {
       this.sprintCfg = DEFAULT_SPRINT;
     }
+    // Manual management: what older versions remembered is cleared, and nothing connects when the player opens.
+    forgetSavedDevices();
     this.view = this.compute();
   }
 
@@ -222,15 +233,14 @@ export class PlayerEngine {
     let detail: string | null = null;
     if (kind === "trainer" && l.status === "connected") detail = this.trainer.features?.power === false ? "senza ERG" : "ERG";
     if (kind === "hr" && l.status === "connected") detail = this.hrStrap.sendsRr ? "RR" : "solo FC";
-    if (l.status === "connecting" || l.status === "reconnecting") detail = l.step;
-    const remembered = l.device ?? this.remembered[kind];
+    if (l.status === "connecting") detail = l.step;
     return {
       status: l.status,
       name: l.name,
       error: l.error,
       detail,
-      remembered: remembered ? (remembered.name ?? "dispositivo") : null,
-      last: lastChoice(kind)?.name ?? null,
+      retry: l.device !== null && (l.status === "off" || l.status === "lost"),
+      dropped: l.wasConnected && l.status !== "connected",
     };
   }
 
@@ -265,7 +275,6 @@ export class PlayerEngine {
     window.addEventListener("beforeunload", this.warnUnload);
     keepScreenOn(true);
     void this.keepAwake();
-    void this.reuseRemembered();
   }
 
   close() {
@@ -287,16 +296,6 @@ export class PlayerEngine {
         rec.status = "finished";
         void saveRecording(rec).then(() => uploadRecording(rec));
       }
-    }
-  }
-
-  /** Devices chosen last time: try them straight away (works when the browser kept the permission). */
-  private async reuseRemembered() {
-    for (const kind of KINDS) this.remembered[kind] = await rememberedDevice(kind);
-    this.emit();
-    for (const kind of KINDS) {
-      const d = this.remembered[kind];
-      if (d && this.link(kind).status === "off") void this.link(kind).use(d);
     }
   }
 
@@ -349,6 +348,8 @@ export class PlayerEngine {
     else if (this.session.status === "done") this.setService(false);
     this.ticks++;
     if (this.ticks % 5 === 0) {
+      // A strap that dropped or went quiet breaks the beat series: the old window would show (and record) a stale α1.
+      if (this.hrStrap.status !== "connected" || now - this.rrAt > RR_GAP_MS) this.rr = [];
       this.dfa = this.rr.length ? dfaLive(this.rr) : null;
       if (this.dfa?.alpha1 != null && this.moving) this.dfaHistory = [...this.dfaHistory, { t: this.session.elapsed, a: this.dfa.alpha1 }].slice(-120);
     }
@@ -391,7 +392,7 @@ export class PlayerEngine {
         // In resistance mode (also a sprint ridden in resistance) there is no ERG target to record.
         const ergNow = next.mode === "erg" && sp.phase === "off";
         rec.samples.push({ t: at, power: r.power, hr: r.hr, cadence: r.cadence, speed: r.speed, distance: this.distance, target: ergNow ? ergTarget(next, steps) : null, dfa: this.dfa?.alpha1 ?? null });
-        this.trace = [...this.trace, { pos: next.pos, w: r.power ?? 0 }];
+        this.addTrace(next.pos, r.power ?? 0);
       }
     }
     this.moving = moving;
@@ -428,6 +429,25 @@ export class PlayerEngine {
 
     this.session = next;
     return rec;
+  }
+
+  /**
+   * The ridden-power line: one point per thousandth of the workout (the average of its seconds), so a long ride does not
+   * redraw thousands of points every second. A step skipped back starts a new point where the line restarts.
+   */
+  private addTrace(pos: number, w: number) {
+    const bucket = Math.min(TRACE_POINTS - 1, Math.floor((pos / Math.max(1, this.workout.totalSecs)) * TRACE_POINTS));
+    const last = this.trace[this.trace.length - 1];
+    if (bucket === this.traceBucket && last && pos >= last.pos) {
+      this.traceSum += w;
+      this.traceN++;
+      this.trace = [...this.trace.slice(0, -1), { pos, w: Math.round(this.traceSum / this.traceN) }];
+      return;
+    }
+    this.traceBucket = bucket;
+    this.traceSum = w;
+    this.traceN = 1;
+    this.trace = [...this.trace, { pos, w }];
   }
 
   /** Sends the right target to the trainer for the current mode. */
@@ -480,17 +500,18 @@ export class PlayerEngine {
 
   // ── Actions from the screen ──
 
+  /**
+   * «Collega» opens the chooser; after a drop or a failed attempt «Ricollega» / «Riprova» tries the device of this
+   * session again without it. Always on a tap: nothing connects or reconnects by itself.
+   */
   connect(kind: DeviceKind) {
     this.unlockAudio();
     const l = this.link(kind);
-    // Same device again without the chooser when possible (a failed attempt is retried on it);
-    // otherwise the chooser, in the full list if that is where the device was found last time.
-    const known = l.device ?? this.remembered[kind];
-    if (known) void l.use(known);
-    else void l.choose(lastChoice(kind)?.any ?? false);
+    if (l.device && (l.status === "off" || l.status === "lost")) void l.retry();
+    else if (l.status === "off") void l.choose(false);
   }
 
-  /** Always opens the chooser (another device than the remembered one); `any` lists every nearby device. */
+  /** Always opens the chooser (another device than this session's); `any` lists every nearby device. */
   choose(kind: DeviceKind, any = false) {
     this.unlockAudio();
     void this.link(kind).choose(any);
@@ -498,6 +519,8 @@ export class PlayerEngine {
 
   disconnect(kind: DeviceKind) {
     this.link(kind).disconnect();
+    // Pedals taken off on purpose: ERG stops using the trainer/pedal ratio measured with them (a drop keeps it).
+    if (kind === "power") this.match = { t: [], p: [] };
   }
 
   play() {
@@ -507,6 +530,9 @@ export class PlayerEngine {
 
   skip(dir: 1 | -1) {
     this.act((s) => skipSession(s, dir, this.workout.steps));
+    // Skipping past the last step ends the ride as reaching the end does (before, the closing sheet said
+    // «troppo breve» and the ride was only saved when the player closed).
+    if (this.session.status === "done") void this.finish();
   }
 
   adjust(dir: 1 | -1) {
