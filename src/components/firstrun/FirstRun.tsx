@@ -6,7 +6,7 @@
 import { IconCheck } from "@tabler/icons-react";
 import { type ComponentType, type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { apiFetch } from "@/components/data/transport";
-import { applyCloud, isRedo, pullCloud, scheduleCloudPush } from "@/components/data/cloud";
+import { applyCloud, isRedo, pullCloud, scheduleCloudPush, useCloudSync } from "@/components/data/cloud";
 import { useDashboard } from "@/components/data/remote";
 import type { CloudPayload } from "@/lib/profile/cloud";
 import type { HistoryData, LibraryData } from "@/lib/api/handlers";
@@ -154,6 +154,8 @@ const snapshot = () => (loadProfile() || isSkipped() ? "done" : "first");
 /** Shows the first-launch screens over the app until the sheet is saved (or skipped). The app keeps loading behind it. */
 export function FirstRunGate({ children, needsKey = false, KeyStep }: { children: ReactNode; needsKey?: boolean; KeyStep?: ComponentType<{ onSaved: () => void }> }) {
   const state = useSyncExternalStore(subscribe, snapshot, () => "loading");
+  // The sheet and the season follow the other devices: the copy saved from the phone reaches the computer, and back.
+  useCloudSync();
   return (
     <>
       {children}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCalendar, buildLibrary, calendarEvents, eventFromLibrary } from "./calendar";
+import { buildCalendar, buildLibrary, calendarEvents, eventFromLibrary, isBikeSession } from "./calendar";
 import { workoutBlocks, zoneOfFraction } from "./workout";
 
 describe("workoutBlocks", () => {
@@ -79,6 +79,27 @@ describe("buildCalendar", () => {
     // Only workouts written by MasCoach Coach get the label; other apps' external ids don't count.
     expect(cal.workouts.map((w) => w.coach)).toEqual([null, "prova", null]);
   });
+
+  it("marks the races and tells bike sessions from weights and Pilates (18 November 2026)", () => {
+    const cal = buildCalendar(
+      [],
+      [
+        { id: 1, start_date_local: "2026-11-21T00:00:00", category: "RACE_B", type: "Ride", name: "Granfondo di prova" },
+        { id: 2, start_date_local: "2026-11-19T00:00:00", category: "WORKOUT", type: "WeightTraining", name: "Pesi", moving_time: 3600 },
+        { id: 3, start_date_local: "2026-11-20T00:00:00", category: "WORKOUT", type: "Pilates", name: "Pilates" },
+        { id: 4, start_date_local: "2026-11-20T00:00:00", category: "WORKOUT", type: "VirtualRide", name: "Z2 Indoor" },
+      ],
+      "2026-11-16",
+      "2026-11-22",
+      250,
+    );
+    const byName = (n: string) => cal.workouts.find((w) => w.name === n)!;
+    expect(byName("Granfondo di prova").race).toBe(true);
+    expect(byName("Z2 Indoor").race).toBeUndefined();
+    expect(cal.workouts.filter(isBikeSession).map((w) => w.name).sort()).toEqual(["Granfondo di prova", "Z2 Indoor"]);
+    // A workout without a type is taken as a ride (the coach's own default).
+    expect(isBikeSession({ type: null })).toBe(true);
+  });
 });
 
 describe("library", () => {
@@ -101,6 +122,15 @@ describe("library", () => {
       description: "x",
       moving_time: 3600,
     });
+  });
+
+  it("writes a trainer session as an indoor event, so Intervals.icu uses the indoor FTP", () => {
+    // Asked for the trainer, or named "… Indoor" in the library (most of those do not carry the flag).
+    expect(eventFromLibrary({ id: 1, name: "VO2 5x3" }, "2026-11-17", true).indoor).toBe(true);
+    expect(eventFromLibrary({ id: 2, name: "Tempo 3x10 Indoor", type: "Ride" }, "2026-11-17").indoor).toBe(true);
+    // An outdoor ride keeps what the library says.
+    expect(eventFromLibrary({ id: 3, name: "Long Endurance 2h" }, "2026-11-22").indoor).toBeNull();
+    expect(eventFromLibrary({ id: 4, name: "Z2", indoor: true }, "2026-11-22").indoor).toBe(true);
   });
 });
 

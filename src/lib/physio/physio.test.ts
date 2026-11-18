@@ -124,6 +124,19 @@ describe("HRV + resting HR (Altini)", () => {
     expect(a.anomalyToday).toBe(true);
   });
 
+  it("keeps the run of anomalous nights when last night was not measured", () => {
+    // Two bad nights, then the watch not worn (or not synced yet): the run is read up to the night before.
+    const sick = (i: number) => i === N - 3 || i === N - 2;
+    const a = assessAutonomic(
+      dates,
+      dates.map((_, i) => (i === N - 1 ? null : sick(i) ? Math.log(42) : ln(i))),
+      dates.map((_, i) => (i === N - 1 ? null : sick(i) ? 53 : hr(i))),
+    );
+    expect([a.nightMissing, a.anomalyToday, a.anomalyStreak]).toEqual([true, false, 2]);
+    const measured = assessAutonomic(dates, dates.map((_, i) => (sick(i) ? Math.log(42) : ln(i))), dates.map((_, i) => (sick(i) ? 53 : hr(i))));
+    expect([measured.nightMissing, measured.anomalyStreak]).toEqual([false, 0]);
+  });
+
   it("does not call an HRV-only drop an anomaly", () => {
     const a = assessAutonomic(
       dates,
@@ -175,6 +188,27 @@ describe("Critical Power", () => {
     expect(fit.reliable).toBe(false);
     expect(fit.shortCp!).toBeCloseTo(245, 0);
     expect(fit.cp).toBeLessThan(fit.shortCp!);
+  });
+
+  it("fits the three efforts of the classic test, and is not dragged down by an easy 20 minutes", () => {
+    // A power curve from normal riding: hard 3' to 12', but nothing all-out near 20'.
+    const curve = [[180, 290], [240, 277], [300, 268], [420, 245], [480, 241], [600, 231], [720, 227], [900, 211], [1200, 197], [1800, 179]];
+    const fit = fitCriticalPower(curve.map(([secs, watts]) => ({ secs, watts })))!;
+    expect(Math.round(fit.cp)).toBe(206);
+    expect(fit.wPrime / 1000).toBeCloseTo(15.6, 1);
+    expect([fit.pointsUsed, fit.upToSecs, fit.reliable]).toEqual([3, 720, true]);
+  });
+
+  it("takes the best 20 minutes in when they are an all-out effort", () => {
+    const truth = { cp: 250, wPrime: 18000 };
+    const secs = [180, 300, 420, 600, 720, 1200];
+    const allOut = fitCriticalPower(secs.map((s) => ({ secs: s, watts: cpPredict(truth, s) * (s === 1200 ? 0.97 : 1) })))!;
+    expect([allOut.pointsUsed, allOut.upToSecs]).toEqual([4, 1200]);
+    expect(allOut.cp).toBeLessThan(250);
+    expect(allOut.cp).toBeGreaterThan(240);
+    const easy = fitCriticalPower(secs.map((s) => ({ secs: s, watts: cpPredict(truth, s) * (s === 1200 ? 0.9 : 1) })))!;
+    expect([easy.pointsUsed, easy.upToSecs]).toEqual([3, 720]);
+    expect(easy.cp).toBeCloseTo(250, 3);
   });
 
   it("refuses a fit without spread of durations", () => {

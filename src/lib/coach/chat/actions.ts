@@ -80,15 +80,15 @@ export function programma(ctx: ChatContext, state: ChatState): ChatResult {
   }
   const existing = ctx.planned.filter((w) => w.date === date);
   const label = `${option.workout.name} (${minsText(option.mins)}, TSS ${option.tss}) ${dayLabel(ctx, date).toLowerCase()}`;
-  const action: Action = { type: "schedule", items: [{ workoutId: option.workout.id, name: option.workout.name, date }], replace: existing.map((e) => e.id), label };
+  const action: Action = { type: "schedule", items: [{ workoutId: option.workout.id, name: option.workout.name, date, indoor: option.indoor }], replace: existing.map((e) => e.id), label };
   const lines = existing.length ? [`Su Intervals hai già in programma ${existing.map((e) => e.name).join(", ")} per quel giorno: lo tolgo e metto questo.`] : [];
   return ask(state, action, `Scrivo su Intervals: ${label}. Confermi?`, lines);
 }
 
 export function programmaSettimana(ctx: ChatContext, state: ChatState): ChatResult {
-  const items = weekFrom(ctx).flatMap(({ date, suggestion: s, planned }) => (!planned && s?.kind === "workout" ? [{ workoutId: s.main.workout.id, name: s.main.workout.name, date, label: `${dayShort(date)}: ${s.main.workout.name} (${minsText(s.main.mins)}, TSS ${s.main.tss})` }] : []));
+  const items = weekFrom(ctx).flatMap(({ date, suggestion: s, planned }) => (!planned && s?.kind === "workout" ? [{ workoutId: s.main.workout.id, name: s.main.workout.name, date, indoor: s.main.indoor, label: `${dayShort(date)}: ${s.main.workout.name} (${minsText(s.main.mins)}, TSS ${s.main.tss})` }] : []));
   if (!items.length) return plain(state, { text: "Non c'è nulla da programmare nei prossimi 7 giorni: o è già tutto in calendario o sono giorni di riposo.", chips: ["I prossimi giorni"] });
-  const action: Action = { type: "schedule", items: items.map(({ workoutId, name, date }) => ({ workoutId, name, date })), label: `${items.length} allenamenti nei prossimi 7 giorni` };
+  const action: Action = { type: "schedule", items: items.map(({ workoutId, name, date, indoor }) => ({ workoutId, name, date, indoor })), label: `${items.length} allenamenti nei prossimi 7 giorni` };
   return ask(state, action, `Scrivo su Intervals ${items.length} allenamenti. Confermi?`, items.map((i) => i.label));
 }
 

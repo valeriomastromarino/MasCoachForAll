@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AFTER_INJURY_DAYS, AFTER_SICK_DAYS, EASY_DAY_LOAD, type LifeEvent, lifeBetween, loadFactor, openLife, restrictionOn } from "./life";
+import { AFTER_INJURY_DAYS, AFTER_SICK_DAYS, EASY_DAY_LOAD, type LifeEvent, lifeBetween, loadFactor, openLife, restrictionOn, lifeFrom } from "./life";
 
 const holiday: LifeEvent = { id: "1", category: "HOLIDAY", from: "2026-11-14", to: "2026-11-15", name: "Viaggio" };
 const sick: LifeEvent = { id: "2", category: "SICK", from: "2026-12-01", to: "2026-12-03" };
@@ -44,5 +44,16 @@ describe("loadFactor, lifeBetween, openLife", () => {
     expect(openLife([holiday, sick], "2026-12-02")?.id).toBe("2");
     expect(openLife([holiday], "2026-11-14")).toBeNull();
     expect(openLife([sick, injured], "2026-12-02", "INJURED")).toBeNull();
+  });
+});
+
+describe("where the reading of holidays and illness starts", () => {
+  it("goes back to the start of the season, so an old stop still decides where the light weeks fall", () => {
+    expect(lifeFrom("2027-01-20", "2026-11-05")).toBe("2026-11-05");
+    // No season, or one set up a few days ago: the last 30 days.
+    expect(lifeFrom("2027-01-20", null)).toBe("2026-12-21");
+    expect(lifeFrom("2027-01-20", "2027-01-10")).toBe("2026-12-21");
+    // Never further back than the API reads in one call.
+    expect(lifeFrom("2027-01-20", "2025-01-01")).toBe("2026-01-05");
   });
 });

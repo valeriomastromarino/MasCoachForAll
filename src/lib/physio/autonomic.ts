@@ -34,8 +34,10 @@ export type AutonomicAssessment = {
   severity: 0 | 1 | 2;
   /** Last night was an anomaly (both markers deviating towards stress). */
   anomalyToday: boolean;
-  /** Consecutive anomalous nights ending today. */
+  /** Consecutive anomalous nights ending today (ending last night when today's night was not measured). */
   anomalyStreak: number;
+  /** Today's night has no HRV or no resting HR (watch not worn, or not synced yet). */
+  nightMissing: boolean;
   /** Dates of anomalous nights in the analysed period. */
   anomalyDates: string[];
 };
@@ -128,8 +130,11 @@ export function assessAutonomic(
   const rhr = rollingBaseline(restingHr);
   const last = dates.length - 1;
   const anomalies = dates.map((_, i) => isAnomaly(hrv[i], rhr[i]));
+  // Without last night's numbers the run of anomalous nights is read up to the night before: two bad nights in a row
+  // must not vanish (and the day turn green) only because the watch has not synced yet or was not worn.
+  const nightMissing = last >= 0 && (!isNum(lnRmssd[last]) || !isNum(restingHr[last]));
   let streak = 0;
-  for (let i = last; i >= 0 && anomalies[i]; i--) streak++;
+  for (let i = nightMissing ? last - 1 : last; i >= 0 && anomalies[i]; i--) streak++;
   const pattern = classify(hrv[last], rhr[last]);
   const t = TEXT[pattern];
   return {
@@ -137,6 +142,7 @@ export function assessAutonomic(
     ...t,
     anomalyToday: anomalies[last] ?? false,
     anomalyStreak: streak,
+    nightMissing,
     anomalyDates: dates.filter((_, i) => anomalies[i]),
     hrv,
     rhr,

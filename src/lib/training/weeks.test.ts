@@ -72,6 +72,14 @@ describe("seasonWeeks", () => {
     expect(after.warnings.some((x) => x.includes("sedute di qualità"))).toBe(true);
   });
 
+  it("leaves weights and Pilates out of the week's rides (18 November 2026)", () => {
+    const sat = weeksOf(setup)[1].days[5].date;
+    const pesi = { id: "77", date: sat, name: "Pesi", type: "WeightTraining", secs: 3600, tss: 20, description: null, blocks: [], coach: null };
+    const weeks = seasonWeeks({ plan: planSeason({ ...setup, start: TODAY }, 40, [], setup.start), setup, today: TODAY, base, calendar: [pesi], done: [], weeks: 4 });
+    expect(weeks[1].days[5].kind).toBe("prop");
+    expect(weeks[1].days[5].name).not.toBe("Pesi");
+  });
+
   it("collects every fixed day for the engine", () => {
     const s: SeasonSetup = { ...setup, weekPlans: { "2026-11-16": [{ date: "2026-11-17", id: 1, mine: true }], "2026-11-23": [{ date: "2026-11-24", id: null, mine: true }] } };
     expect(choicesOf(s).map((c) => c.date)).toEqual(["2026-11-17", "2026-11-24"]);

@@ -1,11 +1,11 @@
 // The season week by week, day by day, for the Stagione page (version B, "linguette", chosen on 10 November 2026):
 // what is done, what is already on the Intervals.icu calendar, what the athlete fixed and what the engine proposes.
 // The weeks are simulated in order, so each one counts what the ones before it put in the legs.
-import type { CalendarWorkout, LibraryWorkout } from "@/lib/calendar";
+import { type CalendarWorkout, isBikeSession, type LibraryWorkout } from "@/lib/calendar";
 import { addDays, weekStart } from "@/lib/dates";
-import { type Classified, classifyWorkout, CLASS_SAY, HARD } from "./classify";
+import { type Classified, classifyWorkout, CLASS_SAY } from "./classify";
 import { type DayChoice, PHASE_INFO, type PlanWeek, type SeasonPlan, type SeasonSetup } from "./season";
-import { parseCap, planWeek, type RecentActivity, type SlotKind, type SuggestInput, weekday } from "./suggest";
+import { isHard, isQuality, parseCap, planWeek, type RecentActivity, type SlotKind, type SuggestInput, weekday } from "./suggest";
 
 export type DayKind = "done" | "cal" | "mine" | "prop" | "rest" | "off" | "stop" | "race";
 
@@ -24,6 +24,9 @@ export type DayView = {
   slot?: SlotKind;
   /** A proposal kept as it was because the athlete touched its week. */
   frozen?: boolean;
+  /** A ride already done that was a quality session, or a hard one (so the week's count and its warnings see it). */
+  doneQuality?: boolean;
+  doneHard?: boolean;
   reason?: string;
 };
 
@@ -69,13 +72,14 @@ function restKind(reason: string): DayKind {
 }
 
 /** What does not add up in a week: the rules the engine follows, checked again after the athlete's changes. */
-export function weekWarnings(view: Omit<WeekView, "warnings">, profile: SuggestInput["profile"]): string[] {
+export function weekWarnings(view: Omit<WeekView, "warnings">, profile: SuggestInput["profile"], gym: string[] = []): string[] {
   const out: string[] = [];
   const { week, days } = view;
   const info = PHASE_INFO[week.phase];
   const dayShort = (iso: string) => `${["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"][weekday(iso)]} ${Number(iso.slice(8))}`;
-  const quality = (d: DayView) => isRide(d.kind) && !!d.c?.quality;
+  const quality = (d: DayView) => isRide(d.kind) && (!!d.c?.quality || !!d.doneQuality);
   for (let i = 1; i < days.length; i++) if (quality(days[i - 1]) && quality(days[i])) out.push(`${dayShort(days[i - 1].date)} e ${dayShort(days[i].date)}: due sedute di qualità di fila`);
+  for (const d of days) if (d.kind !== "done" && quality(d) && gym.includes(addDays(d.date, -1))) out.push(`${dayShort(d.date)}: seduta di qualità il giorno dopo la palestra`);
   if (view.quality > week.qualityMax) out.push(week.qualityMax === 0 ? "In questa settimana non sono previste sedute di qualità" : `${view.quality} sedute di qualità: la settimana ne prevede al massimo ${week.qualityMax}`);
   else if (view.hard > week.hardMax) out.push(`${view.hard} lavori duri: la settimana ne prevede al massimo ${week.hardMax}`);
   const weekdayCap = parseCap(profile?.durataFeriali) ?? 120;
@@ -105,11 +109,21 @@ export function seasonWeeks(input: SeasonWeeksInput): WeekView[] {
     // The days of the current week already gone: what was ridden, or rest.
     for (let d = week.start; d < from; d = addDays(d, 1)) {
       const ride = done.filter((r) => r.date === d).sort((a, b) => b.mins - a.mins)[0];
-      days.push(ride ? { date: d, kind: "done", name: ride.name, mins: ride.mins, tss: ride.tss, indoor: ride.indoor } : { date: d, kind: "rest", reason: "Riposo" });
+      // What the ride was, as the engine counts it (lib/training/done.ts).
+      const ridden = base.recent.filter((r) => r.date === d);
+      days.push(
+        ride
+          ? { date: d, kind: "done", name: ride.name, mins: ride.mins, tss: ride.tss, indoor: ride.indoor, doneQuality: ridden.some(isQuality), doneHard: ridden.some(isHard) }
+          : { date: d, kind: "rest", reason: "Riposo" },
+      );
     }
-    const events = calendar.filter((w) => w.date >= from && w.date <= week.end);
+    // Weights, Pilates and other sports are not rides: they stay out of the week (the gym rule reads them from `gym`).
+    const events = calendar.filter((w) => w.date >= from && w.date <= week.end && isBikeSession(w));
     const planned = events.map((w) => ({ date: w.date, workout: { ...w, id: 0 } as LibraryWorkout }));
     const future = week.start > monday;
+    // A week to come is laid out with the fitness the plan expects at its start, not today's: the most a single session
+    // may load grows with the CTL, and with today's the long rides of the build and of the peak never got past 3 hours.
+    const ctlThen = index > 0 ? weeks[index - 1].ctlEnd : base.ctl;
     const engineDays = planWeek(
       {
         ...base,
@@ -117,7 +131,7 @@ export function seasonWeeks(input: SeasonWeeksInput): WeekView[] {
         recent,
         season: plan,
         chosen,
-        ...(future ? { readiness: "verde" as const, tsbYesterday: null, feeling: null, override: undefined } : {}),
+        ...(future ? { readiness: "verde" as const, tsbYesterday: null, feeling: null, override: undefined, ctl: ctlThen, rampRate: null } : {}),
       },
       planned,
     ).filter((d) => d.date <= week.end);
@@ -128,7 +142,7 @@ export function seasonWeeks(input: SeasonWeeksInput): WeekView[] {
         const event = events.find((e) => e.date === d.date && e.name === d.planned!.name);
         const c = classifyWorkout(d.planned);
         days.push({ date: d.date, kind: "cal", name: d.planned.name, mins: Math.round(c.mins), tss: Math.round(c.tss), indoor: c.indoor || d.planned.type === "VirtualRide", workout: d.planned, c, event });
-        recent = [...recent, { date: d.date, name: d.planned.name, IF: null, tss: c.tss, movingTime: c.mins * 60, hard: c.hard, quality: c.quality, cls: c.cls }];
+        recent = [...recent, { date: d.date, name: d.planned.name, IF: null, tss: c.tss, movingTime: c.mins * 60, hard: c.hard, quality: c.quality, cls: c.cls, planned: true }];
       } else if (d.suggestion?.kind === "workout") {
         const m = d.suggestion.main;
         const c = classifyWorkout(m.workout);
@@ -136,7 +150,7 @@ export function seasonWeeks(input: SeasonWeeksInput): WeekView[] {
         const choice = fixed.find((x) => x.date === d.date);
         const kept = !!choice && choice.id === m.workout.id;
         days.push({ date: d.date, kind: kept && choice.mine ? "mine" : "prop", name: m.workout.name, mins: m.mins, tss: m.tss, indoor: m.indoor, workout: m.workout, c, slot: m.slot, frozen: kept && !choice.mine });
-        recent = [...recent, { date: d.date, name: m.workout.name, IF: null, tss: m.tss, movingTime: m.mins * 60, hard: c.hard, quality: c.quality, cls: c.cls }];
+        recent = [...recent, { date: d.date, name: m.workout.name, IF: null, tss: m.tss, movingTime: m.mins * 60, hard: c.hard, quality: c.quality, cls: c.cls, planned: true }];
       } else {
         const reason = d.suggestion?.kind === "rest" ? d.suggestion.reason : "Riposo";
         const choice = fixed.find((x) => x.date === d.date && x.id === null);
@@ -151,11 +165,11 @@ export function seasonWeeks(input: SeasonWeeksInput): WeekView[] {
       days,
       tss: Math.round(rides.reduce((s, d) => s + (d.tss ?? 0), 0)),
       mins: rides.reduce((s, d) => s + (d.mins ?? 0), 0),
-      quality: rides.filter((d) => d.c?.quality).length,
-      hard: rides.filter((d) => d.c && HARD.includes(d.c.cls)).length,
+      quality: rides.filter((d) => d.c?.quality || d.doneQuality).length,
+      hard: rides.filter((d) => d.c?.hard || d.doneHard).length,
       frozen: fixed.length > 0,
     };
-    out.push({ ...partial, warnings: weekWarnings(partial, base.profile) });
+    out.push({ ...partial, warnings: weekWarnings(partial, base.profile, base.gym) });
   }
   return out;
 }

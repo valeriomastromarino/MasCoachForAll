@@ -9,6 +9,7 @@ import type { DashboardData } from "@/lib/dashboard";
 import { addDays, weekStart } from "@/lib/dates";
 import { loadProfile, PROFILE_EVENT, profileSnapshot } from "@/lib/profile/profile";
 import { CLASS_LABEL, type Classified, classifyWorkout, QUALITY, type WorkoutClass } from "@/lib/training/classify";
+import { recentFromRides } from "@/lib/training/done";
 import { lightWeekAdvice, PHASE_INFO, type PhaseId, type SeasonPlan, type SeasonSetup } from "@/lib/training/season";
 import { saveSeason } from "@/lib/training/seasonStore";
 import { fastedOk, parseCap } from "@/lib/training/suggest";
@@ -78,7 +79,7 @@ export function SeasonWeeks({ data, setup, plan }: { data: DashboardData; setup:
         readiness: data.status.readiness.level,
         tsbYesterday: data.status.tsbYesterday,
         ctl: data.status.ctl,
-        recent: data.activities.map((a) => ({ date: a.date.slice(0, 10), name: a.name, IF: a.IF, tss: a.tss, movingTime: a.movingTime })),
+        recent: recentFromRides(data.activities, library),
         library,
         profile,
         phenotype: stored?.phenotype ?? null,
@@ -87,6 +88,8 @@ export function SeasonWeeks({ data, setup, plan }: { data: DashboardData; setup:
         indoorFtp: data.athlete.indoorFtp,
         rampRate: data.status.rampRate,
         life,
+        // Strength sessions done lately, and the ones planned on the calendar over the season.
+        gym: [...(data.gymDays ?? []), ...calendar.filter((w) => w.type === "WeightTraining").map((w) => w.date)],
         feeling: overrides.feeling ?? null,
         override: { maxMins: overrides.maxMins, easier: overrides.easier, wantClass: overrides.wantClass, restToday: overrides.restToday },
       },
@@ -161,7 +164,7 @@ export function SeasonWeeks({ data, setup, plan }: { data: DashboardData; setup:
     setSheet(null);
     setBusy("schedule");
     for (const d of todo) {
-      const err = await send("/api/calendar/events", "POST", { workoutId: d.workout!.id, date: d.date });
+      const err = await send("/api/calendar/events", "POST", { workoutId: d.workout!.id, date: d.date, indoor: d.indoor });
       if (err) {
         setBusy("");
         void refreshSeasonCalendar();

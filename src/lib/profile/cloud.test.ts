@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLOUD_NOTE, CLOUD_TEST, type CloudPayload, decodeCloud, encodeCloud, isCloudPayload, mergeWithCloud } from "./cloud";
+import { CLOUD_NOTE, CLOUD_TEST, type CloudPayload, decodeCloud, encodeCloud, isCloudPayload, mergeWithCloud, syncDecision } from "./cloud";
 
 const payload: CloudPayload = {
   version: 1,
@@ -65,5 +65,33 @@ describe("mergeWithCloud", () => {
     expect(mergeWithCloud(empty, payload, { seasonCleared: true }).season).toBeNull();
     expect(mergeWithCloud(empty, payload).season).toEqual(payload.season);
     expect(mergeWithCloud(empty, null)).toEqual(empty);
+  });
+});
+
+describe("syncDecision: the phone and the computer share one sheet and one season", () => {
+  const cloud = (savedAt: string, over: Partial<CloudPayload> = {}): CloudPayload => ({ version: 1, savedAt, profile: { eta: "40" } as CloudPayload["profile"], phenotype: null, sheet: "x", season: null, ...over });
+  const at = (h: number) => `2026-11-12T${String(h).padStart(2, "0")}:00:00.000Z`;
+
+  it("takes the copy another device saved since this one last saw it", () => {
+    expect(syncDecision({ hasLocal: true, cloud: cloud(at(10)), seen: at(8), dirtyAt: null })).toBe("apply");
+    // An installation from before the sync existed has never seen a copy: it takes the one that is there.
+    expect(syncDecision({ hasLocal: true, cloud: cloud(at(10)), seen: null, dirtyAt: null })).toBe("apply");
+  });
+
+  it("does nothing when the copy is the one this device wrote or took", () => {
+    expect(syncDecision({ hasLocal: true, cloud: cloud(at(10)), seen: at(10), dirtyAt: null })).toBe("none");
+  });
+
+  it("the last change wins: a change of this device still waiting goes up only if it is the more recent one", () => {
+    expect(syncDecision({ hasLocal: true, cloud: cloud(at(10)), seen: at(10), dirtyAt: at(11) })).toBe("push");
+    expect(syncDecision({ hasLocal: true, cloud: cloud(at(10)), seen: at(8), dirtyAt: at(11) })).toBe("push");
+    expect(syncDecision({ hasLocal: true, cloud: cloud(at(10)), seen: at(8), dirtyAt: at(9) })).toBe("apply");
+  });
+
+  it("never takes anything by itself on a device without data, and never an empty copy", () => {
+    expect(syncDecision({ hasLocal: false, cloud: cloud(at(10)), seen: null, dirtyAt: null })).toBe("none");
+    expect(syncDecision({ hasLocal: true, cloud: null, seen: null, dirtyAt: null })).toBe("none");
+    expect(syncDecision({ hasLocal: true, cloud: null, seen: null, dirtyAt: at(9) })).toBe("push");
+    expect(syncDecision({ hasLocal: true, cloud: cloud(at(10), { profile: null, season: null }), seen: at(8), dirtyAt: null })).toBe("none");
   });
 });

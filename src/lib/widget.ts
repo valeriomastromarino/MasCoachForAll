@@ -1,6 +1,6 @@
 // What the Android home-screen widget shows: a small summary of today, rebuilt by `GET /api/widget` and cached on the phone.
 // Pure function over the dashboard and today's calendar, so it is easy to test; the native side only draws it.
-import type { CalendarData } from "./calendar";
+import { type CalendarData, isBikeSession } from "./calendar";
 import { addDays } from "./dates";
 import type { DashboardData } from "./dashboard";
 
@@ -30,8 +30,10 @@ const round = (x: number | null | undefined, d = 0) => (typeof x === "number" &&
 
 export function buildWidget(dash: DashboardData, cal: CalendarData, today: string, now = new Date()): WidgetData {
   const s = dash.status;
-  const planned = cal.workouts.filter((w) => w.date === today).sort((a, b) => (b.secs ?? 0) - (a.secs ?? 0))[0] ?? null;
-  const yRows = dash.activities.filter((a) => a.date === addDays(today, -1) && a.movingTime > 0);
+  // The ride of the day: weights or Pilates on the same day are not drawn as the workout.
+  const planned = cal.workouts.filter((w) => w.date === today && isBikeSession(w)).sort((a, b) => (b.secs ?? 0) - (a.secs ?? 0))[0] ?? null;
+  // The rows carry the start time ("2026-11-11T17:30:00"): compare the day only (the line "ieri" was always empty).
+  const yRows = dash.activities.filter((a) => a.date.slice(0, 10) === addDays(today, -1) && a.movingTime > 0);
   const longest = [...yRows].sort((a, b) => b.movingTime - a.movingTime)[0];
   const lastRecovery = [...dash.recovery].reverse().find((r) => r.date === today) ?? dash.recovery[dash.recovery.length - 1];
   return {

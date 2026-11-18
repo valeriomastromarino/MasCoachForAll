@@ -9,7 +9,7 @@ export type PhenotypeInput = {
   ftp: number | null;
   /** W′ set on Intervals.icu, J. */
   wPrimeSetJ: number | null;
-  /** W′ of our own 3–20′ model, J, with its reliability flag. */
+  /** W′ of our own model (best 3′, 7′ and 12′; the 20′ when all-out), J, with its reliability flag. */
   modelWPrimeJ: number | null;
   modelReliable: boolean | null;
   /** Best powers of the last two seasons, W (null = no data). */

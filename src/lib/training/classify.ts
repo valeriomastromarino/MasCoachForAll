@@ -122,14 +122,21 @@ function classify(w: LibraryWorkout): Classified {
   // Efforts of 30" to 2'30" above the VO2max band.
   const anaerobic = efforts.filter((b) => fraction(b) >= ANAEROBIC && b.secs > 30 && b.secs <= 150).reduce((s, b) => s + b.secs, 0);
   const longRide = m(total) >= 150;
+  // A long ride with its work in the last part (durability): at least 10' of it, and half of all the work.
+  const lateWork = longRide && m(late) >= 10 && late >= (sec.tempo + sec.sweet + sec.thr + sec.vo2) * 0.5;
 
-  if (named(/\b(test|benchmark|tt)\b/i)) cls = "test";
-  else if (named(/\b(race|taper|openers?)\b/i) && !named(/threshold|vo2|sweet|tempo|\bSS\b/i)) cls = "gara";
+  // A race planned on the calendar (A, B or C): a maximal effort, so a hard day for the week (prompt §12, coherence with
+  // the races). Race-week sessions of the library ("openers", "taper") are "gara" too, but easy.
+  if (w.race) cls = "gara";
+  else if (named(/\b(test|benchmark|tt)\b/i)) cls = "test";
+  else if (named(/\b(race|taper|openers?)\b|apertur/i) && !named(/threshold|vo2|sweet|tempo|\bSS\b/i)) cls = "gara";
   else if (sprints.length >= 3 && sprints.length === efforts.length && sprintSecs < 240 && otherWork < 15) {
     cls = "sprint";
     work = m(sprintSecs);
-  } else if (longRide && sec.vo2 + sec.ana === 0 && aboveZ2 <= m(total) * 0.3) {
-    // A long ride with some tempo, sweet spot or threshold climbs in it is still the long Z2 ride.
+  } else if (longRide && sec.vo2 + sec.ana === 0 && aboveZ2 <= m(total) * 0.3 && (lateWork || m(sec.sweet + sec.thr) < 15)) {
+    // A long ride with some tempo in it, or with sweet spot and threshold climbs in its last part, is still the long Z2
+    // ride. With a quarter of an hour or more at sweet spot or threshold anywhere else it is a session of that type
+    // ("2×18' Z4" inside 2 h 40 is a threshold day, not a long Z2 ride).
     cls = "z2";
     work = m(sec.tempo + sec.sweet + sec.thr);
   } else if (short.length >= 6 && short.reduce((s, b) => s + b.secs, 0) >= 300) {
@@ -158,14 +165,25 @@ function classify(w: LibraryWorkout): Classified {
     cls = "recupero";
     work = m(sec.z1 + sec.z2);
   }
+  // Not an easy ride after all: a "recovery" or Z2 spin with two minutes or more of anaerobic efforts or of sprints in it
+  // (an "anaerobic ladder" of 20-40-60-40-20 seconds was read as recovery).
+  if (cls === "z2" || cls === "recupero") {
+    if (anaerobic >= 120) {
+      cls = "anaerobico";
+      work = m(anaerobic);
+    } else if (sprintSecs >= 120) {
+      cls = "sprint";
+      work = m(sprintSecs);
+    }
+  }
 
   return {
     w,
     cls,
     mins: m(total),
     tss: w.tss ?? 0,
-    hard: HARD.includes(cls),
-    quality: QUALITY.includes(cls),
+    hard: w.race === true || HARD.includes(cls),
+    quality: w.race === true || QUALITY.includes(cls),
     mtb: /\b(mtb|xc)\b/i.test(name),
     indoor: /indoor/i.test(name),
     fasted: /fasted/i.test(name),
@@ -174,6 +192,6 @@ function classify(w: LibraryWorkout): Classified {
     aboveZ2: Math.round(aboveZ2 * 10) / 10,
     maxZone,
     shortIntervals,
-    lateWork: longRide && m(late) >= 10 && late >= (sec.tempo + sec.sweet + sec.thr + sec.vo2) * 0.5,
+    lateWork,
   };
 }

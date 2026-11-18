@@ -29,6 +29,9 @@ import { powerZones, type Zone } from "./physio/power";
 import { assessReadiness, type Readiness } from "./physio/readiness";
 import { isNum } from "./physio/stats";
 
+/** A strength session shorter than this is taken as light work (core, mobility) and does not move the quality days. */
+export const GYM_MIN_SECS = 40 * 60;
+
 const MODEL_NAMES: Record<string, string> = {
   MS_2P: "Monod-Scherrer 2P",
   MORTON_3P: "Morton 3P",
@@ -100,6 +103,8 @@ export type DashboardData = {
   efficiency: EfficiencyRide[];
   /** Activities Intervals.icu won't expose via API (Strava-only imports) in the displayed period. */
   hiddenActivities: number;
+  /** Days with a strength session of 40 minutes or more: done in the last two weeks, or planned on the calendar. The training engine keeps quality work off the day after. */
+  gymDays: string[];
 };
 
 function rideSettings(settings: IcuSportSettings[] | undefined): IcuSportSettings | undefined {
@@ -238,6 +243,15 @@ export function buildDashboard(raw: RawData, displayDays = 120): DashboardData {
     if (w) w.hours += (a.moving_time ?? 0) / 3600;
   }
 
+  // Strength sessions (not Pilates or stretching): the day after one is no day for intense work (coach prompt §11).
+  const isGym = (type: string | null | undefined, secs: number | null | undefined) => type === "WeightTraining" && (secs ?? GYM_MIN_SECS) >= GYM_MIN_SECS;
+  const gymDays = [
+    ...new Set([
+      ...raw.activities.filter((a) => isGym(a.type, a.moving_time) && a.start_date_local.slice(0, 10) >= addDays(today, -14)).map((a) => a.start_date_local.slice(0, 10)),
+      ...raw.events.filter((e) => e.category === "WORKOUT" && isGym(e.type, e.moving_time) && e.start_date_local.slice(0, 10) >= today).map((e) => e.start_date_local.slice(0, 10)),
+    ]),
+  ].sort();
+
   const plan = planVsDone(raw.events, loadByDate, raw.activities, today);
   const prevMonth = addDays(today.slice(0, 8) + "01", -1).slice(0, 7);
 
@@ -295,5 +309,6 @@ export function buildDashboard(raw: RawData, displayDays = 120): DashboardData {
     zoneWeeks: weeklyZones(rides, today),
     efficiency: efficiencyTrend(rides, days[0]),
     hiddenActivities,
+    gymDays,
   };
 }

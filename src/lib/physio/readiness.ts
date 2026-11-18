@@ -21,7 +21,7 @@ export function highRiskForm(tsbYesterday: number | null): boolean {
 
 export function assessReadiness(input: {
   hrv: HrvAnalysis["today"];
-  autonomic: Pick<AutonomicAssessment, "pattern" | "explanation" | "severity" | "anomalyToday" | "anomalyStreak">;
+  autonomic: Pick<AutonomicAssessment, "pattern" | "explanation" | "severity" | "anomalyToday" | "anomalyStreak"> & { nightMissing?: boolean };
   /** Form shown in the app (today's CTL − ATL), only for the explanation. */
   tsb: number | null;
   /** Yesterday's form (CTL − ATL): what the score judges "alto rischio" on. */
@@ -36,7 +36,7 @@ export function assessReadiness(input: {
   if (autonomic.anomalyStreak >= 2) {
     score += 2;
     reasons.push(
-      `${autonomic.anomalyStreak} notti di fila con HRV bassa e FC a riposo alta insieme: tipico di un malanno in arrivo o di stress accumulato.`,
+      `${autonomic.anomalyStreak} notti di fila con HRV bassa e FC a riposo alta insieme${autonomic.nightMissing ? " fino a ieri (di stanotte mancano i dati)" : ""}: tipico di un malanno in arrivo o di stress accumulato.`,
     );
   } else if (autonomic.anomalyToday) {
     score += 1;

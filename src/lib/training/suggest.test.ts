@@ -3,8 +3,10 @@ import type { LibraryWorkout } from "@/lib/calendar";
 import { addDays } from "@/lib/dates";
 import { workoutBlocks, zoneOfFraction } from "@/lib/workout";
 import { QUALITY } from "./classify";
+import { classFromZones, recentFromRides } from "./done";
 import { planSeason, type SeasonSetup } from "./season";
-import { carbsFor, classifyWorkout, fastedOk, fuelFor, parseCap, planWeek, suggestWorkout, toleratedCarbs, type RecentActivity, type SuggestInput, type SuggestProfile } from "./suggest";
+import { seasonWeeks } from "./weeks";
+import { carbsFor, classifyWorkout, fastedOk, fuelFor, parseCap, plannedFits, planWeek, suggestWorkout, toleratedCarbs, type RecentActivity, type SuggestInput, type SuggestProfile } from "./suggest";
 
 let id = 0;
 /** Blocks are [minutes, zone] pairs. */
@@ -453,5 +455,255 @@ describe("the week is built first", () => {
     const s = suggestWorkout({ ...base, library: LIB2, date: "2027-07-17", season: plan, profile: SHEET });
     expect(s).toMatchObject({ kind: "rest" });
     if (s.kind === "rest") expect(s.reason).toContain("gara");
+  });
+});
+
+// ── What the review of 12 November 2026 found ──────────────────────────────────────────────────────
+
+const LIB3: LibraryWorkout[] = [
+  ...LIB2,
+  wp("Long Z2 2h", [[10, 0.55], [100, 0.68], [10, 0.5]], 88),
+  wp("Long Z2 4h", [[15, 0.55], [210, 0.68], [15, 0.5]], 172),
+  wp("Lunga 4h Granfondo", [[15, 0.55], [165, 0.68], ...rep(3, [10, 0.98], [5, 0.6]), [15, 0.5]], 209),
+  wp("Partenze da fermo + 2x18 Z4", [[20, 0.6], ...rep(6, [0.33, 1.6], [3, 0.5]), ...rep(2, [18, 0.98], [6, 0.55]), [69, 0.66]], 144),
+  wp("Anaerobic Ladder 20-40-60-40-20", [[20, 0.55], [0.33, 1.6], [4, 0.4], [0.67, 1.45], [4, 0.4], [1, 1.35], [4, 0.4], [0.67, 1.45], [4, 0.4], [0.33, 1.6], [15, 0.4]], 40),
+  wp("High Cadence Seated 8x30s", [[15, 0.6], ...rep(8, [0.5, 1.3], [4, 0.6]), [10, 0.5]], 50),
+  wp("Zone 2 with Tempo 100", [[10, 0.55], [70, 0.68], [10, 0.82], [10, 0.5]], 72),
+  wp("Fasted Zone 2 100", [[10, 0.55], [80, 0.68], [10, 0.5]], 70),
+  wp("Fasted Long Zone 2 3h", [[15, 0.55], [150, 0.68], [15, 0.5]], 130),
+  wk("Taper Openers", [[15, 2], [1, 5], [3, 1], [1, 5], [3, 1], [1, 6], [10, 1]], 28),
+];
+
+describe("the review of 12 November 2026", () => {
+  const setup: SeasonSetup = { start: "2026-11-05", horizonWeeks: 40, raceA: { date: "2027-07-17", name: "Granfondo" }, peak: { start: "2027-05-31", weeks: 8 }, ramp: "prudente", stops: [], maxHours: 10 };
+  const plan = planSeason(setup, 36);
+  const loadWeek = (phase: string) => plan.weeks.find((w) => w.phase === phase && w.kind === "carico")!;
+  const ride = (date: string, name: string, IF: number, mins: number, zones: number[] | null = null) => ({ date: `${date}T18:00:00`, name, IF, tss: 45, movingTime: mins * 60, zones });
+  const c = (name: string) => classifyWorkout(LIB3.find((w) => w.name === name)!);
+  const main = (s: ReturnType<typeof suggestWorkout>) => {
+    if (s.kind !== "workout") throw new Error(`atteso un allenamento, ricevuto: ${s.reason}`);
+    return s.main;
+  };
+
+  it("knows a ridden session by the library workout of the same name, whatever its intensity factor", () => {
+    const [tempo] = recentFromRides([ride("2026-11-10", "Tempo 3x12 Indoor", 0.74, 52)], LIB3);
+    expect([tempo.cls, tempo.quality, tempo.hard]).toEqual(["tempo", true, false]);
+    // Recalibrated in the trainer player: the name carries the percentage.
+    const [vo2] = recentFromRides([ride("2026-11-11", "Rønnestad 30/15 3x13 Indoor · al 90%", 0.78, 55)], LIB3);
+    expect([vo2.cls, vo2.quality, vo2.hard]).toEqual(["vo2", true, true]);
+    // Stopped after a quarter of an hour: it is not that workout.
+    const [cut] = recentFromRides([ride("2026-11-11", "Tempo 3x12 Indoor", 0.6, 15)], LIB3);
+    expect(cut.quality).toBeUndefined();
+  });
+
+  it("reads the minutes in the zones of a ride that is not a library workout", () => {
+    const m = (...mins: number[]) => mins.map((x) => x * 60);
+    // 30' of tempo in an hour on the trainer: quality, not hard.
+    expect(classFromZones(m(10, 20, 30, 0, 0, 0, 0), 3600, 0.74)).toEqual({ cls: "tempo", hard: false, quality: true });
+    // 10' above the threshold in short repeats: VO2max, hard.
+    expect(classFromZones(m(15, 25, 5, 2, 10, 0, 0), 3420, 0.76)).toMatchObject({ cls: "vo2", hard: true, quality: true });
+    // Two hours of Z2 on rolling roads: the minutes above Z2 are scattered, not a session.
+    expect(classFromZones(m(20, 78, 18, 3, 1, 0, 0), 7200, 0.68)).toEqual({ cls: undefined, hard: false, quality: false });
+    // A long ride with half an hour of tempo is still the long ride.
+    expect(classFromZones(m(30, 120, 30, 0, 0, 0, 0), 10800, 0.66).quality).toBe(false);
+    // Without zones the ride keeps only its numbers (the engine falls back on the intensity factor).
+    expect(recentFromRides([ride("2026-11-10", "Giro con gli amici", 0.9, 90)], LIB3)[0].quality).toBeUndefined();
+  });
+
+  it("the day after a tempo session ridden at IF 0,74 is easy, and the VO2max session stays in the week", () => {
+    const w = loadWeek("base_1");
+    const recent = recentFromRides([ride(addDays(w.start, 1), "Tempo 3x12 Indoor", 0.74, 52)], LIB3);
+    const wednesday = { ...base, library: LIB3, date: addDays(w.start, 2), season: plan, profile: SHEET, recent };
+    expect(main(suggestWorkout(wednesday)).slot).toBe("easy");
+    const quality = planWeek(wednesday)
+      .filter((d) => d.date <= w.end && d.suggestion?.kind === "workout" && QUALITY.includes(d.suggestion.main.cls))
+      .map((d) => (d.suggestion?.kind === "workout" ? d.suggestion.main.cls : ""));
+    expect(quality).toEqual(["vo2"]);
+  });
+
+  it("yellow shortens the long ride by a quarter in the base too", () => {
+    const sunday = { ...base, library: LIB3, date: addDays(loadWeek("base_2").start, 6), season: plan, profile: SHEET };
+    const green = main(suggestWorkout(sunday));
+    const yellow = main(suggestWorkout({ ...sunday, readiness: "giallo" }));
+    expect(green.slot).toBe("long");
+    expect(yellow.mins).toBeLessThanOrEqual(green.mins * 0.85);
+    expect(classifyWorkout(yellow.workout).maxZone).toBeLessThanOrEqual(2);
+    expect(yellow.reasons.join(" ")).toContain("si accorcia");
+  });
+
+  it("the long ride moved to a weekday keeps to the weekday's time", () => {
+    const w = loadWeek("base_2");
+    const away = planSeason({ ...setup, stops: [{ from: addDays(w.start, 5), to: addDays(w.start, 6) }] }, 36);
+    const thursday = main(suggestWorkout({ ...base, library: LIB3, date: addDays(w.start, 3), season: away, profile: SHEET }));
+    expect(thursday.slot).toBe("long");
+    expect(thursday.mins).toBeLessThanOrEqual(130);
+  });
+
+  it("in the base the long ride is plain Z2 when the library has one", () => {
+    const sunday = main(suggestWorkout({ ...base, ctl: 50, library: LIB3, date: addDays(loadWeek("base_3").start, 6), season: plan, profile: SHEET }));
+    expect(sunday.slot).toBe("long");
+    expect(classifyWorkout(sunday.workout).aboveZ2).toBe(0);
+  });
+
+  it("a long ride with 2×18' at threshold is a threshold day, an anaerobic ladder is not recovery", () => {
+    expect([c("Partenze da fermo + 2x18 Z4").cls, c("Partenze da fermo + 2x18 Z4").quality]).toEqual(["soglia", true]);
+    expect([c("Lunga 4h Granfondo").cls, c("Lunga 4h Granfondo").lateWork, c("Lunga 4h Granfondo").quality]).toEqual(["z2", true, false]);
+    expect(c("Anaerobic Ladder 20-40-60-40-20").cls).toBe("anaerobico");
+    expect(c("High Cadence Seated 8x30s").cls).toBe("sprint");
+    expect(c("Taper Openers").cls).toBe("gara");
+  });
+
+  it("an easy day between two quality sessions is plain Z2, and never a fasted ride", () => {
+    const profile = { ...SHEET, digiuno: "Solo Z1-Z2" };
+    const days = planWeek({ ...base, library: LIB3, date: loadWeek("base_2").start, season: plan, profile });
+    const wed = days[2].suggestion;
+    const picked = main(wed!);
+    expect(picked.slot).toBe("easy");
+    expect(classifyWorkout(picked.workout).aboveZ2).toBe(0);
+    for (const d of days) if (d.suggestion?.kind === "workout" && d.suggestion.main.slot !== "easy") expect(classifyWorkout(d.suggestion.main.workout).fasted).toBe(false);
+    expect(classifyWorkout(picked.workout).fasted).toBe(false);
+  });
+
+  it("the weeks to come are laid out with the fitness the plan expects, not today's", () => {
+    const weeks = seasonWeeks({
+      plan,
+      setup,
+      today: plan.weeks[0].start,
+      calendar: [],
+      done: [],
+      base: { readiness: "verde", tsbYesterday: null, ctl: 36, recent: [], library: LIB3, profile: SHEET, phenotype: null, ftp: 260, indoorFtp: 250 },
+    });
+    const peak = weeks.find((w) => w.week.phase === "peak" && w.week.kind === "carico")!;
+    const long = peak.days.find((d) => d.slot === "long")!;
+    // 209 TSS is above what a single ride may load at CTL 36 (4,5 × CTL), but not at the CTL of the peak.
+    expect(long.name).toBe("Lunga 4h Granfondo");
+  });
+
+  it("keeps the quality session off the day after the gym", () => {
+    const w = loadWeek("base_2");
+    const wed = addDays(w.start, 2);
+    const thu = addDays(w.start, 3);
+    const tueDone = recentFromRides([ride(addDays(w.start, 1), "Rønnestad 30/15 3x13 Indoor", 0.8, 58)], LIB3);
+    const thursday = { ...base, library: LIB3, date: thu, season: plan, profile: SHEET, recent: tueDone };
+    // Without the gym Thursday is the second quality day of the week.
+    expect(main(suggestWorkout(thursday)).slot).toBe("B");
+    // With weights on Wednesday it becomes an easy day, and the session moves to Saturday.
+    const afterGym = main(suggestWorkout({ ...thursday, gym: [wed] }));
+    expect(afterGym.slot).toBe("easy");
+    expect(afterGym.reasons.join(" ")).toContain("palestra");
+    const week = planWeek({ ...thursday, gym: [wed] });
+    const quality = week.filter((d) => d.date <= w.end && d.suggestion?.kind === "workout" && QUALITY.includes(d.suggestion.main.cls)).map((d) => d.date);
+    expect(quality).toEqual([addDays(w.start, 5)]);
+    // Asked by hand, the hard session comes with a warning.
+    const asked = main(suggestWorkout({ ...thursday, gym: [wed], override: { wantClass: "soglia" } }));
+    expect(asked.warnings.join(" ")).toContain("palestra");
+  });
+
+  it("says when a workout already on the calendar does not suit the day", () => {
+    const day = { ...base, library: LIB3, date: "2026-11-18" };
+    const of = (name: string) => LIB3.find((w) => w.name === name)!;
+    const why = (input: SuggestInput, name: string) => {
+      const fit = plannedFits(input, of(name));
+      return fit.ok ? null : fit.why;
+    };
+    // Green and rested: anything goes.
+    expect(why(day, "VO2 5x3 Indoor")).toBeNull();
+    // Yellow: only Z2 without blocks above it, and a long ride gets shorter.
+    expect(why({ ...day, readiness: "giallo" }, "Tempo 3x12 Indoor")).toContain("gialla");
+    expect(why({ ...day, readiness: "giallo" }, "Zone 2 with Tempo 100")).toContain("gialla");
+    expect(why({ ...day, readiness: "giallo" }, "Zone 2 Endurance 100")).toBeNull();
+    expect(why({ ...day, readiness: "giallo" }, "Long Z2 3h")).toContain("accorcia");
+    // Red: recovery within 45 minutes, nothing else.
+    expect(why({ ...day, readiness: "rosso" }, "Zone 2 Endurance 100")).toContain("rossa");
+    expect(why({ ...day, readiness: "rosso" }, "Active Recovery Spin 45")).toBeNull();
+    // Feeling bad lowers the readiness one level here too.
+    expect(why({ ...day, feeling: { drop: true } }, "VO2 5x3 Indoor")).toContain("gialla");
+    // Hard work: not with grey readiness, not with yesterday's form in the high-risk zone; sweet spot is allowed.
+    expect(why({ ...day, readiness: "grigio" }, "VO2 5x3 Indoor")).toContain("Dati insufficienti");
+    expect(why({ ...day, tsbYesterday: -34 }, "Threshold 2x15 Indoor")).toContain("alto rischio");
+    expect(why({ ...day, tsbYesterday: -34 }, "Sweet Spot 2x20 Indoor")).toBeNull();
+    // Fever, the week after it, an injury.
+    expect(why({ ...day, life: [{ id: "s", category: "SICK", from: "2026-11-17", to: "2026-11-18" }] }, "Zone 2 Endurance 100")).toContain("febbre");
+    expect(why({ ...day, life: [{ id: "s", category: "SICK", from: "2026-11-14", to: "2026-11-15" }] }, "Zone 2 Endurance 100")).toContain("Dopo la febbre");
+    expect(why({ ...day, life: [{ id: "s", category: "SICK", from: "2026-11-14", to: "2026-11-15" }] }, "Active Recovery Spin 45")).toBeNull();
+    // The day after a quality session, or after the gym.
+    const yesterday = recentFromRides([ride("2026-11-17", "Tempo 3x12 Indoor", 0.74, 52)], LIB3);
+    expect(why({ ...day, recent: yesterday }, "VO2 5x3 Indoor")).toContain("Ieri hai fatto una seduta di qualità");
+    expect(why({ ...day, recent: yesterday }, "Zone 2 Endurance 100")).toBeNull();
+    expect(why({ ...day, gym: ["2026-11-17"] }, "VO2 5x3 Indoor")).toContain("palestra");
+  });
+
+  it("on the eve of the A race a short activation, never a quality session; the second quality of the race week is not called the only one", () => {
+    const everyDay = { ...SHEET, giorni: [1, 2, 3, 4, 5, 6] };
+    const eve = main(suggestWorkout({ ...base, ctl: 60, library: LIB3, date: "2027-07-16", season: plan, profile: everyDay }));
+    expect([eve.workout.name, eve.label]).toEqual(["Taper Openers", "Attivazione pre-gara"]);
+    const days = planWeek({ ...base, ctl: 60, library: LIB3, date: "2027-07-12", season: plan, profile: everyDay });
+    const reasons = days.flatMap((d) => (d.suggestion?.kind === "workout" && QUALITY.includes(d.suggestion.main.cls) ? [d.suggestion.main.reasons[0]] : []));
+    expect(reasons.length).toBe(2);
+    expect(reasons.filter((r) => r.includes("l'unica seduta"))).toHaveLength(0);
+  });
+});
+
+// ── What the review of 18 November 2026 found ──────────────────────────────────────────────────────
+
+describe("the review of 18 November 2026", () => {
+  const of = (name: string) => LIB3.find((w) => w.name === name)!;
+  const main = (s: ReturnType<typeof suggestWorkout>) => {
+    if (s.kind !== "workout") throw new Error(`atteso un allenamento, ricevuto: ${s.reason}`);
+    return s.main;
+  };
+  const wed = "2026-11-04";
+  const ride = (date: string, name: string, IF: number, mins: number) => ({ date: `${date}T18:00:00`, name, IF, tss: 50, movingTime: mins * 60, zones: null });
+
+  it("a race on the calendar is a hard day: no quality session the day before or after it", () => {
+    const race: LibraryWorkout = { id: 0, name: "Granfondo di prova", type: "Ride", secs: 3 * 3600, tss: 210, description: null, blocks: [], race: true };
+    expect(classifyWorkout(race)).toMatchObject({ cls: "gara", hard: true, quality: true });
+    const setup: SeasonSetup = { start: "2026-11-05", horizonWeeks: 40, raceA: null, peak: { start: "2027-05-31", weeks: 8 }, ramp: "prudente", stops: [], maxHours: 10 };
+    const plan = planSeason(setup, 36);
+    const w = plan.weeks.find((x) => x.phase === "base_1" && x.kind === "carico")!;
+    const raceDay = addDays(w.start, 2);
+    const days = planWeek({ ...base, library: LIB3, date: w.start, season: plan, profile: SHEET, planned: [{ date: raceDay, workout: race }] });
+    const quality = days.filter((d) => d.suggestion?.kind === "workout" && QUALITY.includes(d.suggestion.main.cls)).map((d) => d.date);
+    expect(quality).not.toContain(addDays(raceDay, -1));
+    expect(quality).not.toContain(addDays(raceDay, 1));
+    // The race is one of the week's quality sessions: one more at most.
+    expect(quality.length).toBeLessThanOrEqual(1);
+    // On the day itself the card shows the race, never a swap.
+    expect(plannedFits({ ...base, date: raceDay, readiness: "giallo" }, race)).toEqual({ ok: true });
+  });
+
+  it("a ride fixed in the Stagione page keeps to the week after a fever: Z1-Z2 within 45 minutes", () => {
+    const sick = [{ id: "s", category: "SICK" as const, from: "2026-11-01", to: "2026-11-02" }];
+    const s = main(suggestWorkout({ ...base, library: LIB3, date: wed, life: sick, chosen: [{ date: wed, id: of("Long Z2 3h").id, mine: true }] }));
+    expect(s.workout.name).not.toBe("Long Z2 3h");
+    expect(s.mins).toBeLessThanOrEqual(50);
+    expect(s.reasons.join(" ")).toContain("Dopo la febbre");
+  });
+
+  it("a quality day the athlete fixed stays after yesterday's quality ride, with a warning; a day only frozen from a proposal gives way", () => {
+    const recent = recentFromRides([ride("2026-11-03", "Tempo 3x12 Indoor", 0.74, 52)], LIB3);
+    const vo2 = of("VO2 5x3 Indoor");
+    const mine = main(suggestWorkout({ ...base, library: LIB3, date: wed, recent, chosen: [{ date: wed, id: vo2.id, mine: true }] }));
+    expect(mine.workout.name).toBe("VO2 5x3 Indoor");
+    expect(mine.warnings.join(" ")).toContain("Ieri hai fatto una seduta di qualità");
+    const frozen = main(suggestWorkout({ ...base, library: LIB3, date: wed, recent, chosen: [{ date: wed, id: vo2.id, mine: false }] }));
+    expect(["z2", "recupero"]).toContain(frozen.cls);
+  });
+
+  it("on a yellow day a fixed easy ride stays as it is", () => {
+    const s = main(suggestWorkout({ ...base, library: LIB3, date: wed, readiness: "giallo", chosen: [{ date: wed, id: of("Zone 2 Endurance 100").id, mine: true }] }));
+    expect(s.workout.name).toBe("Zone 2 Endurance 100");
+  });
+
+  it("the card of a planned workout says what the engine would say: hard days in a cluster, five days in a row, the CTL climbing too fast", () => {
+    const vo2 = of("VO2 5x3 Indoor");
+    const fit = (over: Partial<SuggestInput>) => plannedFits({ ...base, library: LIB3, date: wed, ...over }, vo2);
+    const hardRides = recentFromRides([ride("2026-10-30", "VO2 5x3 Indoor", 0.8, 50), ride("2026-11-01", "Threshold 2x15 Indoor", 0.85, 55)], LIB3);
+    expect(fit({ recent: hardRides })).toMatchObject({ ok: false, rule: "method", why: expect.stringContaining("lavori duri") });
+    const streak = recentFromRides(["2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03"].map((d) => ride(d, "Zone 2 Endurance 100", 0.65, 100)), LIB3);
+    expect(fit({ recent: streak })).toMatchObject({ ok: false, why: expect.stringContaining("giorni di fila") });
+    const plan = planSeason({ start: "2026-11-02", horizonWeeks: 20, raceA: null, peak: null, ramp: "prudente", stops: [], maxHours: null }, 36);
+    expect(fit({ season: plan, rampRate: 5 })).toMatchObject({ ok: false, why: expect.stringContaining("CTL sta salendo") });
+    expect(fit({ season: plan, rampRate: 3 })).toEqual({ ok: true });
   });
 });

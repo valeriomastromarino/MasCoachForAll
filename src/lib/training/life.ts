@@ -55,3 +55,16 @@ export function lifeBetween(events: LifeEvent[], from: string, to: string): Life
 export function openLife(events: LifeEvent[], date: string, category?: LifeCategory): LifeEvent | null {
   return events.find((e) => e.category !== "HOLIDAY" && (!category || e.category === category) && e.from <= date && e.to >= date) ?? null;
 }
+
+/**
+ * First day to read holidays, illness and injuries from: the start of the season, when there is one. The light weeks are
+ * counted from there ("three of load, one light", and a long stop restarts the count), so an old stop must stay in the
+ * count: read only from 30 days ago, it dropped out a month later and the light weeks of the rest of the season moved.
+ */
+export function lifeFrom(today: string, seasonStart: string | null | undefined): string {
+  const recent = addDays(today, -30);
+  // One read covers 800 days at most, and the app also reads 400 days ahead.
+  const oldest = addDays(today, -380);
+  if (!seasonStart || seasonStart > recent) return recent;
+  return seasonStart < oldest ? oldest : seasonStart;
+}

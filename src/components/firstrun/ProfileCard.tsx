@@ -24,7 +24,8 @@ export function ProfileCard() {
   };
   const save = async () => {
     setMessage("");
-    const err = await pushCloud();
+    // «Salva ora»: what is on this device goes up, whatever is there.
+    const err = await pushCloud({ force: true });
     setMessage(err ? "" : "Salvata su Intervals.");
   };
   const restore = async () => {

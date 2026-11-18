@@ -46,11 +46,16 @@ function watts(s: RawStep, ftp: number): { from: number; to: number } | null {
     const v = isNum(t.value) ? t.value : isNum(t.start) && isNum(t.end) ? (t.start + t.end) / 2 : null;
     return v === null ? null : { from: conv(v), to: conv(v) };
   };
-  // Intervals.icu already resolved the target in watts.
+  const units = s.power?.units;
+  // Percentages always follow the player's FTP, which is the trainer's: Intervals.icu resolves them with the outdoor FTP
+  // when the event is not marked as indoor, and the session came out 4% too hard (found on 12 November 2026).
+  if (units === "%ftp") {
+    const own = pick(s.power, (x) => (x * ftp) / 100);
+    if (own) return own;
+  }
+  // Any other target: Intervals.icu already resolved it in watts.
   const resolved = pick(s._power, (x) => x);
   if (resolved) return resolved;
-  const units = s.power?.units;
-  if (units === "%ftp") return pick(s.power, (x) => (x * ftp) / 100);
   if (units === "w") return pick(s.power, (x) => x);
   if (units === "power_zone") return pick(s.power, (x) => zoneMid(x) * ftp);
   return null;

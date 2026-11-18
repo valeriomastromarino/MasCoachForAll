@@ -25,6 +25,8 @@ export type ActivityRow = {
   avgHr: number | null;
   decoupling: number | null;
   ef: number | null;
+  /** Seconds in each Coggan power zone, Z1 to Z7 (null without power): what the ride was, for the training engine. */
+  zones?: number[] | null;
 };
 
 // "ftp" alone is not enough: "ftp 3x10min" is a workout at threshold, not a test.
@@ -52,6 +54,16 @@ export function categoryOf(a: Pick<IcuActivity, "type" | "trainer">): ActivityCa
   return "strada";
 }
 
+const POWER_ZONE_IDS = ["Z1", "Z2", "Z3", "Z4", "Z5", "Z6", "Z7"];
+
+/** Time in Z1–Z7 from Intervals.icu (its "SS" entry overlaps Z3 and Z4 and is left out). */
+function zoneSecs(a: IcuActivity): number[] | null {
+  const times = a.icu_zone_times;
+  if (!times?.length) return null;
+  const out = POWER_ZONE_IDS.map((id) => times.find((z) => z.id === id)?.secs ?? 0);
+  return out.some((s) => s > 0) ? out : null;
+}
+
 export function toActivityRow(a: IcuActivity): ActivityRow {
   const category = categoryOf(a);
   return {
@@ -71,5 +83,6 @@ export function toActivityRow(a: IcuActivity): ActivityRow {
     avgHr: num(a.average_heartrate),
     decoupling: num(a.decoupling),
     ef: num(a.icu_efficiency_factor),
+    zones: zoneSecs(a),
   };
 }

@@ -4,7 +4,7 @@ import { type ActivityRow, RIDE_TYPES, toActivityRow } from "../activities";
 import { buildCalendar, buildLibrary, type CalendarData, eventFromLibrary, type LibraryFolder } from "../calendar";
 import { buildDashboard, type DashboardData } from "../dashboard";
 import { buildWidget } from "../widget";
-import { addDays, toIsoDate } from "../dates";
+import { addDays, todayIso } from "../dates";
 import { demoData } from "../demo";
 import { demoRide } from "../demoRide";
 import { cached } from "../intervals/cache";
@@ -82,10 +82,12 @@ async function dashboard(q: URLSearchParams): Promise<ApiResult> {
 
 /** The small summary the Android widget draws (lib/widget.ts): today's verdict, numbers and planned workout. */
 async function widget(): Promise<ApiResult> {
-  const today = toIsoDate(new Date());
+  const today = todayIso();
   const dash = await dashboard(new URLSearchParams());
-  const cal = await calendar(new URLSearchParams({ from: today, to: today }));
   if (dash.status !== 200) return dash;
+  // With the FTP the steps written in watts get their zone in the widget's profile too (without it they were all Z1).
+  const ftp = (dash.json as DashboardData).athlete.ftp;
+  const cal = await calendar(new URLSearchParams({ from: today, to: today, ...(ftp ? { ftp: String(ftp) } : {}) }));
   if (cal.status !== 200) return cal;
   return ok(buildWidget(dash.json as DashboardData, cal.json as CalendarData, today));
 }
@@ -97,7 +99,7 @@ const PAGE_DAYS = 365;
 
 async function activities(q: URLSearchParams): Promise<ApiResult> {
   const before = q.get("before");
-  const newest = before && ISO_DATE.test(before) ? before : toIsoDate(new Date());
+  const newest = before && ISO_DATE.test(before) ? before : todayIso();
   const oldest = addDays(newest, -PAGE_DAYS + 1);
   const list =
     q.get("demo") === "1" || !intervalsConfigured()
@@ -237,6 +239,8 @@ async function life(method: string, id: string, q: URLSearchParams, body: unknow
   if (!ev.category || !LIFE_CATEGORIES.includes(ev.category)) return fail(400, "Non è una malattia, un infortunio o una vacanza");
   if (method === "PATCH") {
     if (!ISO_DATE.test(b.to ?? "")) return fail(400, "Data non valida");
+    // An end before the start would leave Intervals.icu with an event that ends before it begins.
+    if (b.to! < ev.start_date_local.slice(0, 10)) return fail(400, "La fine è prima dell'inizio");
     await updateEvent(id, { end_date_local: `${addDays(b.to!, 1)}T00:00:00` });
     return ok({ ok: true });
   }
@@ -251,8 +255,11 @@ async function life(method: string, id: string, q: URLSearchParams, body: unknow
 /** Sessions the athlete adds by hand from the calendar: not on the bike, so they have no steps, only a type and a duration. */
 const EXTRA_SESSIONS = { pesi: { type: "WeightTraining", name: "Pesi" }, pilates: { type: "Pilates", name: "Pilates" } } as const;
 
-/** Puts a workout from the Intervals.icu library on a day of the calendar, or a session of weights or Pilates (`kind`, `mins`). */
-async function addWorkout(body: { workoutId?: number; date?: string; kind?: string; mins?: number } | null): Promise<ApiResult> {
+/**
+ * Puts a workout from the Intervals.icu library on a day of the calendar (`indoor` = to be ridden on the trainer, so the
+ * percentages follow the indoor FTP), or a session of weights or Pilates (`kind`, `mins`).
+ */
+async function addWorkout(body: { workoutId?: number; date?: string; kind?: string; mins?: number; indoor?: boolean } | null): Promise<ApiResult> {
   if (!intervalsConfigured()) return DEMO_ONLY();
   if (body?.kind !== undefined) {
     const extra = EXTRA_SESSIONS[body.kind as keyof typeof EXTRA_SESSIONS];
@@ -271,19 +278,26 @@ async function addWorkout(body: { workoutId?: number; date?: string; kind?: stri
   const { workouts } = await fetchLibrary();
   const w = workouts.find((x) => x.id === body.workoutId);
   if (!w) return fail(404, "Allenamento non trovato nella libreria");
-  const created = await createEvent(eventFromLibrary(w, body.date!));
+  const created = await createEvent(eventFromLibrary(w, body.date!, body.indoor === true));
   return ok({ id: String(created?.id ?? "") });
+}
+
+/** The calendar's buttons move and remove planned workouts only: never a note, a race, a holiday or the app's saved data. */
+async function isPlannedWorkout(id: string): Promise<boolean> {
+  return (await fetchEvent(id)).category === "WORKOUT";
 }
 
 async function moveWorkout(id: string, body: { date?: string } | null): Promise<ApiResult> {
   if (!intervalsConfigured()) return DEMO_ONLY();
   if (!ISO_DATE.test(body?.date ?? "")) return fail(400, "Data non valida");
+  if (!(await isPlannedWorkout(id))) return fail(400, "Si spostano solo gli allenamenti");
   await moveEvent(id, body!.date!);
   return ok({ ok: true });
 }
 
 async function removeWorkout(id: string): Promise<ApiResult> {
   if (!intervalsConfigured()) return DEMO_ONLY();
+  if (!(await isPlannedWorkout(id))) return fail(400, "Si tolgono solo gli allenamenti");
   await deleteEvent(id);
   return ok({ ok: true });
 }
@@ -366,7 +380,7 @@ function demoDurability(): DurabilityData {
 async function durability(q: URLSearchParams): Promise<ApiResult> {
   if (q.get("demo") === "1" || !intervalsConfigured()) return ok(demoDurability());
   if (q.get("refresh") !== "1" && durabilityCache && Date.now() - durabilityCache.at < DURABILITY_TTL_MS) return ok(durabilityCache.data);
-  const today = toIsoDate(new Date());
+  const today = todayIso();
   const long = (await fetchActivities(addDays(today, -WINDOW_DAYS + 1), today)).filter(
     (a) => a.type && RIDE_TYPES.has(a.type) && (a.moving_time ?? 0) >= MIN_SECS && (a.icu_average_watts ?? 0) > 0,
   );
@@ -391,7 +405,7 @@ const MAX_HISTORY_YEARS = 4;
 
 async function history(q: URLSearchParams): Promise<ApiResult> {
   const years = Math.min(MAX_HISTORY_YEARS, Math.max(1, Math.round(Number(q.get("years")) || MAX_HISTORY_YEARS)));
-  const today = toIsoDate(new Date());
+  const today = todayIso();
   const from = addDays(today, -Math.round(years * 365.25) + 1);
   if (q.get("demo") === "1" || !intervalsConfigured()) {
     const demo = demoData(Math.round(years * 365.25));
@@ -405,7 +419,7 @@ async function history(q: URLSearchParams): Promise<ApiResult> {
 // ── Trainer player ──────────────────────────────────────────────────────────────────────────────────
 
 async function trainerWorkout(id: string): Promise<ApiResult> {
-  const today = toIsoDate(new Date());
+  const today = todayIso();
   if (id === DEMO_WORKOUT_ID || !intervalsConfigured()) {
     const ftp = intervalsConfigured() ? indoorFtp(await fetchAthlete().catch(() => null)) : indoorFtp(demoData(1).athlete);
     return ok({ workout: demoWorkout(ftp, today) } satisfies TrainerWorkoutData);
@@ -460,7 +474,7 @@ export async function handleApi(method: string, path: string, body: unknown = nu
     }
     if (method === "GET" && p.startsWith("/api/rulli/workout/")) return await trainerWorkout(seg(/^\/api\/rulli\/workout\/([^/]+)$/));
     if (method === "POST" && p === "/api/rulli/upload") return await trainerUpload(body as Parameters<typeof trainerUpload>[0]);
-    if (p === "/api/calendar/events" && method === "POST") return await addWorkout(body as { workoutId?: number; date?: string; kind?: string; mins?: number } | null);
+    if (p === "/api/calendar/events" && method === "POST") return await addWorkout(body as Parameters<typeof addWorkout>[0]);
     if (p.startsWith("/api/calendar/events/")) {
       const id = seg(/^\/api\/calendar\/events\/([^/]+)$/);
       if (method === "PATCH") return await moveWorkout(id, body as { date?: string } | null);

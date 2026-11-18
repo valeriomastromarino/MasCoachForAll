@@ -1,5 +1,5 @@
 // The home calendar: activities done and workouts planned on Intervals.icu, day by day.
-import { type ActivityCategory, categoryOf, isTestName } from "./activities";
+import { type ActivityCategory, categoryOf, isTestName, RIDE_TYPES } from "./activities";
 import { type CoachMark, coachMarkOf } from "./coach/marks";
 import type { IcuActivity, IcuEvent, IcuFolder, IcuLibraryWorkout } from "./intervals/types";
 import { addDays } from "./dates";
@@ -35,7 +35,18 @@ export type CalendarWorkout = {
   blocks: WorkoutBlock[];
   /** Written by MasCoach Coach ("prova" while the coach is being tried out). */
   coach: CoachMark | null;
+  /** A race (A, B or C) planned on the calendar: for the training engine it is a hard day, like a quality session. */
+  race?: boolean;
 };
+
+/**
+ * A session on the bike, or a race. The calendar also holds strength, Pilates and other sports (the day sheet writes
+ * «Pesi» and «Pilates» as WORKOUT events): the training engine, the day's card and the chat count bike sessions only,
+ * or a day with weights looked like a day with a ride already planned (found on 18 November 2026).
+ */
+export function isBikeSession(w: { type: string | null }): boolean {
+  return w.type === null || RIDE_TYPES.has(w.type);
+}
 
 /** Everything on the calendar that isn't a workout: races, holidays, illness, notes, season start, week targets. */
 export type CalendarEvent = {
@@ -110,6 +121,7 @@ export function toCalendarWorkout(e: IcuEvent, ftp: number | null): CalendarWork
     description: e.description?.trim() || null,
     blocks: workoutBlocks(e.workout_doc?.steps, ftp),
     coach: coachMarkOf(e.external_id),
+    ...(e.category?.startsWith("RACE_") ? { race: true } : {}),
   };
 }
 
@@ -194,8 +206,13 @@ export function buildLibrary(workouts: IcuLibraryWorkout[], folders: IcuFolder[]
     .sort((a, b) => b.workouts.length - a.workouts.length);
 }
 
-/** Event body that puts a library workout on a day; Intervals.icu re-reads the steps from the description. */
-export function eventFromLibrary(w: IcuLibraryWorkout, date: string): Omit<IcuEvent, "id"> {
+/**
+ * Event body that puts a library workout on a day; Intervals.icu re-reads the steps from the description.
+ * `indoor` = the session is for the trainer. Intervals.icu turns the percentages into watts with the indoor FTP only when
+ * the event carries `indoor: true` (verified on 12 November 2026: the type alone does not do it), and most library
+ * workouts named "… Indoor" do not carry the flag themselves: without it a trainer session was 4% harder than the app said.
+ */
+export function eventFromLibrary(w: IcuLibraryWorkout, date: string, indoor = false): Omit<IcuEvent, "id"> {
   return {
     category: "WORKOUT",
     start_date_local: `${date}T00:00:00`,
@@ -204,6 +221,6 @@ export function eventFromLibrary(w: IcuLibraryWorkout, date: string): Omit<IcuEv
     description: w.description ?? "",
     moving_time: w.moving_time ?? null,
     icu_training_load: w.icu_training_load ?? null,
-    indoor: w.indoor ?? null,
+    indoor: indoor || /\bindoor\b/i.test(w.name ?? "") ? true : (w.indoor ?? null),
   };
 }

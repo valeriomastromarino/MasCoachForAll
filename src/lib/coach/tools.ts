@@ -4,7 +4,10 @@ import { type CalendarData, type DurabilityData, handleApi, type LibraryData } f
 import type { CloudPayload } from "../profile/cloud";
 import type { ActivitiesPage, HistoryData } from "../api/handlers";
 import type { DashboardData } from "../dashboard";
-import { addDays, toIsoDate } from "../dates";
+import { addDays, todayIso, weekStart } from "../dates";
+import { CLASS_SAY, classifyWorkout, type WorkoutClass } from "../training/classify";
+import { type LifeEvent, lifeFrom } from "../training/life";
+import { seasonPlanView } from "./seasonTool";
 import { RIDE_TYPES } from "../activities";
 import { calendarEvents, type CalendarEvent } from "../calendar";
 import { cached, invalidate } from "../intervals/cache";
@@ -52,7 +55,7 @@ async function api<T>(path: string): Promise<T> {
 
 const r1 = (x: number | null | undefined) => (x == null ? null : Math.round(x * 10) / 10);
 const ms = (ln: number | null | undefined) => (ln == null ? null : Math.round(Math.exp(ln)));
-const today = () => toIsoDate(new Date());
+const today = () => todayIso();
 
 function str(args: Args, key: string, max = 200): string | undefined {
   const v = args[key];
@@ -433,17 +436,96 @@ async function fuelingLog(args: Args) {
   };
 }
 
-async function libreria() {
-  const lib = await api<LibraryData>("/api/library");
-  return lib.folders.map((f) => ({
-    cartella: f.name,
-    allenamenti: f.workouts.map((w) => ({
-      nome: w.name,
-      durata_min: w.secs ? Math.round(w.secs / 60) : null,
-      tss: w.tss,
-      testo: w.description,
+const LIBRARY_CLASSES = Object.keys(CLASS_SAY) as WorkoutClass[];
+const LIBRARY_FILTERS = ["tipo", "minuti_min", "minuti_max", "luogo", "nome_contiene", "cartella"];
+
+/**
+ * The library for the coach. Without filters: every workout on one short line, no text (the whole library with its
+ * text was over 100.000 characters a call). With filters: the workouts that match, with their text.
+ */
+export function libraryView(lib: LibraryData, args: Args) {
+  const rows = lib.folders.flatMap((f) =>
+    f.workouts.map((w) => {
+      const c = classifyWorkout(w);
+      return { w, cartella: f.name, c, mins: Math.round(c.mins), tss: Math.round(c.tss) };
+    }),
+  );
+  if (!LIBRARY_FILTERS.some((k) => args[k] !== undefined && args[k] !== null && args[k] !== "")) {
+    const perTipo: Record<string, number> = {};
+    for (const r of rows) perTipo[CLASS_SAY[r.c.cls]] = (perTipo[CLASS_SAY[r.c.cls]] ?? 0) + 1;
+    return {
+      totale: rows.length,
+      per_tipo: perTipo,
+      nota: "Elenco compatto, senza il testo: «nome · minuti · TSS · tipo · rulli o fuori». Per il testo dei passi richiama con i filtri (tipo, minuti_min, minuti_max, luogo, nome_contiene, cartella).",
+      cartelle: lib.folders.map((f) => ({
+        cartella: f.name,
+        allenamenti: rows.filter((r) => r.cartella === f.name).map((r) => `${r.w.name} · ${r.mins}' · TSS ${r.tss} · ${CLASS_SAY[r.c.cls]} · ${r.c.indoor ? "rulli" : "fuori"}`),
+      })),
+    };
+  }
+  const tipo = str(args, "tipo");
+  const wanted = tipo ? LIBRARY_CLASSES.find((c) => c === tipo || CLASS_SAY[c].toLowerCase() === tipo.toLowerCase()) : undefined;
+  if (tipo && !wanted) throw new Error(`"tipo" deve essere uno tra: ${LIBRARY_CLASSES.join(", ")}`);
+  const luogo = str(args, "luogo");
+  if (luogo && luogo !== "rulli" && luogo !== "fuori") throw new Error('"luogo" deve essere "rulli" o "fuori"');
+  const min = args.minuti_min === undefined ? 0 : int(args, "minuti_min", 0, 0, 1000);
+  const max = args.minuti_max === undefined ? Infinity : int(args, "minuti_max", 1000, 0, 1000);
+  const needle = str(args, "nome_contiene")?.toLowerCase();
+  const folder = str(args, "cartella")?.toLowerCase();
+  const limit = int(args, "massimo", 20, 1, 60);
+  const found = rows
+    .filter(
+      (r) =>
+        (!wanted || r.c.cls === wanted) &&
+        r.mins >= min &&
+        r.mins <= max &&
+        (!luogo || r.c.indoor === (luogo === "rulli")) &&
+        (!needle || r.w.name.toLowerCase().includes(needle)) &&
+        (!folder || r.cartella.toLowerCase().includes(folder)),
+    )
+    .sort((a, b) => a.mins - b.mins || a.w.name.localeCompare(b.w.name));
+  // More than the limit: a spread over the durations, not the shortest ones only.
+  const shown = found.length <= limit ? found : Array.from({ length: limit }, (_, i) => found[Math.floor((i * found.length) / limit)]);
+  return {
+    trovati: found.length,
+    mostrati: shown.length,
+    ...(found.length > shown.length ? { nota: "Sono un campione distribuito sulle durate: restringi i filtri per vederli tutti." } : {}),
+    allenamenti: shown.map((r) => ({
+      id_libreria: r.w.id,
+      nome: r.w.name,
+      cartella: r.cartella,
+      durata_min: r.mins,
+      tss: r.tss,
+      tipo: CLASS_SAY[r.c.cls],
+      rulli: r.c.indoor,
+      ...(r.c.quality ? { qualita: true } : {}),
+      ...(r.c.hard ? { duro: true } : {}),
+      minuti_sopra_z2: Math.round(r.c.aboveZ2),
+      testo: r.w.description,
     })),
-  }));
+  };
+}
+
+async function libreria(args: Args) {
+  return libraryView(await api<LibraryData>("/api/library"), args);
+}
+
+/** The season as the app computes it: settings, weeks, fixed days and the next seven days (see seasonTool.ts). */
+async function pianoStagione(args: Args) {
+  requireIntervals();
+  const weeks = int(args, "settimane", 12, 1, 52);
+  const { payload } = await api<{ payload: CloudPayload | null }>("/api/cloud");
+  if (!payload?.season) {
+    return { disponibile: false, nota: "L'atleta non ha ancora impostato la stagione nell'app (pagina Stagione), o l'app non l'ha ancora salvata su Intervals.icu." };
+  }
+  const dash = await api<DashboardData>("/api/dashboard");
+  const monday = weekStart(dash.today);
+  const [library, calendar, life] = await Promise.all([
+    api<LibraryData>("/api/library"),
+    api<CalendarData>(`/api/calendar?from=${monday}&to=${addDays(monday, 13)}&ftp=${dash.athlete.ftp ?? ""}`),
+    api<LifeEvent[]>(`/api/life?from=${lifeFrom(dash.today, payload.season.start)}&to=${addDays(dash.today, 400)}`),
+  ]);
+  return seasonPlanView({ payload, dash, library, calendar: calendar.workouts, life, weeks });
 }
 
 // ── Writes ──────────────────────────────────────────────────────────────────────────────────────────
@@ -515,6 +597,8 @@ async function ownWorkout(args: Args): Promise<IcuEvent> {
   if (!coachMarkOf(e.external_id)) {
     throw new Error("Questo allenamento non l'ha creato il coach: lo può cambiare solo l'atleta, da MasCoach o Intervals.icu.");
   }
+  // Never in the past (prompt §13.4): what was planned for a day already gone stays as the record of that day.
+  if (e.start_date_local.slice(0, 10) < today()) throw new Error("Questo allenamento è di un giorno già passato: il coach non cambia né cancella il passato.");
   return e;
 }
 
@@ -811,10 +895,41 @@ export const COACH_TOOLS: CoachTool[] = [
   {
     name: "libreria_allenamenti",
     title: "Libreria allenamenti",
-    description: "Gli allenamenti salvati nella libreria di Intervals.icu, per cartella, con il loro testo.",
-    inputSchema: noArgs,
+    description:
+      "La libreria di allenamenti di Intervals.icu. Senza filtri: l'elenco compatto di tutti (nome, minuti, TSS, tipo, rulli o fuori), senza il testo. " +
+      "Con almeno un filtro: gli allenamenti che corrispondono, con il testo dei passi, l'id di libreria e i minuti sopra la Z2 (al massimo 20, fino a 60 con massimo). " +
+      "Il tipo è quello che usa l'app: recupero, z2, tempo, sweetspot, soglia, vo2, anaerobico, sprint, test, gara.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tipo: { type: "string", enum: LIBRARY_CLASSES, description: "Tipo di seduta" },
+        minuti_min: { type: "integer", minimum: 0, maximum: 1000, description: "Durata minima in minuti" },
+        minuti_max: { type: "integer", minimum: 0, maximum: 1000, description: "Durata massima in minuti" },
+        luogo: { type: "string", enum: ["rulli", "fuori"], description: "rulli = sedute pensate per i rulli; fuori = le altre" },
+        nome_contiene: { type: "string", description: "Parte del nome, es. «30/15», «granfondo»" },
+        cartella: { type: "string", description: "Parte del nome della cartella, es. «MasCoach Coach»" },
+        massimo: { type: "integer", minimum: 1, maximum: 60, description: "Quanti risultati al massimo (default 20)" },
+      },
+      additionalProperties: false,
+    },
     annotations: READ,
     run: libreria,
+  },
+  {
+    name: "piano_stagione",
+    title: "Piano della stagione",
+    description:
+      "Il piano della stagione come lo calcola l'app (pagina Stagione), in sola lettura: le leve (inizio, gara A, picco, ramp rate, ore massime, stop, " +
+      "settimane leggere e di blocco chieste), le settimane con fase, tipo (carico, leggera, stop, taper, gara), TSS, ore, CTL previsto, sedute di qualità e lavori duri massimi, " +
+      "i giorni che l'atleta ha fissato nell'app, e la proposta dell'app per i prossimi 7 giorni (fatto, già su Intervals, scelto, proposta, riposo) con gli avvisi. " +
+      "Usalo prima di pianificare una settimana o di parlare di fasi: non ricostruire le fasi dalle date.",
+    inputSchema: {
+      type: "object",
+      properties: { settimane: { type: "integer", minimum: 1, maximum: 52, description: "Quante settimane del piano elencare da questa (default 12)" } },
+      additionalProperties: false,
+    },
+    annotations: READ,
+    run: pianoStagione,
   },
   {
     name: "scheda_atleta",

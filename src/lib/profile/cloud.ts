@@ -45,6 +45,26 @@ export function decodeCloud(description: string | null | undefined): CloudPayloa
   }
 }
 
+export type SyncDecision = "none" | "apply" | "push";
+
+/**
+ * What a device does with the copy on Intervals.icu when the app opens, so the phone and the computer share one sheet and
+ * one season (until 12 November 2026 each kept its own and the last one to save overwrote the other without a word).
+ * - `seen`: the `savedAt` of the copy this device last wrote or took; `dirtyAt`: when it last changed something that
+ *   is not on Intervals.icu yet (null = nothing waiting).
+ * - The copy changed since it was last seen (another device saved): this device takes it, unless its own waiting change
+ *   is more recent — the last change wins.
+ * - A device with no data of its own takes nothing by itself: the first launch offers the restore.
+ */
+export function syncDecision(opts: { hasLocal: boolean; cloud: CloudPayload | null; seen: string | null; dirtyAt: string | null }): SyncDecision {
+  const { hasLocal, cloud, seen, dirtyAt } = opts;
+  if (!hasLocal) return "none";
+  if (!cloud || (!cloud.profile && !cloud.season)) return dirtyAt ? "push" : "none";
+  if (cloud.savedAt === seen) return dirtyAt ? "push" : "none";
+  if (dirtyAt && dirtyAt > cloud.savedAt) return "push";
+  return "apply";
+}
+
 /** What is already in Intervals.icu fills what this device doesn't have, so a fresh install never wipes the saved copy. */
 export function mergeWithCloud(local: CloudPayload, existing: CloudPayload | null, opts: { seasonCleared?: boolean } = {}): CloudPayload {
   if (!existing) return local;

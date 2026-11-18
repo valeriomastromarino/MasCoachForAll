@@ -4,7 +4,7 @@ import { handleApi, type LibraryData } from "@/lib/api/handlers";
 import type { DashboardData } from "@/lib/dashboard";
 import { addDays, weekStart } from "@/lib/dates";
 import type { AthleteProfile } from "@/lib/profile/profile";
-import { type LifeCategory, type LifeEvent } from "@/lib/training/life";
+import { type LifeCategory, type LifeEvent, lifeFrom } from "@/lib/training/life";
 import { planFromToday, type PlanWeek, RAMP_TARGET, type RampLevel, type SeasonSetup } from "@/lib/training/season";
 import { classifyWorkout } from "@/lib/training/suggest";
 import type { Action, TodayOverrides } from "../chat/context";
@@ -23,10 +23,10 @@ const bad = (m: string): never => {
 const isoDate = (v: unknown, name: string): string => (typeof v === "string" && ISO.test(v) ? v : bad(`"${name}" deve essere una data AAAA-MM-GG`));
 const text = (v: unknown, name: string, max = 120): string => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : bad(`"${name}" è obbligatorio`));
 
-async function ctlAndLife(today: string): Promise<{ ctl: number | null; life: LifeEvent[] }> {
+async function ctlAndLife(today: string, seasonStart?: string | null): Promise<{ ctl: number | null; life: LifeEvent[] }> {
   const dash = await handleApi("GET", "/api/dashboard");
   const ctl = dash.status === 200 ? ((dash.json as DashboardData).status.ctl ?? null) : null;
-  const lifeRes = await handleApi("GET", `/api/life?from=${addDays(today, -60)}&to=${addDays(today, 365)}`);
+  const lifeRes = await handleApi("GET", `/api/life?from=${lifeFrom(today, seasonStart)}&to=${addDays(today, 365)}`);
   const life = lifeRes.status === 200 && Array.isArray(lifeRes.json) ? (lifeRes.json as LifeEvent[]) : [];
   return { ctl, life };
 }
@@ -38,8 +38,10 @@ function summary(setup: SeasonSetup, today: string, ctl: number | null, life: Li
   return { plan, rows: plan.weeks.map(weekRow) };
 }
 
-// The connector's libreria_allenamenti dumps all ~400 workouts with their text and no ids: here it is replaced by cerca_libreria.
-const READ_NAMES = new Set(COACH_TOOLS.filter((t) => t.annotations.readOnlyHint && t.name !== "libreria_allenamenti").map((t) => t.name));
+// Two of the connector's read tools have their own version here: cerca_libreria (compact, with the ids proponi_programma
+// needs) and piano_stagione (from the season the device sends with the message, not from the copy on Intervals.icu).
+const OWN_VERSION = ["libreria_allenamenti", "piano_stagione"];
+const READ_NAMES = new Set(COACH_TOOLS.filter((t) => t.annotations.readOnlyHint && !OWN_VERSION.includes(t.name)).map((t) => t.name));
 
 const CLASSES = ["recupero", "z2", "tempo", "sweetspot", "soglia", "vo2", "anaerobico", "sprint"] as const;
 
@@ -108,7 +110,7 @@ const planTool: AiTool = {
   async run(args, { snapshot }) {
     const setup = snapshot.setup;
     if (!setup) return { piano: null, nota: "L'atleta non ha ancora impostato la stagione: serve compilarla nella pagina Stagione." };
-    const { ctl, life } = await ctlAndLife(snapshot.today);
+    const { ctl, life } = await ctlAndLife(snapshot.today, snapshot.setup?.start);
     const { plan, rows } = summary(setup, snapshot.today, ctl, life);
     const n = Math.min(52, Math.max(1, Number(args.settimane) || 12));
     return {
@@ -198,7 +200,7 @@ const proposeSeason: AiTool = {
     for (const k of Object.keys(next) as (keyof SeasonSetup)[]) if (JSON.stringify(next[k]) !== JSON.stringify(setup[k])) (patch as Record<string, unknown>)[k] = next[k];
     if (Object.keys(patch).length === 0) return { nessun_cambiamento: true, nota: "Il piano è già così: non propongo nulla." };
 
-    const { ctl, life } = await ctlAndLife(snapshot.today);
+    const { ctl, life } = await ctlAndLife(snapshot.today, snapshot.setup?.start);
     const before = summary(setup, snapshot.today, ctl, life);
     const after = summary(next, snapshot.today, ctl, life);
     const changed = after.rows.flatMap((row, i) => (JSON.stringify(row) !== JSON.stringify(before.rows[i]) ? [{ prima: before.rows[i] ?? null, dopo: row }] : []));
@@ -224,19 +226,34 @@ const proposeProgram: AiTool = {
     type: "object",
     properties: {
       descrizione: { type: "string", description: "Una riga: cosa viene programmato" },
-      allenamenti: { type: "array", items: { type: "object", properties: { libreria_id: { type: "number" }, nome: { type: "string" }, data: { type: "string", description: "AAAA-MM-GG, da oggi in poi" } }, required: ["libreria_id", "nome", "data"] }, minItems: 1, maxItems: 14 },
+      allenamenti: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            libreria_id: { type: "number" },
+            nome: { type: "string" },
+            data: { type: "string", description: "AAAA-MM-GG, da oggi in poi" },
+            rulli: { type: "boolean", description: "true se si fa sui rulli: Intervals userà la FTP rulli per i watt (default: sì solo se il nome dice «Indoor»)" },
+          },
+          required: ["libreria_id", "nome", "data"],
+        },
+        minItems: 1,
+        maxItems: 14,
+      },
       sostituisci_ids: { type: "array", items: { type: "string" } },
     },
     required: ["descrizione", "allenamenti"],
     additionalProperties: false,
   },
   async run(args, { snapshot, actions }) {
-    const items = ((args.allenamenti as { libreria_id?: unknown; nome?: unknown; data?: unknown }[]) ?? []).map((a) => {
+    const items = ((args.allenamenti as { libreria_id?: unknown; nome?: unknown; data?: unknown; rulli?: unknown }[]) ?? []).map((a) => {
       const date = isoDate(a.data, "data");
       if (date < snapshot.today) bad("Non si programma nel passato");
       const id = Number(a.libreria_id);
       if (!Number.isInteger(id)) bad('"libreria_id" deve essere un numero intero');
-      return { workoutId: id, name: text(a.nome, "nome"), date };
+      // A trainer session is written as an indoor one, so Intervals.icu uses the indoor FTP (the app's own buttons do the same).
+      return { workoutId: id, name: text(a.nome, "nome"), date, ...(a.rulli === true ? { indoor: true } : {}) };
     });
     const replace = ((args.sostituisci_ids as unknown[] | undefined) ?? []).map(String);
     actions.push({ type: "schedule", items, replace: replace.length ? replace : undefined, label: text(args.descrizione, "descrizione", 160) });

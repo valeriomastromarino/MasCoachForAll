@@ -7,13 +7,14 @@ import type { DashboardData } from "@/lib/dashboard";
 import { loadProfile, PROFILE_EVENT, profileSnapshot } from "@/lib/profile/profile";
 import { PHASE_INFO, planFromToday, weekFor } from "@/lib/training/season";
 import { loadSeason, SEASON_EVENT, seasonSnapshot } from "@/lib/training/seasonStore";
+import { recentFromRides } from "@/lib/training/done";
 import { choicesOf } from "@/lib/training/weeks";
-import { classifyWorkout, fuelFor, type Place, planWeek, type Proposal, suggestWorkout, type SuggestInput, type Suggestion, toleratedCarbs } from "@/lib/training/suggest";
+import { classifyWorkout, fuelFor, type Place, plannedFits, planWeek, type Proposal, suggestWorkout, type SuggestInput, type Suggestion, toleratedCarbs } from "@/lib/training/suggest";
 import Link from "next/link";
 import { addDays } from "@/lib/dates";
 import { fmt, fmtDuration } from "../format";
 import { Description, WorkoutProfile, send } from "../calendar/shared";
-import { useLibrary, useLife, useOverrides, usePlanned } from "../data/trainingData";
+import { refreshPlanned, useLibrary, useLife, useOverrides, usePlanned } from "../data/trainingData";
 
 const subscribe = (cb: () => void) => {
   window.addEventListener(PROFILE_EVENT, cb);
@@ -118,7 +119,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
       readiness: data.status.readiness.level,
       tsbYesterday: data.status.tsbYesterday,
       ctl: data.status.ctl,
-      recent: data.activities.map((a) => ({ date: a.date.slice(0, 10), name: a.name, IF: a.IF, tss: a.tss, movingTime: a.movingTime })),
+      recent: recentFromRides(data.activities, library),
       library,
       profile: stored?.profile,
       phenotype: stored?.phenotype ?? null,
@@ -128,6 +129,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
       season,
       rampRate: data.status.rampRate,
       life,
+      gym: data.gymDays,
       feeling: overrides.feeling ?? null,
       override: { maxMins: overrides.maxMins, easier: overrides.easier, wantClass: overrides.wantClass, restToday: overrides.restToday },
     };
@@ -141,15 +143,31 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
   const shownPlanned = todayPlanned ?? (suggestion?.kind === "rest" ? nextPlanned : null);
   const whenLabel = shownPlanned && shownPlanned.date !== today ? (shownPlanned.date === addDays(today, 1) ? "Domani" : dayName(shownPlanned.date)) : null;
   const weekPlan = weekFor(season, today);
+  // A workout already on the calendar is checked against today: readiness, illness or injury, yesterday's form and work.
+  // The athlete programs weeks ahead, so without this the card showed a VO2max session on a red day as if nothing was wrong.
+  const unfit = useMemo(() => {
+    if (!input || !todayPlanned) return null;
+    const fit = plannedFits(input, { ...todayPlanned, id: 0 });
+    return fit.ok ? null : fit.why;
+  }, [input, todayPlanned]);
 
-  const schedule = async (p: Proposal, date: string) => {
+  /** `replace` = the workout on the calendar that this one takes the place of: it is removed first. */
+  const schedule = async (p: Proposal, date: string, replace?: string) => {
     const key = `${date}:${p.workout.id}`;
     setSaving(key);
     setError(null);
-    const err = await send("/api/calendar/events", "POST", { workoutId: p.workout.id, date });
+    let err = replace ? await send(`/api/calendar/events/${encodeURIComponent(replace)}`, "DELETE") : null;
+    // A session for the trainer is written as an indoor one, so Intervals.icu uses the indoor FTP for its watts.
+    if (!err) err = await send("/api/calendar/events", "POST", { workoutId: p.workout.id, date, indoor: p.indoor });
     setSaving("");
     if (err) setError(err);
-    else setDone((d) => ({ ...d, [key]: true }));
+    else {
+      setDone((d) => ({ ...d, [key]: true }));
+      if (replace) {
+        refreshPlanned();
+        setShowOther(false);
+      }
+    }
   };
 
   if (data.source === "demo") return null;
@@ -215,6 +233,15 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
             {whenLabel}
           </span>
         )}
+        {unfit && !whenLabel && (
+          <div className="mt-2 rounded-xl px-3 py-2 text-xs" role="alert" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
+            <div className="font-medium">Oggi non è il giorno giusto per questa seduta</div>
+            <div className="mt-0.5">{unfit}</div>
+            <button type="button" onClick={() => setShowOther(true)} className="mt-2 rounded-full px-3 py-1 text-xs font-medium" style={{ background: "var(--warning-ink)", color: "var(--warning-bg)" }}>
+              Vedi cosa fare oggi
+            </button>
+          </div>
+        )}
         <TapToOpen enabled={compact} open={open} onToggle={() => setOpen((o) => !o)}>
           <div className="mt-1 font-medium">{todayPlanned.name}</div>
           <div className="num text-xs text-muted">
@@ -233,13 +260,25 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
           </div>
         )}
         {todayPlanned.secs ? <Fuel mins={Math.round(todayPlanned.secs / 60)} cls={cls} cap={carbCap} /> : null}
-        <button type="button" onClick={() => setShowOther(true)} className="mt-3 text-xs text-faint underline">
-          Proponimi un&apos;altra cosa
-        </button>
+        {/* A race is not swapped for a workout (and Intervals.icu would not let the app remove it). */}
+        {!todayPlanned.race && (
+          <button type="button" onClick={() => setShowOther(true)} className="mt-3 text-xs text-faint underline">
+            Proponimi un&apos;altra cosa
+          </button>
+        )}
       </div>
     );
   } else if (suggestion.kind === "rest") {
-    body = <p className="mt-3 text-sm">{suggestion.reason}</p>;
+    body = (
+      <div className="mt-3">
+        <p className="text-sm">{suggestion.reason}</p>
+        {todayPlanned && (
+          <button type="button" onClick={() => setShowOther(false)} className="mt-3 text-xs text-faint underline">
+            Torna a quello in programma: {todayPlanned.name}
+          </button>
+        )}
+      </div>
+    );
   } else {
     const options = [suggestion.main, ...suggestion.alternatives];
     const p = options[Math.min(chosen, options.length - 1)];
@@ -252,6 +291,14 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
           </span>
           <span className="text-[11px] text-faint">{p.indoor ? "rulli" : "fuori"}</span>
         </div>
+        {/* What the athlete should know before taking it: a day they fixed that breaks a rule of the method, a type asked in the chat on a bad day. */}
+        {p.warnings.length > 0 && (
+          <div className="mt-2 rounded-xl px-3 py-2 text-xs" role="alert" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
+            {p.warnings.map((w) => (
+              <div key={w}>{w}</div>
+            ))}
+          </div>
+        )}
         <TapToOpen enabled={compact} open={open} onToggle={() => setOpen((o) => !o)}>
           <div className="mt-1 text-base font-medium">{p.workout.name}</div>
           <div className="num text-xs text-muted">
@@ -277,14 +324,32 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
           <button
             type="button"
             disabled={saving === key || done[key]}
-            onClick={() => void schedule(p, today)}
+            onClick={() => void schedule(p, today, todayPlanned?.id)}
             className="rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-60"
             style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
           >
-            {done[key] ? "Programmato su Intervals" : saving === key ? "Programmo…" : "Programma su Intervals"}
+            {todayPlanned
+              ? done[key]
+                ? "Sostituito su Intervals"
+                : saving === key
+                  ? "Sostituisco…"
+                  : "Sostituisci su Intervals"
+              : done[key]
+                ? "Programmato su Intervals"
+                : saving === key
+                  ? "Programmo…"
+                  : "Programma su Intervals"}
           </button>
           {done[key] && <span className="text-xs text-muted">Lo trovi nel calendario; da lì puoi aprirlo sul Garmin o sul rullo.</span>}
         </div>
+        {todayPlanned && (
+          <div className="mt-2 text-xs text-muted">
+            Prende il posto di «{todayPlanned.name}», che viene tolto dal calendario.{" "}
+            <button type="button" onClick={() => setShowOther(false)} className="text-faint underline">
+              Torna a quello in programma
+            </button>
+          </div>
+        )}
         {suggestion.alternatives.length > 0 && (
           <div className="mt-4 border-t pt-3" style={{ borderColor: "var(--border)" }}>
             <div className="text-xs text-faint">Oppure</div>

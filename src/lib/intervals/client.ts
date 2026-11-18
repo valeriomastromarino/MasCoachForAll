@@ -1,6 +1,6 @@
 // Intervals.icu client. In the Next.js app it runs on the server (key from .env.local, never sent to the
 // browser); in the single-file build it runs in the browser with the key saved there (see credentials.ts).
-import { addDays, toIsoDate } from "../dates";
+import { addDays, todayIso } from "../dates";
 import { invalidate } from "./cache";
 import { apiKey, athleteId } from "./credentials";
 import type { RawRideDetail, RawStream } from "../ride";
@@ -84,7 +84,7 @@ export async function fetchRide(activityId: string): Promise<{ raw: RawRideDetai
 }
 
 export async function fetchIntervals(historyDays: number): Promise<RawData> {
-  const today = toIsoDate(new Date());
+  const today = todayIso();
   const oldest = addDays(today, -historyDays);
   const id = athleteId();
   const monthStart = today.slice(0, 8) + "01";

@@ -33,7 +33,7 @@ export async function runAction(action: Action, sheet: SheetContext): Promise<Ac
       }
       const ids: string[] = [];
       for (const item of action.items) {
-        const r = await call("/api/calendar/events", "POST", { workoutId: item.workoutId, date: item.date });
+        const r = await call("/api/calendar/events", "POST", { workoutId: item.workoutId, date: item.date, indoor: item.indoor });
         if (!r.ok) {
           refreshPlanned();
           return { ok: false, message: `Non sono riuscito a scrivere ${item.name}: ${r.error}${ids.length ? ` (ne ho scritti ${ids.length} prima)` : ""}.`, undo: ids.length ? { kind: "remove_event", ids, label: `${ids.length} allenamenti appena scritti` } : undefined };

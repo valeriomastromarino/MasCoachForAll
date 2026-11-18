@@ -268,9 +268,17 @@ export function hrOnCurve(curve: HrPowerPoint[], watts: number): number | null {
 
 export const RAMP_NAME = /\b(ramp|rampa|incrementale|conconi|step test)\b/i;
 
+/**
+ * A 20' or 8' "test" ridden below this share of the FTP in use is not an all-out effort: no FTP comes out of it
+ * (an easy steady ride with "test" in its name gave a false FTP).
+ */
+export const MAX_EFFORT_SHARE = 0.85;
+
+/** `ftp` is the FTP the ride was ridden with, when known: it tells a real test from an easy ride with "test" in its name. */
 export function analyzeTest(
   name: string,
   streams: { watts?: (number | null)[]; hr?: (number | null)[]; dfa?: (number | null)[] },
+  ftp: number | null = null,
 ): TestResult | null {
   const watts = streams.watts;
   if (!watts || watts.length < 600) return null;
@@ -359,6 +367,13 @@ export function analyzeTest(
   }
 
   // Steady-state tests: a real 20' effort averages close to the best 8'; a 2×8' test does not.
+  const steady = b20 && b8 && b20.avg >= 0.93 * b8.avg ? { avg: b20.avg, label: "20'" } : b8 ? { avg: b8.avg, label: "8'" } : null;
+  if (steady && ftp && steady.avg < ftp * MAX_EFFORT_SHARE) {
+    warnings.push(
+      `Il miglior ${steady.label} (${Math.round(steady.avg)} W) è molto sotto la FTP in uso (${Math.round(ftp)} W): non è uno sforzo a tutta, quindi da questa uscita non esce una stima della FTP.`,
+    );
+    return base;
+  }
   if (b20 && b8 && b20.avg >= 0.93 * b8.avg) {
     const effortHr = windowMean(hr, b20.end - 1199, b20.end + 1);
     const lastTenHr = windowMean(hr, b20.end - 599, b20.end + 1);

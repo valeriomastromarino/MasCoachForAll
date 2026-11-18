@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RawStep } from "../workout";
 import { adjust, ergTarget, initialSession, pause, setMode, skip, start, stepRemaining, tick } from "./session";
+import { playerWorkout } from "./load";
 import { workoutNotes } from "./notes";
 import { buildTimeline, targetAt, totalSecs } from "./timeline";
 
@@ -37,6 +38,16 @@ describe("timeline", () => {
 
   it("keeps the previous target for a step without power", () => {
     expect(tl[5].from).toBe(125);
+  });
+
+  it("follows the trainer's FTP for the percentages, whatever FTP Intervals.icu resolved the event with", () => {
+    // The event was not marked as indoor: Intervals.icu resolved 80% with the outdoor FTP (260 W → 208 W).
+    const outdoor: RawStep[] = [{ duration: 600, power: { value: 80, units: "%ftp" }, _power: { value: 208, start: 202, end: 214 } }];
+    expect(buildTimeline(outdoor, 250)[0].from).toBe(200);
+    const w = playerWorkout({ id: 1, start_date_local: "2026-11-18T00:00:00", name: "tempo", workout_doc: { ftp: 260, steps: outdoor } }, 250);
+    expect([w.ftp, w.steps[0].from]).toEqual([250, 200]);
+    // Without an FTP of the athlete the event's own stays.
+    expect(playerWorkout({ id: 1, start_date_local: "2026-11-18T00:00:00", workout_doc: { ftp: 260, steps: outdoor } }, null).steps[0].from).toBe(208);
   });
 
   it("interpolates ramps", () => {

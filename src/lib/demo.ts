@@ -1,6 +1,6 @@
 // Synthetic data shaped like Intervals.icu responses, so the app runs before the API key is set.
 // Profile: FTP ~250 W, 72 kg, 6–10 h/week, last week was a hard block (HRV slightly suppressed).
-import { addDays, dateRange, toIsoDate } from "./dates";
+import { addDays, dateRange, todayIso } from "./dates";
 import type { IcuActivity, IcuEvent, IcuWellness, RawData } from "./intervals/types";
 import { cpPredict } from "./physio/criticalPower";
 import { computePmc } from "./physio/pmc";
@@ -27,7 +27,7 @@ const WEEK: (Session | null)[] = [
 
 export function demoData(historyDays: number): RawData {
   const r = rng(42);
-  const today = toIsoDate(new Date());
+  const today = todayIso();
   const days = dateRange(addDays(today, -historyDays), today);
   const ftp = 250;
 

@@ -22,7 +22,18 @@ export type Level = "verde" | "giallo" | "rosso" | "grigio";
  * `hard` and `quality` are set for sessions this engine planned itself (and for workouts already on the calendar);
  * real activities are judged by their intensity factor.
  */
-export type RecentActivity = { date: string; name: string; IF: number | null; tss: number | null; movingTime: number; hard?: boolean; quality?: boolean; cls?: WorkoutClass };
+export type RecentActivity = {
+  date: string;
+  name: string;
+  IF: number | null;
+  tss: number | null;
+  movingTime: number;
+  hard?: boolean;
+  quality?: boolean;
+  cls?: WorkoutClass;
+  /** Not ridden: a session counted from the calendar or the plan while the days to come are laid out. */
+  planned?: boolean;
+};
 
 export type SuggestProfile = {
   giorni?: number[];
@@ -60,9 +71,11 @@ export type SuggestInput = {
   rampRate?: number | null;
   /** Holidays, illness and injury from the calendar: they can forbid or limit the day. */
   life?: LifeEvent[];
+  /** Days with a strength session, done or planned: no quality work on the day after (coach prompt §11). */
+  gym?: string[];
   /** Days the athlete fixed in the Stagione page (a library workout, or rest): they are kept, and the week is laid out around them. */
   chosen?: DayChoice[];
-  /** Workouts already on the Intervals.icu calendar: the week is laid out around them. */
+  /** Bike sessions and races already on the Intervals.icu calendar (`isBikeSession`: not weights or Pilates): the week is laid out around them. */
   planned?: { date: string; workout: LibraryWorkout }[];
   /** How the athlete says they feel today: it lowers the readiness by one level (prompt §5.5), never raises it. */
   feeling?: { drop: boolean; note?: string } | null;
@@ -170,8 +183,9 @@ const FREE: PhaseInfo = {
 
 const DAY_NAMES = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"];
 
-const isHard = (a: RecentActivity) => a.hard ?? (a.IF !== null && a.IF >= 0.85 && a.movingTime >= 1200);
-const isQuality = (a: RecentActivity) => a.quality ?? (isHard(a) || (a.IF !== null && a.IF >= 0.8 && a.movingTime >= 1800));
+/** A ride done counts by what it was (lib/training/done.ts sets `hard` and `quality`); the intensity factor is the last resort. */
+export const isHard = (a: RecentActivity) => a.hard ?? (a.IF !== null && a.IF >= 0.85 && a.movingTime >= 1200);
+export const isQuality = (a: RecentActivity) => a.quality ?? (isHard(a) || (a.IF !== null && a.IF >= 0.8 && a.movingTime >= 1800));
 
 type Slot = {
   kind: SlotKind;
@@ -186,8 +200,15 @@ type Slot = {
   dose: number;
   /** Long ride with its work in the last part. */
   late: boolean;
+  /** An easy day right before a quality session: nothing that empties the legs (no fasted ride). */
+  beforeQuality?: boolean;
+  /** The eve of the A race: a short pre-race activation from the library can be picked. */
+  openers?: boolean;
   why: string;
 };
+
+/** Race-week sessions the engine may pick for the eve of the race: short activations, never a race simulation. */
+const OPENERS = /open|apertur|activation|attivazion|day before|pre-?race|pre-?gara/i;
 
 type Layout = { slot: Slot | null; rest: string | null; qualityLeft: number; hardLeft: number; qualityDone: number; hardDone: number; weekDone: number };
 
@@ -238,6 +259,8 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
   const today = weekday(date);
   const life = [...(input.life ?? []), ...(input.season?.stops ?? []).map((s, i) => ({ id: `stop${i}`, category: "HOLIDAY" as const, from: s.from, to: s.to }))];
   const dayOf = (d: number) => addDays(monday, d);
+  const gym = new Set(input.gym ?? []);
+  const afterGym = (d: number) => gym.has(addDays(dayOf(d), -1));
   const rides = (d: number) => {
     const iso = dayOf(d);
     if (profile.giorni?.length && !profile.giorni.includes(d)) return false;
@@ -281,18 +304,29 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
 
   // Quality days from today on.
   const candidates: number[] = [];
-  for (let d = today; d <= 6; d++) if (rides(d) && !fixedDays.has(d) && !(longDay !== null && d === longDay && !longDone)) candidates.push(d);
+  // The eve of the A race is never a quality day.
+  const raceEve = pw?.raceDay ? weekday(addDays(pw.raceDay, -1)) : null;
+  const eveInWeek = pw?.raceDay ? addDays(pw.raceDay, -1) >= monday : false;
+  for (let d = today; d <= 6; d++) {
+    if (!rides(d) || fixedDays.has(d) || (longDay !== null && d === longDay && !longDone)) continue;
+    if (eveInWeek && d === raceEve) continue;
+    // The day after the gym is no day for intense work: the quality session goes to another day, or is lost.
+    if (afterGym(d)) continue;
+    candidates.push(d);
+  }
   const qualityDays = chooseQualityDays(candidates, qualityLeft, busyQuality, longDay, !!pw?.block);
   // Which quality sessions are left: A (VO2max side) and B (threshold side). A glycolytic profile does its weak end, B,
   // first in a load week; a light week, the taper and the race week keep the VO2max side.
   const order: SlotKind[] = input.phenotype === "glicolitico" && (!pw || pw.kind === "carico") ? ["B", "A", "C"] : ["A", "B", "C"];
-  const usedKinds = order.slice(0, recent.filter(isQuality).length);
-  for (const p of planned) {
-    if (!p.c.quality) continue;
-    const k: SlotKind = info.slotA.includes(p.c.cls) ? "A" : "B";
-    const next = usedKinds.includes(k) ? order.find((x) => !usedKinds.includes(x)) : k;
+  // What was ridden counts by its type when it is known: a threshold session done first leaves the VO2max one to do.
+  const usedKinds: SlotKind[] = [];
+  const takeKind = (cls: WorkoutClass | undefined) => {
+    const k: SlotKind | undefined = cls ? (info.slotA.includes(cls) ? "A" : "B") : undefined;
+    const next = k && !usedKinds.includes(k) ? k : order.find((x) => !usedKinds.includes(x));
     if (next) usedKinds.push(next);
-  }
+  };
+  for (const a of recent) if (isQuality(a)) takeKind(a.cls);
+  for (const p of planned) if (p.c.quality) takeKind(p.c.cls);
   const left = order.filter((k) => !usedKinds.includes(k)).slice(0, qualityDays.length);
   const kindOf = new Map(qualityDays.map((d, i) => [d, left[i] ?? "B"]));
 
@@ -318,6 +352,8 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
     const target = Math.min(dayCap, place === "indoor" ? trainerCap : 75);
     const what = k === "A" || k === "C" ? "VO2max" : CLASS_SAY[classes[0] ?? "soglia"];
     const lightWeek = pw?.kind === "scarico" || pw?.kind === "taper" || pw?.kind === "gara";
+    // A light week has one quality session; the taper and the race week keep two, both short.
+    const only = qualityMax <= 1;
     return {
       ...base,
       rest: null,
@@ -331,7 +367,9 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
         dose: doseFor(k),
         late: false,
         why: lightWeek
-          ? `${cap(DAY_NAMES[today])}: l'unica seduta di qualità della settimana, corta (meno volume, stessa intensità).`
+          ? only
+            ? `${cap(DAY_NAMES[today])}: l'unica seduta di qualità della settimana, corta (meno volume, stessa intensità).`
+            : `${cap(DAY_NAMES[today])}: la seduta di ${what} della settimana, corta (meno volume, stessa intensità).`
           : `${cap(DAY_NAMES[today])}: la seduta di ${what} della settimana${k === "C" ? " (la terza del blocco)" : ""}.`,
       },
     };
@@ -346,13 +384,14 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
   }
   const plannedTss = planned.reduce((s, p) => s + p.c.tss, 0);
   const longRange = pw?.kind === "scarico" ? { min: 90, max: 120 } : info.long;
-  const weekendCap = parseCap(profile.durataWeekend) ?? 240;
-  let longTarget = Math.round(Math.min(weekendCap, longRange.min + (longRange.max - longRange.min) * step));
+  // The long ride keeps to the time of the day it falls on: with the weekend off it moves to a weekday, and stays within the weekday's hours.
+  const longCap = longDay !== null && longDay < 5 ? (parseCap(profile.durataFeriali) ?? 120) : (parseCap(profile.durataWeekend) ?? 240);
+  let longTarget = Math.round(Math.min(longCap, longRange.min + (longRange.max - longRange.min) * step));
   const budget = pw ? pw.tssTarget - weekDone - plannedTss - ahead.quality * 60 - (longDay !== null && longDay >= today && !longDone ? longTarget * 0.8 : 0) : null;
 
   if (longToday) {
     // A spare budget lengthens the long ride up to the phase's maximum.
-    if (budget !== null && budget > ahead.easy * 110) longTarget = Math.round(Math.min(weekendCap, longRange.max, longTarget + (budget - ahead.easy * 110) / 0.8));
+    if (budget !== null && budget > ahead.easy * 110) longTarget = Math.round(Math.min(longCap, longRange.max, longTarget + (budget - ahead.easy * 110) / 0.8));
     return {
       ...base,
       rest: null,
@@ -361,15 +400,28 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
         classes: ["z2"],
         target: longTarget,
         min: Math.max(minLen, Math.round(longTarget * 0.7)),
-        max: Math.min(weekendCap, Math.round(longTarget * 1.2)) + 10,
+        max: Math.min(longCap, Math.round(longTarget * 1.2)) + 10,
         place: placeFrom(profile.z2Dove),
         dose: step,
-        late: info.long.late && pw?.kind === "carico",
-        why: info.long.late && pw?.kind === "carico" ? "È la lunga della settimana, con il lavoro nell'ultima parte: allena la tenuta per la gara (durability)." : "È la lunga della settimana, in Z2.",
+        late: info.long.late && pw?.kind === "carico" && !afterGym(today),
+        why:
+          info.long.late && pw?.kind === "carico" && !afterGym(today)
+            ? "È la lunga della settimana, con il lavoro nell'ultima parte: allena la tenuta per la gara (durability)."
+            : afterGym(today)
+              ? "È la lunga della settimana, tutta in Z2: ieri hai fatto palestra."
+              : "È la lunga della settimana, in Z2.",
       },
     };
   }
 
+  // The eve of the race: a short activation with a few accelerations, when the library has one; otherwise an easy spin.
+  if (pw?.raceDay && date === addDays(pw.raceDay, -1)) {
+    return {
+      ...base,
+      rest: null,
+      slot: { kind: "easy", classes: ["gara", "recupero", "z2"], target: 45, min: 25, max: 60, place: "any", dose: 0.5, late: false, openers: true, why: "La vigilia della gara: una breve attivazione con qualche accelerazione, oppure riposo." },
+    };
+  }
   // The race week: after the race a short spin, before it short rides only.
   if (pw?.raceDay && date > pw.raceDay) {
     return {
@@ -389,14 +441,21 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
     rest: null,
     slot: {
       kind: "easy",
-      classes: afterQuality ? ["z2", "recupero"] : ["z2", "recupero"],
+      classes: ["z2", "recupero"],
       target,
       min: Math.min(minLen, target),
       max: Math.min(easyCap, Math.round(target * 1.3)) + 5,
       place: "any",
       dose: 0.5,
       late: false,
-      why: afterQuality ? "Il giorno dopo una seduta di qualità: facile." : qualityDays.length ? "Giorno facile tra le sedute di qualità." : "Giorno facile: le sedute di qualità della settimana sono già fatte o in calendario.",
+      beforeQuality: qualityDays.includes(today + 1) || busyQuality.has(today + 1),
+      why: afterQuality
+        ? "Il giorno dopo una seduta di qualità: facile."
+        : afterGym(today)
+          ? "Ieri hai fatto palestra: oggi niente lavori intensi, la seduta di qualità va in un altro giorno."
+          : qualityDays.length
+            ? "Giorno facile tra le sedute di qualità."
+            : "Giorno facile: le sedute di qualità della settimana sono già fatte o in calendario.",
     },
   };
 }
@@ -404,6 +463,35 @@ function layoutDay(input: SuggestInput, pw: PlanWeek | null, info: PhaseInfo, da
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // ── The day ──────────────────────────────────────────────────────────────────────────────────────
+
+/** What the days before `date` say about it: the safety rules the engine's own picks and the workouts already chosen share. */
+function dayGuards(input: SuggestInput) {
+  const { date, profile = {} } = input;
+  const pw = weekFor(input.season, date);
+  const recent = input.recent.filter((a) => a.date.slice(0, 10) < date && daysBetween(a.date.slice(0, 10), date) <= 14);
+  let trainedStreak = 0;
+  for (let i = 1; i <= 6; i++) {
+    const d = addDays(date, -i);
+    if (recent.some((a) => a.date.slice(0, 10) === d && (a.tss ?? 0) >= 20)) trainedStreak++;
+    else break;
+  }
+  const aggressive = profile.rischio === "Aggressivo";
+  const hardCap = pw ? (aggressive && pw.hardMax >= 2 ? pw.hardMax + 1 : pw.hardMax) : aggressive ? 3 : 2;
+  return {
+    recent,
+    trainedStreak,
+    // A safety net across the week boundary: hard sessions in the six days before today (the same weekday a week ago
+    // does not count, so a Tuesday VO2max never blocks the next Tuesday's).
+    hard7: recent.filter((a) => daysBetween(a.date.slice(0, 10), date) <= 6 && isHard(a)).length,
+    // Across the week boundary only a real cluster stops a hard day: two (three for an aggressive athlete) in six days.
+    rollCap: Math.max(2, hardCap),
+    yesterdayQuality: recent.some((a) => a.date.slice(0, 10) === addDays(date, -1) && isQuality(a)),
+    rampHigh: input.season != null && input.rampRate != null && input.rampRate >= input.season.rampTarget + 2,
+    formOk: input.tsbYesterday === null || input.tsbYesterday >= -30,
+  };
+}
+
+const commaNum = (x: number, d = 1) => x.toFixed(d).replace(".", ",");
 
 export function suggestWorkout(input: SuggestInput): Suggestion {
   const { date, readiness: readinessIn, profile = {}, phenotype = null } = input;
@@ -423,21 +511,22 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
   }
   if (pw?.raceDay === date) return { kind: "rest", reason: "Oggi c'è la gara A: niente allenamento, solo la gara. Riscaldamento breve con qualche accelerazione, e buona gara." };
 
-  // A day the athlete fixed in the Stagione page wins, unless today's readiness, an illness or today's requests say otherwise.
+  // A day fixed in the Stagione page wins, unless today's requests or the rules of a workout already on the calendar say
+  // otherwise (plannedFits): the safety rules always (readiness, illness or injury with its minutes, yesterday's form);
+  // the method's rules (yesterday's quality session or gym, a cluster of hard days, the CTL climbing too fast, five days
+  // in a row) on a day only frozen from an old proposal, while on a day the athlete chose themselves they become a
+  // warning. They look at the rides done, never at the days the plan lays out before this one, so a week reshaped in the
+  // Stagione page keeps its choices (with the week's warnings). Until 18 November 2026 a fixed day skipped most of them:
+  // a fixed 3-hour ride came back the day after a fever, and on a yellow day even a fixed easy ride was swapped for another.
   const choice = input.chosen?.find((c) => c.date === date);
   if (choice) {
     const whose = choice.mine ? "L'hai scelto tu nella Stagione." : "Dalla settimana che hai fissato nella Stagione.";
     if (choice.id === null) return { kind: "rest", reason: `Riposo. ${whose}` };
     const w = input.library.find((x) => x.id === choice.id);
-    const c = w ? classifyWorkout(w) : null;
     const asked = ov.wantClass || ov.easier || ov.maxMins;
-    const safe =
-      c !== null &&
-      !asked &&
-      !(lifeRule?.kind === "easy" && (c.quality || c.maxZone > 2)) &&
-      (readiness === "verde" || (readiness === "grigio" && !c.hard)) &&
-      !(c.hard && input.tsbYesterday !== null && input.tsbYesterday < -30);
-    if (c && safe) {
+    const fit = w && !asked ? plannedFits({ ...input, recent: input.recent.filter((a) => !a.planned) }, w) : null;
+    if (w && fit && (fit.ok || (fit.rule === "method" && choice.mine))) {
+      const c = classifyWorkout(w);
       const indoor = c.indoor || (c.quality && placeFrom(profile.intervalliDove) === "indoor");
       const info = pw ? PHASE_INFO[pw.phase] : null;
       return {
@@ -451,7 +540,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
           indoor,
           reasons: [whose, ...(info && pw ? [`${info.label}: ${info.focus}. TSS di riferimento della settimana ${pw.tssTarget}.`] : []), `${c.w.name}: ${Math.round(c.mins)} minuti, TSS ${Math.round(c.tss)}.`],
           carbs: carbsFor(c, toleratedCarbs(profile.carboTollerati)),
-          warnings: [],
+          warnings: fit.ok ? [] : [fit.why],
           ftpNote: indoor ? (input.indoorFtp ? `Percentuali sulla FTP rulli: ${input.indoorFtp} W` : null) : input.ftp ? `Percentuali sulla FTP outdoor: ${input.ftp} W` : null,
         },
         alternatives: [],
@@ -463,16 +552,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     return { kind: "rest", reason: "Oggi non è tra i giorni in cui puoi allenarti: riposo." };
   }
 
-  const recent = input.recent.filter((a) => a.date.slice(0, 10) < date && daysBetween(a.date.slice(0, 10), date) <= 14);
-  const trainedStreak = (() => {
-    let n = 0;
-    for (let i = 1; i <= 6; i++) {
-      const d = addDays(date, -i);
-      if (recent.some((a) => a.date.slice(0, 10) === d && (a.tss ?? 0) >= 20)) n++;
-      else break;
-    }
-    return n;
-  })();
+  const { recent, trainedStreak, hard7, rollCap, yesterdayQuality, rampHigh, formOk } = dayGuards(input);
   if (trainedStreak >= 5) return { kind: "rest", reason: `Sono ${trainedStreak} giorni di fila in bici: oggi riposo.` };
 
   const info = pw ? PHASE_INFO[pw.phase] : FREE;
@@ -482,20 +562,9 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
 
   const reasons: string[] = [];
   const warnings: string[] = [];
-  // A safety net across the week boundary: hard sessions in the six days before today (the same weekday a week ago
-  // does not count, so a Tuesday VO2max never blocks the next Tuesday's).
-  const hard7 = recent.filter((a) => daysBetween(a.date.slice(0, 10), date) <= 6 && isHard(a)).length;
-  const yesterday = recent.filter((a) => a.date.slice(0, 10) === addDays(date, -1));
-  const yesterdayQuality = yesterday.some(isQuality);
   const ctl = input.ctl ?? 40;
-  const aggressive = profile.rischio === "Aggressivo";
-  const hardCap = pw ? (aggressive && pw.hardMax >= 2 ? pw.hardMax + 1 : pw.hardMax) : aggressive ? 3 : 2;
-  // Across the week boundary only a real cluster stops a hard day: two (three for an aggressive athlete) in six days.
-  const rollCap = Math.max(2, hardCap);
   const weekDone = pw ? input.recent.filter((a) => a.date.slice(0, 10) >= pw.start && a.date.slice(0, 10) < date).reduce((s, a) => s + (a.tss ?? 0), 0) : 0;
   const weekReached = pw !== null && pw.tssTarget > 0 && weekDone >= pw.tssTarget * 1.05;
-  const rampHigh = input.season != null && input.rampRate != null && input.rampRate >= input.season.rampTarget + 2;
-  const formOk = input.tsbYesterday === null || input.tsbYesterday >= -30;
   const quality = slot.kind === "A" || slot.kind === "B" || slot.kind === "C";
 
   // Easy versions of a day: the same minutes (a long ride a quarter shorter), nothing above Z2; the reason replaces the slot's.
@@ -515,7 +584,9 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     reasons.splice(0, reasons.length, "Prontezza rossa: massimo Z1 per 45 minuti, oppure riposo.");
   } else if (readiness === "giallo") {
     maxZone = 2;
-    if (quality || slot.late) toEasy("Prontezza gialla: oggi Z2, niente tratti sopra la Z2. La seduta di qualità slitta a un altro giorno.");
+    if (quality) toEasy("Prontezza gialla: oggi Z2, niente tratti sopra la Z2. La seduta di qualità slitta a un altro giorno.");
+    // Yellow means "less": the long ride is always a quarter shorter, in every phase, and plain Z2.
+    else if (slot.kind === "long") toEasy("Prontezza gialla: la lunga si accorcia di un quarto e resta in Z2, senza tratti sopra la Z2.");
     else reasons.push("Prontezza gialla: solo Z2, niente tratti sopra la Z2.");
   } else if (quality) {
     // Hard work needs green readiness, a rested form, no hard day yesterday and room left this week.
@@ -528,7 +599,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     } else if (hardSlot && !formOk) {
       slot = { ...slot, classes: ["sweetspot", "tempo"] };
       reasons.push(`Forma di ieri (TSB ${Math.round(input.tsbYesterday!)}) in alto rischio: niente lavoro duro, al massimo sweet spot.`);
-    } else if (hardSlot && rampHigh) toEasy(`Il CTL sta salendo di ${input.rampRate!.toFixed(1).replace(".", ",")} a settimana, oltre il tetto di ${String(input.season!.rampTarget).replace(".", ",")}: oggi facile.`);
+    } else if (hardSlot && rampHigh) toEasy(`Il CTL sta salendo di ${commaNum(input.rampRate!)} a settimana, oltre il tetto di ${String(input.season!.rampTarget).replace(".", ",")}: oggi facile.`);
     else if (hardSlot && (layout.hardLeft === 0 || hard7 >= rollCap)) {
       if (hard7 >= rollCap) toEasy(`Hai già ${hard7} lavori duri negli ultimi 6 giorni: oggi volume facile.`);
       else {
@@ -564,6 +635,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     if (HARD.includes(ov.wantClass)) {
       if (readiness !== "verde") warnings.push(`La prontezza non è verde (${readiness}): è un lavoro duro, lo sconsiglio.`);
       if (yesterdayQuality) warnings.push("Ieri hai già fatto un lavoro di qualità.");
+      if (input.gym?.includes(addDays(date, -1))) warnings.push("Ieri hai fatto palestra: un lavoro intenso oggi è sconsigliato.");
       if (hard7 >= rollCap) warnings.push(`Hai già ${hard7} lavori duri negli ultimi 6 giorni.`);
       if (rampHigh) warnings.push("Il CTL sta già salendo oltre il tetto che hai scelto.");
       if (weekReached) warnings.push("Il carico della settimana è già raggiunto.");
@@ -590,10 +662,15 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
   const tssCap = slot.kind === "long" ? Math.max(120, 4.5 * ctl) : Math.max(60, 2.2 * ctl + 30);
   const recentNames = new Map(recent.map((a) => [a.name.trim().toLowerCase(), daysBetween(a.date.slice(0, 10), date)]));
   const classified = input.library.map(classifyWorkout).filter((c) => {
-    if (c.cls === "test" || c.cls === "gara") return false;
+    if (c.cls === "test") return false;
+    // Race-week sessions stay out, except a short activation on the eve of the race.
+    if (c.cls === "gara" && !(slot.openers && OPENERS.test(c.w.name) && c.mins <= 60 && c.tss <= 45)) return false;
     if (input.exclude?.includes(c.w.id)) return false;
     if (noMtb && c.mtb) return false;
     if (c.fasted && !fastedOk(profile, c)) return false;
+    // The engine picks a fasted ride by itself only for a short easy day that is not the eve of a quality session, never
+    // as the long ride (the athlete can still choose one by hand in the Stagione page).
+    if (c.fasted && !ov.wantClass && (slot.kind !== "easy" || slot.beforeQuality || c.mins > 90)) return false;
     // Structured quality work rides fine on the trainer even when the name does not say "Indoor".
     if (place === "indoor" && !c.indoor && !(c.quality && c.mins <= (trainerCap ?? 60) + 5)) return false;
     if (place === "outdoor" && c.indoor) return false;
@@ -623,7 +700,9 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     // In the base and in light weeks the VO2max comes as short repeats (30"/15", 40"/20"): high time near VO2max, less cost.
     if ((slot.kind === "A" || slot.kind === "C") && c.cls === "vo2" && shortFirst && c.shortIntervals) s += 6;
     // The long ride: with its work in the last part from the build on, plain Z2 in the base and the taper.
-    if (slot.kind === "long") s += slot.late ? (c.lateWork ? 18 : c.aboveZ2 > 0 ? 6 : 0) : -c.aboveZ2 / 2;
+    if (slot.kind === "long") s += slot.late ? (c.lateWork ? 18 : c.aboveZ2 > 0 ? 6 : 0) : -(c.aboveZ2 + (c.lateWork ? 10 : 0));
+    // An easy day is easy: among the Z2 rides, the ones without tempo, surges or sprints come first.
+    if (slot.kind === "easy" && c.cls !== "gara") s -= c.aboveZ2 * 3 + (c.maxZone >= 4 ? 10 : 0);
     // Easy days and the long ride must also be easy in load: a Z2 ride whose TSS is far above its minutes is not.
     if (slot.kind === "long" || slot.kind === "easy") s -= Math.max(0, c.tss - 1.25 * slot.target * (slot.kind === "long" ? 0.8 : 0.72)) / 3;
     if (c.hard && phenotype === "glicolitico" && c.longestWork >= 10) s += 4;
@@ -648,7 +727,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
   const build = (c: Classified, why: string[]): Proposal => ({
     workout: c.w,
     cls: c.cls,
-    label: CLASS_LABEL[c.cls],
+    label: c.cls === "gara" ? "Attivazione pre-gara" : CLASS_LABEL[c.cls],
     mins: Math.round(c.mins),
     tss: Math.round(c.tss),
     // Ridden on the trainer when the day asks for it, even if the name does not say "Indoor".
@@ -674,6 +753,46 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
   return { kind: "workout", main, alternatives };
 }
 
+/**
+ * Whether a workout already on the calendar (or fixed in the Stagione page) suits the day, by the same rules the engine
+ * follows for its own picks. `why` says what the day allows instead; `rule` tells the two kinds apart:
+ * - "safety": readiness, illness and injury (with their minutes), yesterday's form;
+ * - "method": a quality session or the gym the day before, five days in a row, the CTL climbing past the ceiling, a
+ *   cluster of hard days (added on 18 November 2026, so the card says what the engine would say).
+ * The athlete programs weeks ahead, so most days have a workout on the calendar: without this check the day's card
+ * showed it whatever the readiness said (review of 12 November 2026).
+ */
+export type Fit = { ok: true } | { ok: false; why: string; rule: "safety" | "method" };
+
+export function plannedFits(input: SuggestInput, w: LibraryWorkout): Fit {
+  const c = classifyWorkout(w);
+  const safety = (why: string): Fit => ({ ok: false, why, rule: "safety" });
+  const method = (why: string): Fit => ({ ok: false, why, rule: "method" });
+  // A race is the athlete's own choice: the day's card shows it as it is (nothing to swap it for).
+  if (w.race) return { ok: true };
+  const readiness = input.feeling?.drop ? lowerLevel(input.readiness) : input.readiness;
+  const rule = restrictionOn(input.date, [
+    ...(input.life ?? []),
+    ...(input.season?.stops ?? []).map((s, i) => ({ id: `stop${i}`, category: "HOLIDAY" as const, from: s.from, to: s.to })),
+  ]);
+  if (rule?.kind === "rest") return safety(rule.reason);
+  // An easy ride: nothing above Z2 anywhere in it.
+  const easy = c.maxZone <= 2 && !c.quality;
+  if (rule?.kind === "easy" && (!easy || c.mins > (rule.maxMins ?? 60) + 5)) return safety(rule.reason);
+  if (readiness === "rosso" && !(c.cls === "recupero" && easy && c.mins <= 50)) return safety("Prontezza rossa: oggi al massimo Z1 per 45 minuti, oppure riposo.");
+  if (readiness === "giallo" && !easy) return safety("Prontezza gialla: oggi solo Z2, senza tratti sopra la Z2. Il lavoro si sposta a un altro giorno.");
+  if (readiness === "giallo" && c.mins >= 150) return safety("Prontezza gialla: oggi Z2 e più corta, la lunga si accorcia di un quarto.");
+  if (c.hard && readiness === "grigio") return safety("Dati insufficienti sul recupero: oggi niente lavori duri, al massimo sweet spot o tempo seguendo le sensazioni.");
+  if (c.hard && input.tsbYesterday !== null && input.tsbYesterday < -30) return safety(`Forma di ieri (TSB ${Math.round(input.tsbYesterday)}) in alto rischio: oggi niente lavori duri.`);
+  const g = dayGuards(input);
+  if (c.quality && g.yesterdayQuality) return method("Ieri hai fatto una seduta di qualità: oggi il metodo prevede un giorno facile.");
+  if (c.quality && input.gym?.includes(addDays(input.date, -1))) return method("Ieri hai fatto palestra: oggi niente lavori intensi.");
+  if (g.trainedStreak >= 5) return method(`Sono ${g.trainedStreak} giorni di fila in bici: oggi riposo.`);
+  if (c.hard && g.rampHigh) return method(`Il CTL sta salendo di ${commaNum(input.rampRate!)} a settimana, oltre il tetto di ${String(input.season!.rampTarget).replace(".", ",")}: oggi niente lavori duri.`);
+  if (c.hard && g.hard7 >= g.rollCap) return method(`Hai già ${g.hard7} lavori duri negli ultimi 6 giorni: oggi niente lavori duri.`);
+  return { ok: true };
+}
+
 /** `planned` is what is already on the Intervals.icu calendar that day: it is kept, and counted for the days after it. */
 export type WeekDay = { date: string; suggestion: Suggestion | null; planned: LibraryWorkout | null; /** The day was fixed in the Stagione page. */ chosen?: boolean };
 
@@ -687,7 +806,7 @@ export function planWeek(input: SuggestInput, planned: { date: string; workout: 
     const c = classifyWorkout(w);
     recent = [
       ...recent,
-      { date, name: w.name, IF: c.tss > 0 && c.mins > 0 ? Math.sqrt((c.tss * 60) / (c.mins * 100)) : null, tss: c.tss, movingTime: c.mins * 60, hard: c.hard, quality: c.quality, cls: c.cls },
+      { date, name: w.name, IF: c.tss > 0 && c.mins > 0 ? Math.sqrt((c.tss * 60) / (c.mins * 100)) : null, tss: c.tss, movingTime: c.mins * 60, hard: c.hard, quality: c.quality, cls: c.cls, planned: true },
     ];
   };
   for (let i = 0; i < 7; i++) {

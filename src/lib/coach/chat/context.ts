@@ -5,6 +5,7 @@ import type { DashboardData } from "@/lib/dashboard";
 import type { AthleteProfile } from "@/lib/profile/profile";
 import type { LifeCategory, LifeEvent } from "@/lib/training/life";
 import type { SeasonPlan, SeasonSetup } from "@/lib/training/season";
+import { recentFromRides } from "@/lib/training/done";
 import { choicesOf } from "@/lib/training/weeks";
 import { type Place, type Proposal, type SuggestInput, type WorkoutClass } from "@/lib/training/suggest";
 
@@ -36,7 +37,7 @@ export type ChatContext = {
 
 /** Everything the chat can ask the app to write. Always after a "sì". */
 export type Action =
-  | { type: "schedule"; items: { workoutId: number; name: string; date: string }[]; replace?: string[]; label: string }
+  | { type: "schedule"; items: { workoutId: number; name: string; date: string; /** For the trainer: written as an indoor session. */ indoor?: boolean }[]; replace?: string[]; label: string }
   | { type: "move"; eventId: string; name: string; to: string; label: string }
   | { type: "remove"; eventId: string; name: string; label: string }
   | { type: "life_add"; category: LifeCategory; from: string; to: string; name: string; label: string }
@@ -97,7 +98,7 @@ export function suggestInput(ctx: ChatContext, over: Partial<SuggestInput> = {})
     readiness: data.status.readiness.level,
     tsbYesterday: data.status.tsbYesterday,
     ctl: data.status.ctl,
-    recent: data.activities.map((a) => ({ date: a.date.slice(0, 10), name: a.name, IF: a.IF, tss: a.tss, movingTime: a.movingTime })),
+    recent: recentFromRides(data.activities, ctx.library),
     library: ctx.library,
     profile: ctx.profile ?? undefined,
     phenotype: ctx.phenotype,
@@ -107,6 +108,7 @@ export function suggestInput(ctx: ChatContext, over: Partial<SuggestInput> = {})
     season: ctx.plan,
     rampRate: data.status.rampRate,
     life: ctx.life,
+    gym: data.gymDays,
     planned: ctx.planned.map((w) => ({ date: w.date, workout: { ...w, id: 0 } })),
     chosen: choicesOf(ctx.setup),
     feeling: o?.feeling ?? null,

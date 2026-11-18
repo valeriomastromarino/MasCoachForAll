@@ -19,8 +19,9 @@ export function indoorFtp(athlete: IcuAthlete | null): number | null {
   return s?.indoor_ftp || s?.ftp || null;
 }
 
+/** `athleteFtp` is the indoor FTP: it wins over the FTP Intervals.icu resolved the event with (the outdoor one, unless the event is marked indoor). */
 export function playerWorkout(e: IcuEvent, athleteFtp: number | null): PlayerWorkout {
-  const ftp = e.workout_doc?.ftp || athleteFtp || 200;
+  const ftp = athleteFtp || e.workout_doc?.ftp || 200;
   const steps = buildTimeline(e.workout_doc?.steps, ftp);
   return {
     id: String(e.id),

@@ -278,7 +278,7 @@ export function buildRide(raw: RawRideDetail, streams: RawStream[]): RideDetail 
     hasDfa: points.some((p) => p.dfa !== null),
     bucketSecs: bucket,
     test: isTestName(raw.name)
-      ? analyzeTest(raw.name ?? "", { watts, hr: s.get("heartrate")?.data, dfa: s.get("dfa_a1")?.data })
+      ? analyzeTest(raw.name ?? "", { watts, hr: s.get("heartrate")?.data, dfa: s.get("dfa_a1")?.data }, ftp)
       : null,
   };
 }

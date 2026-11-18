@@ -115,7 +115,7 @@ export default function Potenza() {
                 hint={lastEftp && yearAgo ? `${lastEftp >= yearAgo ? "+" : ""}${fmt(lastEftp - yearAgo)} W in un anno` : undefined}
               />
               <Stat label="W/kg (stimata)" value={fmt(wkg, 2)} hint={`peso ${fmt(athlete.weight, 1, " kg")}`} />
-              <Stat label="Potenza critica" value={cp ? fmt(cp.cp, 0, " W") : "–"} hint={cp ? (cp.reliable ? "Monod 3–20'" : "incerta") : undefined} />
+              <Stat label="Potenza critica" value={cp ? fmt(cp.cp, 0, " W") : "–"} hint={cp ? (cp.reliable ? (cp.upToSecs >= 1200 ? "Monod 3–20'" : "Monod 3–12'") : "incerta") : undefined} />
             </div>
 
             <Card title="FTP stimata nel tempo" subtitle="eFTP calcolata da Intervals.icu dopo ogni uscita, ultimi 12 mesi">
@@ -134,10 +134,10 @@ export default function Potenza() {
                 title="Profilo di potenza"
                 subtitle={
                   cp && !cp.reliable
-                    ? `Potenza critica incerta: tra ${fmt(cp.cp, 0)} e ${fmt(cp.shortCp, 0, " W")} (Monod, 3–20 min)`
+                    ? `Potenza critica incerta: tra ${fmt(cp.cp, 0)} e ${fmt(cp.shortCp, 0, " W")} (Monod, 3–12 min)`
                     : cp
                       ? `Potenza critica ${fmt(cp.cp, 0, " W")} · W′ ${fmt(cp.wPrime / 1000, 1, " kJ")} · eFTP ${fmt(cp.eftp, 0, " W")}`
-                      : "Servono sforzi massimali tra 3 e 20 minuti per stimare la potenza critica"
+                      : "Servono sforzi massimali tra 3 e 12 minuti per stimare la potenza critica"
                 }
               >
                 <PowerCurveChart mmp={data.mmp} cp={cp} />

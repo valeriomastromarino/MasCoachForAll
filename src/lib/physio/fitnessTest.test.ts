@@ -17,6 +17,20 @@ function ramp(opts: { stepW: number; stepSecs: number; steps: number; hrOf: (w: 
   return { watts, hr, dfa: opts.dfaOf ? dfa : undefined };
 }
 
+describe("a test that was not an all-out effort", () => {
+  const steady = (w: number, mins: number) => Array(mins * 60).fill(w);
+  it("gives no FTP for an easy steady ride with test in its name", () => {
+    const drift = analyzeTest("Z2 Drift Test", { watts: steady(160, 60), hr: steady(125, 60) }, 260)!;
+    expect(drift.ftp).toBeNull();
+    expect(drift.warnings.join(" ")).toContain("non è uno sforzo a tutta");
+  });
+  it("still reads a real 20 minute test, with or without the FTP in use", () => {
+    const watts = [...steady(150, 15), ...steady(270, 20), ...steady(100, 10)];
+    expect(analyzeTest("Test 20 minuti", { watts }, 260)!.ftp?.watts).toBe(257);
+    expect(analyzeTest("Test 20 minuti", { watts })!.ftp?.watts).toBe(257);
+  });
+});
+
 describe("fitness tests", () => {
   it("finds the best rolling average", () => {
     const b = bestAverage([100, 100, 300, 300, 100], 2)!;

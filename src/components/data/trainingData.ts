@@ -4,11 +4,12 @@
 // workouts on the next days, the calendar's holidays/illness/injuries, the history, and what the athlete asked for today.
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { CalendarData, HistoryData } from "@/lib/api/handlers";
-import type { LibraryWorkout } from "@/lib/calendar";
+import { isBikeSession, type LibraryWorkout } from "@/lib/calendar";
 import { parseOverrides, OVERRIDES_EVENT, overridesSnapshot } from "@/lib/coach/chat/store";
 import type { TodayOverrides } from "@/lib/coach/chat/context";
 import { addDays } from "@/lib/dates";
-import type { LifeEvent } from "@/lib/training/life";
+import { type LifeEvent, lifeFrom } from "@/lib/training/life";
+import { loadSeason } from "@/lib/training/seasonStore";
 import { apiFetch } from "./transport";
 
 function createStore<T>(initial: T) {
@@ -36,15 +37,31 @@ async function getJson<T>(url: string): Promise<T | null> {
   }
 }
 
+/** A failed read is tried again this long after (no network when the app opens, Intervals.icu busy). */
+const RETRY_MS = 30_000;
+const MAX_TRIES = 20;
+
 // ── Library ──────────────────────────────────────────────────────────────────────────────────────
 const library = createStore<LibraryWorkout[] | null>(null);
-let libraryStarted = false;
+let libraryState: "idle" | "loading" | "ok" = "idle";
+let libraryTries = 0;
+/** Until 18 November 2026 a failed read left an empty library for the whole session ("nothing fits today" until a restart). */
+function loadLibrary() {
+  libraryState = "loading";
+  void getJson<{ folders: { workouts: LibraryWorkout[] }[] }>("/api/library").then((j) => {
+    if (j) {
+      libraryState = "ok";
+      library.set(j.folders.flatMap((f) => f.workouts));
+      return;
+    }
+    libraryState = "idle";
+    if (++libraryTries < MAX_TRIES) setTimeout(() => libraryState === "idle" && loadLibrary(), RETRY_MS);
+  });
+}
 export function useLibrary(): LibraryWorkout[] | null {
   const v = useSyncExternalStore(library.subscribe, library.get, () => null);
   useEffect(() => {
-    if (libraryStarted) return;
-    libraryStarted = true;
-    void getJson<{ folders: { workouts: LibraryWorkout[] }[] }>("/api/library").then((j) => library.set(j ? j.folders.flatMap((f) => f.workouts) : []));
+    if (libraryState === "idle") loadLibrary();
   }, []);
   return v;
 }
@@ -53,10 +70,18 @@ export function useLibrary(): LibraryWorkout[] | null {
 type Planned = { key: string; list: CalendarData["workouts"] | null };
 const planned = createStore<Planned>({ key: "", list: null });
 let plannedKey = "";
+let plannedTries = 0;
 async function loadPlanned(key: string) {
   const [today, ftp] = key.split("|");
   const c = await getJson<CalendarData>(`/api/calendar?from=${today}&to=${addDays(today, 7)}&ftp=${ftp}`);
-  planned.set({ key, list: c?.workouts ?? [] });
+  // A newer day was asked meanwhile: its answer wins.
+  if (plannedKey !== key) return;
+  // Weights, Pilates and other sports are on the calendar too, but they are not rides: the day's card, the week and the
+  // chat count bike sessions and races only (a day with «Pesi» looked like a day with a ride already planned).
+  planned.set({ key, list: c ? c.workouts.filter(isBikeSession) : [] });
+  // Without the calendar the card ignores what is already planned: read it again in a while.
+  if (!c && ++plannedTries < MAX_TRIES) setTimeout(() => plannedKey === key && void loadPlanned(key), RETRY_MS);
+  if (c) plannedTries = 0;
 }
 export function usePlanned(today: string, ftp: number | null): CalendarData["workouts"] | null {
   const key = `${today}|${ftp ?? ""}`;
@@ -64,6 +89,7 @@ export function usePlanned(today: string, ftp: number | null): CalendarData["wor
   useEffect(() => {
     if (plannedKey !== key) {
       plannedKey = key;
+      plannedTries = 0;
       void loadPlanned(key);
     }
   }, [key]);
@@ -94,6 +120,8 @@ async function loadSeasonCalendar(key: string) {
       list.push(w);
     }
   }
+  // A newer season was asked meanwhile: its answer wins. (Weights stay in this list: the gym rule reads them.)
+  if (seasonCalendarKey !== key) return;
   seasonCalendar.set({ key, list });
 }
 /** Planned workouts from the Monday `from` for `weeks` weeks; null while loading. */
@@ -118,7 +146,8 @@ export function refreshSeasonCalendar(): Promise<void> {
 const life = createStore<LifeEvent[]>([]);
 let lifeKey = "";
 async function loadLife(today: string) {
-  const list = await getJson<LifeEvent[]>(`/api/life?from=${addDays(today, -30)}&to=${addDays(today, 400)}`);
+  // From the start of the season: an old stop still decides where the light weeks fall (see lifeFrom).
+  const list = await getJson<LifeEvent[]>(`/api/life?from=${lifeFrom(today, loadSeason()?.start)}&to=${addDays(today, 400)}`);
   if (list) life.set(list);
 }
 export function useLife(today: string): LifeEvent[] {

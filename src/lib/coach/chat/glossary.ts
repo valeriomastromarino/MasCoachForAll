@@ -34,7 +34,7 @@ export const GLOSSARY: Term[] = [
     title: "FTP",
     text: (c) => `È la potenza che reggi circa un'ora. La tua su Intervals: ${n0(c.data.athlete.ftp)} W fuori e ${n0(c.data.athlete.indoorFtp)} W sui rulli. Le zone e le percentuali dei workout si basano su questa.`,
   },
-  { keys: ["cp", "potenza critica", "critical power"], title: "Potenza critica", text: () => "Il limite sopra cui consumi la riserva anaerobica (W′). Si ricava da sforzi massimali di 3-20 minuti. Il test classico: tre sforzi da 3′, 7′ e 12′ in giorni diversi." },
+  { keys: ["cp", "potenza critica", "critical power"], title: "Potenza critica", text: () => "Il limite sopra cui consumi la riserva anaerobica (W′). Si ricava dai migliori sforzi di 3′, 7′ e 12′ (il test classico, in giorni diversi); un 20′ entra nel calcolo solo se è fatto a tutta." },
   { keys: ["w prime", "w'", "w′", "wprime", "riserva anaerobica"], title: "W′", text: () => "La riserva di energia che puoi spendere sopra la potenza critica: si svuota negli scatti e si ricarica sotto la soglia. Più è grande, più sei da scatti." },
   {
     keys: ["hrv", "rmssd", "variabilita cardiaca"],

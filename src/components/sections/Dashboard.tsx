@@ -76,7 +76,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
         <Stat label="FC a riposo" color="var(--rhr)" value={fmt(status.rhr.today, 0, " bpm")} hint={status.rhr.baseline7 !== null ? `media 7 gg ${fmt(status.rhr.baseline7, 1)}` : undefined} />
         <Stat label="Sonno" color="var(--sleep)" value={status.sleepHours !== null ? fmtDuration(status.sleepHours * 3600) : "–"} hint="stanotte" />
         <Stat label="Peso" value={fmt(lastWeight?.kg, 1, " kg")} hint={wkg ? `${fmt(wkg, 2)} W/kg a eFTP` : undefined} />
-        <Stat label="Potenza critica" value={cp ? fmt(cp.cp, 0, " W") : "–"} hint={cp ? (cp.reliable ? "Monod 3–20′" : "incerta") : undefined} />
+        <Stat label="Potenza critica" value={cp ? fmt(cp.cp, 0, " W") : "–"} hint={cp ? (cp.reliable ? (cp.upToSecs >= 1200 ? "Monod 3–20′" : "Monod 3–12′") : "incerta") : undefined} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -129,7 +129,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card
           title="Profilo di potenza"
-          subtitle={cp ? `potenza critica ${fmt(cp.cp, 0, " W")} · W′ ${fmt(cp.wPrime / 1000, 1, " kJ")}${cp.reliable ? "" : " (incerta)"}` : "servono sforzi massimali tra 3 e 20 minuti"}
+          subtitle={cp ? `potenza critica ${fmt(cp.cp, 0, " W")} · W′ ${fmt(cp.wPrime / 1000, 1, " kJ")}${cp.reliable ? "" : " (incerta)"}` : "servono sforzi massimali tra 3 e 12 minuti"}
         >
           <PowerCurveChart mmp={data.mmp} cp={cp} />
           {data.icuModels.length > 0 && <p className="mt-2 text-xs text-faint">Modelli Intervals.icu: {data.icuModels.map((m) => `${m.name} ${fmt(m.cp, 0, " W")}`).join(" · ")}</p>}
