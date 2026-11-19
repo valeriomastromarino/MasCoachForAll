@@ -60,6 +60,19 @@ Tutti i controlli devono risultare `ok`.
 
 Apri l'indirizzo in Chrome, entra con la password di `credenziali-mascoach.txt`, menu ⋮ → **Installa app**.
 
+## 6. Facoltativo: le sedute dei rulli anche su Strava
+
+Le sedute registrate dal player dei rulli possono andare anche su Strava (oltre che su Intervals). Serve l'abbonamento
+Strava: dal giugno 2026 Strava lo chiede per creare un'app che usa la sua API (nessun costo in più).
+
+1. Da computer apri https://www.strava.com/settings/api e crea l'applicazione: nome `MasCoach`, categoria Training, sito
+   l'indirizzo del tuo MasCoach, **Authorization Callback Domain** = il dominio del sito (es. `tuonome.vercel.app`),
+   un'icona qualsiasi (va bene `public/icons/icon-512.png`).
+2. Copia «Client ID» e «Client Secret» e mettili su Vercel → Settings → Environment Variables come `STRAVA_CLIENT_ID` e
+   `STRAVA_CLIENT_SECRET` (Production, il secret come Sensitive). Poi pubblica di nuovo il sito.
+3. Sul sito: **Impostazioni → Strava → Collega Strava** e su Strava tocca «Autorizza». Basta una volta: vale anche per
+   l'app sul telefono (che manda le sedute tramite il sito, con la password dell'app inserita in «Coach scritto»).
+
 ## Aggiornare
 
 Dopo modifiche o un `git pull`: `npx --yes vercel deploy --prod --yes` (in Claude Code: `/aggiorna-mascoach`).

@@ -9,3 +9,11 @@ export function apiFetch(input: string, init?: RequestInit): Promise<Response> {
 export function askFetch(body: unknown): Promise<Response> {
   return fetch("/api/coach/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
+
+/** This page is the website itself: what only the server can do (Strava) is right here, with the login cookie. */
+export const ON_SITE = true;
+
+/** A route that only the online server has (Strava: the client secret stays there). */
+export function serverFetch(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(path, init);
+}

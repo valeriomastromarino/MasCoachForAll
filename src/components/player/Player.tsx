@@ -746,6 +746,17 @@ function FinishSheet({ view, engine, onClose }: { view: PlayerView; engine: Play
       <div className="mt-4 rounded-xl px-3 py-2.5 text-sm" style={{ background: uploaded ? "var(--good-bg)" : rec.error ? "var(--warning-bg)" : "var(--neutral-bg)" }}>
         {view.uploading ? "Carico su Intervals.icu…" : uploaded ? "Caricata su Intervals.icu." : rec.error ? `Non caricata: ${sentence(rec.error)} Resta salvata su questo dispositivo e riprovo da Rulli.` : "Salvata sul dispositivo."}
       </div>
+      {/* Strava (19 November 2026), when it is connected: right after Intervals.icu, or again from Rulli when it failed. */}
+      {!view.uploading && rec.strava && (
+        <div className="mt-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm" style={{ background: rec.strava.status === "ok" ? "var(--good-bg)" : "var(--warning-bg)" }}>
+          <span>{rec.strava.status === "ok" ? "Su Strava." : `Strava: non ancora. ${sentence(rec.strava.error ?? "Nessuna connessione")} Riprovo da Rulli.`}</span>
+          {rec.strava.status === "ok" && rec.strava.id ? (
+            <a href={`https://www.strava.com/activities/${rec.strava.id}`} target="_blank" rel="noreferrer" className="ml-auto shrink-0 underline">
+              Apri
+            </a>
+          ) : null}
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-2">
         {uploaded && rec.uploadedId && (
           <Link href={`/attivita/${rec.uploadedId}`} className="rounded-xl px-4 py-2.5 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>

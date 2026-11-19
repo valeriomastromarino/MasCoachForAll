@@ -3,6 +3,7 @@ import { ThemeToggle } from "@/components/brand/ThemeToggle";
 import { ProfileCard } from "@/components/firstrun/ProfileCard";
 import { DataCard } from "@/components/sections/DataCard";
 import { SectionHeading } from "@/components/sections/SectionPage";
+import { StravaCard } from "@/components/strava/StravaCard";
 
 // Two blocks: how the app looks, and what it connects to (the single-file app adds the Intervals key and the coach password below).
 export default function Page() {
@@ -26,6 +27,7 @@ export default function Page() {
       </section>
       <h2 className="pt-3 text-xs font-medium uppercase tracking-wide text-muted">Collegamenti</h2>
       <DataCard />
+      <StravaCard />
       <ProfileCard />
     </main>
   );

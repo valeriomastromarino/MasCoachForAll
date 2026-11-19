@@ -35,6 +35,8 @@ export type Recording = {
   error?: string | null;
   /** The session was recalibrated to this fraction of the plan ("Ricalibra"), when it was. */
   scale?: number;
+  /** Strava (since 19 November 2026): "ok" once there, "error" to try again; absent when Strava is not connected or not wanted. */
+  strava?: { status: "ok" | "error"; id?: number | null; error?: string | null };
 };
 
 export function newRecording(eventId: string | null, name: string, now: number): Recording {

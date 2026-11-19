@@ -102,6 +102,14 @@ Per pubblicare le modifiche successive: **`/aggiorna-mascoach`**. Guida manuale 
 - **Connettore**: `piano_stagione` (sola lettura, `lib/coach/seasonTool.ts`: la stagione come la calcola l'app, settimane, giorni fissati e proposta dei prossimi 7 giorni) e filtri in `libreria_allenamenti` (`libraryView`: senza filtri un elenco compatto, con `tipo`, minuti, luogo, nome, cartella le sedute con il testo); il coach non modifica né cancella allenamenti di giorni passati. Il coach scritto ha `rulli` in `proponi_programma`.
 - **Dati della scheda di oggi**: libreria e calendario non raggiungibili all'apertura si riprovano ogni 30 s.
 
+## Strava (19 novembre 2026)
+
+Le sedute dei rulli registrate dall'app vanno anche su Strava, se l'atleta lo collega (serve l'abbonamento Strava per creare l'app API; guida in `INSTALLAZIONE.md` §6). Garmin no: non ha un modo ufficiale per ricevere attività, e un import a mano finirebbe doppio in Intervals.
+- **Server** (`lib/strava/strava.ts` puro e testato, `lib/strava/server.ts`, route in `app/api/strava/`): `connect` (stato monouso nel cookie `mascoach_strava_state`, scope `read,activity:write`), `callback` (scambia il codice, controlla il permesso di caricare, torna a `/impostazioni?strava=ok|negato|permessi|chiavi|errore`), `status`, `upload` (FIT in base64 → `POST /uploads` con `trainer=1`, `external_id` = id della seduta; un doppione su Strava conta come fatto; 412 = non configurato o non collegato), `disconnect`. Token **cifrati** (AES-GCM, chiave dal client secret) in una nota di Intervals del 2000-01-02 con `external_id` `mascoach-strava`; l'access token si rinnova da solo (`freshTokens`).
+- **Accesso**: `status` e `upload` sono fuori dal login in `proxy.ts` e controllano cookie o password dell'app (`lib/auth/request.ts`, CORS per l'APK); `connect`, `callback` e `disconnect` restano dietro il login.
+- **App** (`components/data/strava.ts`): `serverFetch` in `transport.ts` (sito) e `transport.browser.ts` (APK e file unico, con indirizzo e password del «Coach scritto»), `ON_SITE`. Dopo Intervals `uploadRecording` manda la seduta a Strava se l'interruttore del dispositivo è acceso (`mascoach-strava-auto`); `Recording.strava` = `ok` o `error` (riprovato da `uploadPending` e da «Riprova» in Rulli). `StravaCard` in Impostazioni (token `--strava`), riga «Su Strava» a fine seduta, «Strava da mandare» in Rulli.
+- Intervals riceve anche la copia che torna da Strava, ma tiene il caricamento diretto.
+
 ## Particolarità dei dati Intervals.icu (verificate sui dati reali)
 
 - Le attività importate **solo da Strava** arrivano senza `type` (nota "STRAVA activities are not available via the API"): si mostrano in grigio; il loro carico si recupera da `wellness.atlLoad`.

@@ -11,7 +11,7 @@ import { addDays, toIsoDate } from "@/lib/dates";
 import { DEMO_WORKOUT_ID } from "@/lib/player/load";
 import { type Recording, summarize } from "@/lib/player/recording";
 import { deleteRecording, listRecordings } from "@/lib/player/store";
-import { downloadFit, uploadPending, uploadRecording } from "./upload";
+import { downloadFit, retryStrava, uploadPending, uploadRecording } from "./upload";
 import { apiFetch } from "../data/transport";
 import { fmt, fmtClock, fmtDuration, fmtWeekday } from "../format";
 import { useCompact } from "@/lib/compact";
@@ -58,6 +58,8 @@ function WorkoutRow({ w, today }: { w: CalendarWorkout; today: string }) {
 
 function SessionRow({ r, onChange }: { r: Recording; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
+  // On Intervals.icu already: the row is here because Strava is missing.
+  const onIntervals = r.status === "uploaded";
   const s = summarize(r.samples);
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
@@ -68,7 +70,14 @@ function SessionRow({ r, onChange }: { r: Recording; onChange: () => void }) {
           {fmtWeekday(new Date(r.startedAt).toISOString())} · {fmtClock(s.secs)} · {fmt(s.avgPower, 0, " W")}
           {r.status === "recording" ? " · interrotta" : ""}
         </div>
-        {r.error && <div className="text-xs" style={{ color: "var(--warning)" }}>{r.error}</div>}
+        {r.error && r.status !== "uploaded" && <div className="text-xs" style={{ color: "var(--warning)" }}>{r.error}</div>}
+        {onIntervals && (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full px-2 py-0.5 text-[10.5px]" style={{ background: "var(--good-bg)", color: "var(--good)" }}>✓ Intervals</span>
+            <span className="rounded-full px-2 py-0.5 text-[10.5px]" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>Strava da mandare</span>
+            {r.strava?.error && <span className="text-[11px] text-muted">{r.strava.error}</span>}
+          </div>
+        )}
       </div>
       <button
         className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium disabled:opacity-50"
@@ -76,12 +85,14 @@ function SessionRow({ r, onChange }: { r: Recording; onChange: () => void }) {
         disabled={busy}
         onClick={async () => {
           setBusy(true);
-          await uploadRecording({ ...r, status: "finished" });
+          // Already on Intervals.icu: only Strava is missing.
+          if (onIntervals) await retryStrava(r);
+          else await uploadRecording({ ...r, status: "finished" });
           setBusy(false);
           onChange();
         }}
       >
-        <IconUpload size={14} /> {busy ? "Carico…" : "Carica"}
+        <IconUpload size={14} /> {busy ? (onIntervals ? "Mando…" : "Carico…") : onIntervals ? "Riprova" : "Carica"}
       </button>
       <button className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: "var(--neutral-bg)" }} onClick={() => downloadFit(r)}>
         <IconDownload size={14} /> FIT
@@ -110,7 +121,8 @@ export default function RulliHome() {
   const problem = useSyncExternalStore(noSubscribe, bluetoothProblem, () => null);
 
   const reloadSessions = useCallback(() => {
-    void listRecordings().then((all) => setSessions(all.filter((r) => r.status !== "uploaded")));
+    // Still to send: not on Intervals.icu yet, or on Intervals.icu but not yet on Strava.
+    void listRecordings().then((all) => setSessions(all.filter((r) => r.status !== "uploaded" || r.strava?.status === "error")));
   }, []);
 
   useEffect(() => {
@@ -195,7 +207,7 @@ export default function RulliHome() {
               <p className="mt-1 text-sm text-muted">Tutte le sedute sono su Intervals.icu.</p>
             ) : (
               <>
-                <p className="mt-1 text-sm text-muted">Non ancora su Intervals.icu: le carico appena c&apos;è la connessione.</p>
+                <p className="mt-1 text-sm text-muted">Non ancora su Intervals.icu, o non ancora su Strava: le mando appena c&apos;è la connessione.</p>
                 <ul className="mt-1 divide-y" style={{ borderColor: "var(--border)" }}>
                   {sessions.map((r) => (
                     <SessionRow key={r.id} r={r} onChange={reloadSessions} />

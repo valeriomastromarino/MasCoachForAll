@@ -212,6 +212,8 @@
 /* Height of the phone app's bottom bar (tab 3.25rem + padding): pages keep their last line above it. */
 :root {
   --nav-h: calc(4.5rem + env(safe-area-inset-bottom));
+  /* Strava's own orange, only for its mark on the Strava settings card (same in every theme). */
+  --strava: #fc4c02;
 }
 
 /* A page that opens from the swipeable ones slides in from the right. */
