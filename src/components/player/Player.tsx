@@ -1,9 +1,10 @@
 "use client";
 
-// The trainer player screen (design approved in docs/player-rulli.md §5). Phone: metrics, profile, DFA α1,
-// notes and devices in one column; on computers two columns. Mode selector and controls stay at the bottom.
+// The trainer player screen (design approved in docs/player-rulli.md §5). Phone: metrics, profile, notes and devices
+// in one column; on computers two columns. Mode selector and controls stay at the bottom. Since 19 November 2026 the
+// DFA α1 is a small number in the corner of the power box (the card with the bar is gone, as the athlete asked) and the
+// step's cadence target sits in the same corner of the cadence box.
 import {
-  IconActivityHeartbeat,
   IconAdjustmentsHorizontal,
   IconBolt,
   IconCheck,
@@ -28,7 +29,7 @@ import { DFA_VT1, DFA_VT2, dfaZone } from "@/lib/physio/dfa";
 import { workoutNotes } from "@/lib/player/notes";
 import { summarize } from "@/lib/player/recording";
 import { SCALE_OPTIONS, stepRemaining } from "@/lib/player/session";
-import { SPRINT_LEADS, SPRINT_MAX_STEPS, SPRINT_WATTS } from "@/lib/player/sprint";
+import { SPRINT_LEADS, SPRINT_MAX_STEPS, SPRINT_WATTS, sprintLevelOn } from "@/lib/player/sprint";
 import type { PlayerStep, PlayerWorkout } from "@/lib/player/timeline";
 import { downloadFit } from "./upload";
 import { IconTrainer } from "../brand/TrainerIcon";
@@ -56,8 +57,8 @@ function stepText(s: PlayerStep, k = 1): string {
 
 // ── Pieces ──────────────────────────────────────────────────────────────────────────────────────────
 
-function Metric({ icon, color, label, value, unit, sub, right = false, bottom = false }: {
-  icon: React.ReactNode; color: string; label: string; value: string; unit: string; sub?: string | null; right?: boolean; bottom?: boolean;
+function Metric({ icon, color, label, value, unit, sub, subColor, corner, right = false, bottom = false }: {
+  icon: React.ReactNode; color: string; label: string; value: string; unit: string; sub?: string | null; subColor?: string; corner?: React.ReactNode; right?: boolean; bottom?: boolean;
 }) {
   return (
     <div className="min-w-0 px-4 py-3" style={{ borderColor: "var(--border)", borderStyle: "solid", borderWidth: 0, borderRightWidth: right ? 1 : 0, borderBottomWidth: bottom ? 1 : 0 }}>
@@ -69,8 +70,52 @@ function Metric({ icon, color, label, value, unit, sub, right = false, bottom = 
         <span className="text-4xl font-medium leading-none lg:text-5xl">{value}</span>
         <span className="text-sm text-muted">{unit}</span>
       </div>
-      <div className="num mt-1 h-4 truncate text-xs text-muted">{sub ?? ""}</div>
+      {/* Bottom line: a note on the left; at the right, always in the same place, the corner value (DFA α1, cadence target). */}
+      <div className="num mt-1 flex h-4 items-center justify-between gap-2 text-xs text-muted">
+        <span className="min-w-0 truncate" style={subColor ? { color: subColor, fontWeight: 600 } : undefined}>{sub ?? ""}</span>
+        {corner ? <span className="shrink-0 whitespace-nowrap">{corner}</span> : null}
+      </div>
     </div>
+  );
+}
+
+/** The sprint's resistance level on this trainer's scale (the same place on it: 11 of 16 is 7 on a trainer with 10 steps). */
+const sprintLevel = (view: PlayerView) => sprintLevelOn(view.sprint.cfg, view.levels.length - 1);
+
+/**
+ * DFA α1, small, in the corner of the power box: only while the strap is connected and sending beat-to-beat intervals
+ * (the engine drops the value when they stop), coloured by where it sits against the app's thresholds 0.75 and 0.5.
+ * With more than 5% corrected beats the number is grey: it is there, but not to be trusted.
+ */
+function DfaCorner({ view }: { view: PlayerView }) {
+  const d = view.dfa;
+  const a = d?.alpha1 ?? null;
+  if (!d || a === null || view.devices.hr.status !== "connected") return null;
+  const color = !d.reliable ? "var(--muted)" : a >= DFA_VT1 ? "var(--hrv-ink)" : a >= DFA_VT2 ? "var(--warning-ink)" : "var(--critical)";
+  const text = fmt(a, 2);
+  return (
+    <span role="img" aria-label={`DFA alfa 1 ${text}, ${dfaZone(a)}${d.reliable ? "" : `, poco affidabile (artefatti ${fmt(d.artifactPct, 0)}%)`}`}>
+      <span className="text-[11px]" aria-hidden>α1 </span>
+      <span className="text-sm font-semibold" style={{ color }} aria-hidden>
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/** The cadence target of the current step, when it has one (e.g. «- 5m 87% 60rpm» in the Intervals.icu text). */
+function CadenceCorner({ step }: { step: PlayerStep | undefined }) {
+  const cad = step?.cadence;
+  if (!cad) return null;
+  const lo = Math.round(cad.lo);
+  const hi = Math.round(cad.hi);
+  return (
+    <span>
+      <span className="text-[11px]">obiettivo </span>
+      <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+        {lo === hi ? lo : `${lo}–${hi}`}
+      </span>
+    </span>
   );
 }
 
@@ -79,18 +124,20 @@ function Metrics({ view, step }: { view: PlayerView; step: PlayerStep | undefine
   // A sprint (and its warning) is ridden in resistance: the card shows the sprint's level.
   const sprinting = view.sprint.phase !== "off";
   const resistance = s.mode === "resistance" || sprinting;
-  const level = sprinting ? view.sprint.cfg.level : s.level;
-  const cad = step?.cadence;
+  const level = sprinting ? sprintLevel(view) : s.level;
   return (
     <section className={`${card} grid grid-cols-2 overflow-hidden`} style={{ ...cardStyle, gridArea: "metrics" }} aria-label="Metriche">
       <Metric right bottom icon={<IconBolt size={15} />} color="var(--fatigue-ink)" label="Potenza"
-        value={fmt(view.power)} unit="W" sub={view.devices.power.status === "connected" ? (view.match ? `dai pedali · corr. ${fmt(view.match, 2)}` : "dai pedali") : null} />
+        value={fmt(view.power)} unit="W" sub={view.devices.power.status === "connected" ? (view.match ? `dai pedali · corr. ${fmt(view.match, 2)}` : "dai pedali") : null}
+        corner={<DfaCorner view={view} />} />
+      {/* A target the trainer refused shows here in red, where the eye is during the ride (the reason is in the trainer's row). */}
       <Metric bottom icon={<IconTarget size={15} />} color="var(--good)" label={resistance ? "Livello" : "Obiettivo"}
         value={resistance ? String(level) : fmt(view.target)} unit={resistance ? `/ ${view.levels.length - 1}` : "W"}
-        sub={!resistance && s.offset ? `${s.offset > 0 ? "+" : ""}${s.offset} W su questo step` : resistance ? "resistenza" : null} />
+        sub={view.refused ? "rifiutato dal rullo" : !resistance && s.offset ? `${s.offset > 0 ? "+" : ""}${s.offset} W su questo step` : resistance ? "resistenza" : null}
+        subColor={view.refused ? "var(--critical)" : undefined} />
       <Metric right icon={<IconHeart size={15} />} color="var(--rhr-ink)" label="FC" value={fmt(view.hr)} unit="bpm" />
       <Metric icon={<IconRefresh size={15} />} color="var(--fitness-ink)" label="Cadenza" value={fmt(view.cadence)} unit="rpm"
-        sub={cad ? `obiettivo ${cad.lo === cad.hi ? cad.lo : `${cad.lo}–${cad.hi}`}` : null} />
+        corner={<CadenceCorner step={step} />} />
     </section>
   );
 }
@@ -182,74 +229,6 @@ function Profile({ workout, view, onRecal }: { workout: PlayerWorkout; view: Pla
   );
 }
 
-function DfaCard({ view }: { view: PlayerView }) {
-  const d = view.dfa;
-  const hr = view.devices.hr;
-  let message: string | null = null;
-  if (hr.status !== "connected") message = "Collega una fascia cardio per vedere il DFA α1.";
-  else if (hr.detail === "solo FC") message = "La fascia non manda gli intervalli RR: DFA non disponibile.";
-  else if (!d || d.warmingUp) message = `In calcolo: ${fmtClock(Math.round(d?.coveredSecs ?? 0))} di 2:00 di battiti.`;
-  const a = d?.alpha1 ?? null;
-  // Scale 0.3–1.3, VT2 and VT1 marked.
-  const pct = (x: number) => Math.min(100, Math.max(0, ((x - 0.3) / 1.0) * 100));
-  const hist = view.dfaHistory;
-  const HX = 300;
-  const HY = 60;
-  const yA = (x: number) => HY - (Math.min(1.4, Math.max(0.2, x)) - 0.2) / 1.2 * HY;
-  return (
-    <section className={`${card} p-4`} style={{ ...cardStyle, gridArea: "dfa" }} aria-label="DFA alfa 1">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <IconActivityHeartbeat size={15} style={{ color: "var(--hrv-ink)" }} aria-hidden /> DFA α1
-          </div>
-          {a !== null && !message ? (
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="num text-3xl font-medium" style={{ color: "var(--hrv-ink)" }}>{fmt(a, 2)}</span>
-              <span className="text-sm text-muted">{dfaZone(a)}</span>
-            </div>
-          ) : (
-            <p className="mt-1 text-sm text-muted">{message}</p>
-          )}
-        </div>
-        {d && !message && (
-          <div className="num text-right text-xs text-muted">
-            finestra 2′
-            <br />
-            <span style={{ color: d.reliable ? undefined : "var(--warning)" }}>artefatti {fmt(d.artifactPct, 1)}%</span>
-          </div>
-        )}
-      </div>
-      <div className="relative mt-3 h-2 rounded-full" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--critical) 45%, transparent) ${pct(DFA_VT2)}%, color-mix(in srgb, var(--warning) 45%, transparent) ${pct(DFA_VT2)}% ${pct(DFA_VT1)}%, color-mix(in srgb, var(--hrv) 45%, transparent) ${pct(DFA_VT1)}%)` }}>
-        {a !== null && !message && <span className="absolute -top-1.5 h-5 w-1 rounded" style={{ left: `calc(${pct(a)}% - 2px)`, background: "var(--foreground)" }} />}
-      </div>
-      <div className="num relative mt-1 h-4 text-xs text-muted">
-        <span className="absolute -translate-x-1/2" style={{ left: `${pct(DFA_VT2)}%` }}>0,5 VT2</span>
-        <span className="absolute -translate-x-1/2" style={{ left: `${pct(DFA_VT1)}%` }}>0,75 VT1</span>
-      </div>
-      {hist.length > 1 && (
-        <div className="player-wide-only mt-3">
-          <svg viewBox={`0 0 ${HX} ${HY}`} preserveAspectRatio="none" className="block h-20 w-full" role="img" aria-label="DFA alfa 1 negli ultimi 10 minuti">
-            <line x1={0} x2={HX} y1={yA(DFA_VT1)} y2={yA(DFA_VT1)} stroke="var(--hrv)" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-            <line x1={0} x2={HX} y1={yA(DFA_VT2)} y2={yA(DFA_VT2)} stroke="var(--critical)" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-            <polyline
-              points={hist.map((p, i) => `${(i / (hist.length - 1)) * HX},${yA(p.a)}`).join(" ")}
-              fill="none"
-              stroke="var(--foreground)"
-              strokeWidth={1.6}
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-          <div className="flex justify-between text-xs text-muted">
-            <span>−10′</span>
-            <span>ora</span>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
 const KINDS: DeviceKind[] = ["trainer", "hr", "power"];
 
 const STATUS_TEXT: Record<DeviceView["status"], string> = {
@@ -276,7 +255,7 @@ function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d:
   const ok = d.status === "connected";
   const busy = d.status === "connecting";
   const text = ok ? (d.detail ? `${d.detail} · collegato` : "collegato") : busy ? `${d.detail ?? "collegamento"}…` : STATUS_TEXT[d.status];
-  const color = ok ? "var(--good)" : d.status === "lost" || d.error ? "var(--critical)" : "var(--muted)";
+  const color = ok ? (d.warning ? "var(--critical)" : "var(--good)") : d.status === "lost" || d.error ? "var(--critical)" : "var(--muted)";
   const action = d.status === "lost" ? "Ricollega" : d.retry ? "Riprova" : "Collega";
   if (compact) {
     return (
@@ -364,7 +343,7 @@ function BeforeStart({ view, engine }: { view: PlayerView; engine: PlayerEngine 
         {KINDS.filter((k) => d[k].status === "connected").map((k) => (
           <span key={k} className="inline-flex min-w-0 items-center gap-1">
             <IconCheck size={14} className="shrink-0" aria-hidden />
-            <span className="truncate">
+            <span className="truncate" style={d[k].warning ? { color: "var(--critical)" } : undefined}>
               {d[k].name ?? DEVICE_INFO[k].short}
               {d[k].detail ? ` · ${d[k].detail}` : ""}
             </span>
@@ -396,7 +375,7 @@ function BeforeStartRow({ kind, d, engine }: { kind: DeviceKind; d: DeviceView; 
   const ok = d.status === "connected";
   const busy = d.status === "connecting";
   const sub = ok ? `${d.name ?? "collegato"}${d.detail ? ` · ${d.detail}` : ""}` : busy ? `${d.detail ?? "mi collego"}…` : d.status === "lost" ? "collegamento perso" : (d.error ?? info.role);
-  const subColor = ok ? "var(--good)" : d.status === "lost" || d.error ? "var(--critical)" : "var(--muted)";
+  const subColor = ok ? (d.warning ? "var(--critical)" : "var(--good)") : d.status === "lost" || d.error ? "var(--critical)" : "var(--muted)";
   const action = d.status === "lost" ? "Ricollega" : d.retry ? "Riprova" : "Collega";
   return (
     <div className="flex items-center gap-2.5 px-1 py-2" style={{ borderColor: "var(--border)" }}>
@@ -471,7 +450,7 @@ function SprintAlert({ view }: { view: PlayerView }) {
         <span className="num min-w-[2ch] text-center text-5xl font-semibold leading-none">{sp.secs}</span>
         <div>
           <div className="text-base font-semibold">SPRINT tra {sp.secs} s</div>
-          <div className="text-xs">Passo alla resistenza {sp.cfg.level}. ERG spento.</div>
+          <div className="text-xs">Passo alla resistenza {sprintLevel(view)}. ERG spento.</div>
         </div>
       </div>
     );
@@ -479,8 +458,13 @@ function SprintAlert({ view }: { view: PlayerView }) {
   return (
     <div role="status" className="mx-auto mb-3 w-full max-w-6xl rounded-2xl px-4 py-4 text-center" style={{ background: "var(--z7)", color: "#fff" }}>
       <div className="text-[11px] font-medium uppercase tracking-wider opacity-80">
-        Sprint {sp.n} di {sp.total} · resistenza {sp.cfg.level}
+        Sprint {sp.n} di {sp.total} · resistenza {sprintLevel(view)}
       </div>
+      {view.refused && view.refused.mode !== "erg" && (
+        <div className="mt-1 text-xs font-semibold">
+          Il rullo non accetta {view.refused.mode === "resistance" ? "la resistenza" : "comandi"} ({view.refused.reason}): riprovo tra poco.
+        </div>
+      )}
       <div className="num mt-1 text-6xl font-semibold leading-none">
         {fmt(view.power)}
         <span className="ml-1 text-xl font-medium opacity-80">W</span>
@@ -515,7 +499,7 @@ function SprintToggle({ view, engine, onSettings }: { view: PlayerView; engine: 
     <div className="flex items-center justify-between gap-3">
       <button type="button" onClick={onSettings} className="min-w-0 text-left">
         <span className="block text-sm font-medium">Sprint automatici</span>
-        <span className="num block truncate text-xs text-muted">≥ {c.watts} W · resistenza {c.level} · avviso {c.leadSecs} s</span>
+        <span className="num block truncate text-xs text-muted">≥ {c.watts} W · resistenza {sprintLevel(view)} · avviso {c.leadSecs} s</span>
       </button>
       <button type="button" role="switch" aria-checked={c.on} aria-label="Sprint automatici" onClick={() => engine.setSprint({ on: !c.on })}>
         <Switch on={c.on} />
@@ -549,7 +533,9 @@ function OptionRow<T extends number>({ label, options, value, text, onPick }: { 
 
 function SprintSheet({ view, engine, onClose }: { view: PlayerView; engine: PlayerEngine; onClose: () => void }) {
   const c = view.sprint.cfg;
-  const levels = view.levels.length || 10;
+  // Levels 1 to 16 (the trainer's own steps when it has fewer); 0, the lowest resistance, is no sprint and stays on − only.
+  const top = Math.max(1, view.levels.length - 1);
+  const current = sprintLevel(view);
   return (
     <Sheet>
       <h2 className="text-base font-medium">Sprint automatici</h2>
@@ -558,17 +544,17 @@ function SprintSheet({ view, engine, onClose }: { view: PlayerView; engine: Play
       <OptionRow label="Avviso prima" options={SPRINT_LEADS} value={c.leadSecs} text={(v) => `${v} s`} onPick={(v) => engine.setSprint({ leadSecs: v })} />
       <OptionRow label="Solo step brevi" options={SPRINT_MAX_STEPS} value={c.maxStepSecs} text={(v) => (v === 0 ? "tutti" : `≤ ${v} s`)} onPick={(v) => engine.setSprint({ maxStepSecs: v })} />
       <div className="mt-4">
-        <div className="mb-1.5 text-xs text-muted">Resistenza di partenza (poi si ricorda l&apos;ultima usata)</div>
-        <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Livello di resistenza">
-          {Array.from({ length: levels }, (_, i) => i).map((i) => (
+        <div className="mb-1.5 text-xs text-muted">Resistenza di partenza, da 1 a {top} (poi si ricorda l&apos;ultima usata)</div>
+        <div className="grid grid-cols-8 gap-1.5" role="radiogroup" aria-label="Livello di resistenza">
+          {Array.from({ length: top }, (_, i) => i + 1).map((i) => (
             <button
               key={i}
               type="button"
               role="radio"
-              aria-checked={i === c.level}
+              aria-checked={i === current}
               onClick={() => engine.setSprint({ level: i })}
-              className="num rounded-lg py-1.5 text-sm font-medium"
-              style={i === c.level ? { background: "var(--brand)", color: "var(--on-brand)" } : { border: "1px solid var(--border)" }}
+              className="num rounded-lg py-2 text-sm font-medium"
+              style={i === current ? { background: "var(--brand)", color: "var(--on-brand)" } : { border: "1px solid var(--border)" }}
             >
               {i}
             </button>
@@ -646,7 +632,7 @@ function ModeSelector({ view, engine }: { view: PlayerView; engine: PlayerEngine
   return (
     <div role="radiogroup" aria-label="Modalità del rullo" className="flex min-w-0 flex-1 gap-1 rounded-xl p-1 lg:max-w-sm" style={{ background: "var(--neutral-bg)" }}>
       {opt("erg", `ERG · ${fmt(view.target)} W`)}
-      {opt("resistance", sprinting ? `Sprint · ${view.sprint.cfg.level}` : `Resistenza · ${s.level}`)}
+      {opt("resistance", sprinting ? `Sprint · ${sprintLevel(view)}` : `Resistenza · ${s.level}`)}
     </div>
   );
 }
@@ -834,7 +820,6 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
         <div className="player-grid mx-auto w-full max-w-6xl">
           <Metrics view={view} step={step} />
           <Profile workout={workout} view={view} onRecal={() => setRecal(true)} />
-          <DfaCard view={view} />
           {notes && (
             <section className={`${card} p-4`} style={{ ...cardStyle, gridArea: "notes" }} aria-label="Note allenamento">
               <div className="text-sm font-medium">Note allenamento</div>

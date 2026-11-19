@@ -1,33 +1,23 @@
 "use client";
 
-// Settings: whose data this is, where it comes from, and the button to reload it (it used to sit in the top bar).
-import { useState } from "react";
+// Settings: whose data this is and where it comes from. «Aggiorna dati» is the symbol at the right of the top bar
+// (19 November 2026; from 6 November it was a button here, before that in the top bar).
+import { IconRefresh } from "@tabler/icons-react";
 import { capitalize } from "../format";
-import { refreshAll, useDashboard } from "../data/remote";
+import { useDashboard } from "../data/remote";
 
 export function DataCard() {
   const { data } = useDashboard();
-  const [busy, setBusy] = useState(false);
   if (!data) return null;
   return (
-    <section className="card flex max-w-xl items-center gap-3 p-5">
-      <div className="min-w-0 flex-1">
-        <h3 className="truncate text-sm font-medium">{capitalize(data.athlete.name)}</h3>
-        <p className="mt-0.5 text-xs text-muted">{data.source === "demo" ? "Dati demo: collega il tuo Intervals.icu per vedere i tuoi" : "Dati da Intervals.icu"}</p>
-      </div>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          await refreshAll();
-          setBusy(false);
-        }}
-        className="inline-flex h-9 shrink-0 items-center rounded-full px-4 text-xs font-medium leading-none disabled:opacity-50"
-        style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
-      >
-        {busy ? "Aggiorno…" : "Aggiorna dati"}
-      </button>
+    <section className="card max-w-xl p-5">
+      <h3 className="truncate text-sm font-medium">{capitalize(data.athlete.name)}</h3>
+      <p className="mt-0.5 text-xs text-muted">{data.source === "demo" ? "Dati demo: collega il tuo Intervals.icu per vedere i tuoi" : "Dati da Intervals.icu"}</p>
+      <p className="mt-2 flex items-center gap-1 text-xs text-muted">
+        Per aggiornarli tocca
+        <IconRefresh size={14} stroke={2} aria-label="il simbolo Aggiorna dati" className="shrink-0" />
+        in alto a destra.
+      </p>
     </section>
   );
 }

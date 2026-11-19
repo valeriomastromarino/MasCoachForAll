@@ -61,7 +61,7 @@ Gli **RR** arrivano nello stesso dato quando la fascia li manda (flag RR, valori
   se il dispositivo scelto non ha il servizio `0x180D` il player lo dice. Dall'orologio di solito arriva solo la FC, senza RR.
   Su Android si collega spesso solo dopo qualche tentativo: dentro lo stesso tocco su «Collega» ci sono 3 tentativi (pause 2 e 4 s),
   ogni passo con limite di 15 s e mostrato mentre è in corso; «Annulla» li ferma. Un dispositivo senza il servizio cardio non si riprova.
-- Fasce che non mandano RR e sensori ottici: FC sì, DFA "non disponibile".
+- Fasce che non mandano RR e sensori ottici: FC sì, DFA non mostrato.
 
 ### 3.4 Cadenza
 
@@ -78,7 +78,8 @@ Garmin Edge (non serve). Modalità pendenza/simulazione e pedalata libera (non r
   dai `workout_doc.steps`), con nome, descrizione (note) e durata.
 - **Watt**: le % sono sulla **FTP da rulli** (`indoor_ftp` delle impostazioni sport di Intervals); i watt assoluti restano tali;
   rampe come rampe (obiettivo aggiornato ogni secondo); ripetute espanse.
-- Passi con solo target di cadenza: mostrato in "Prossimo"/note, non comanda il rullo.
+- Obiettivo di cadenza dello step (es. «60rpm» nel testo di Intervals, `cadence` nel `workout_doc`): in piccolo in basso a destra
+  nella casella della cadenza («obiettivo 60» o «obiettivo 85–95»); non comanda il rullo.
 - Gli allenamenti hanno sempre obiettivi di potenza: niente obiettivi di FC. Uno step senza potenza mantiene l'obiettivo precedente.
 - **Pulsante "PEDALA"** (icona rulli + scritta): nel pop-up dell'allenamento del calendario (computer e telefono, `WeekList`),
   nella pagina Oggi e nell'artefatto (dall'artefatto apre l'app). Apre il player con quell'allenamento.
@@ -88,10 +89,12 @@ Garmin Edge (non serve). Modalità pendenza/simulazione e pedalata libera (non r
 Tema Day / Night / Paper come l'app. Dall'alto in basso:
 
 1. **Intestazione**: chiudi · nome e durata dell'allenamento · suoni on/off.
-2. **Griglia 2×2**: Potenza (W) · Obiettivo (W; in resistenza diventa "Livello") · FC (bpm) · Cadenza (rpm).
+2. **Griglia 2×2**: Potenza (W) · Obiettivo (W; in resistenza diventa "Livello", es. «5 / 16») · FC (bpm) · Cadenza (rpm).
+   Nell'angolo in basso a destra della potenza il **DFA α1** piccolo, nella cadenza l'obiettivo di cadenza dello step (vedi §6).
+   Un obiettivo rifiutato dal rullo compare in rosso sotto il numero («rifiutato dal rullo»; il motivo è nella riga del rullo).
 3. **Profilo**: tempo rimanente dello step, "Prossimo" (es. "5min @ 162W"), blocchi colorati per zona, cursore di posizione,
    tempo trascorso e rimanente totale.
-4. **DFA α1**: valore, etichetta (sopra/sotto VT1, sotto VT2), scala con VT2 = 0,5 e VT1 = 0,75, finestra 2′, % artefatti.
+4. ~~**DFA α1** in una scheda con la barra~~: tolta a novembre 2026, ora è il numero nell'angolo della potenza.
 5. **Note allenamento** (descrizione dell'evento Intervals).
 6. **Strumenti collegati**: un riquadro per rullo e cardio (più pedali se presenti) con nome, stato
    (non collegato · in corso · collegato · collegamento perso) e pulsante: Collega, Annulla, Scollega, Ricollega / Riprova
@@ -105,9 +108,12 @@ Tema Day / Night / Paper come l'app. Dall'alto in basso:
    In ERG ogni tocco di − / + cambia l'obiettivo di **5 W**; in resistenza di **un gradino**.
 
 Selettore e barra comandi restano fissi in basso; il resto scorre.
-**Gradini**: il rullo dichiara minimo, massimo e passo del livello; se la scala è molto fine (es. 0–100) si usano **10 gradini** uguali
-(confermato: si regola dopo la prima prova sul rullo).
-**Su PC (bozza, da approvare)**: si usa tutta la larghezza. A sinistra griglia 2×2 e DFA α1 con il grafico degli ultimi 10 minuti;
+**Gradini** (16, prima 10): il rullo dichiara minimo, massimo e passo del livello; se la scala è fine (es. 0–100)
+si usano **16 gradini** uguali, ognuno su un valore che il rullo accetta e mai oltre il massimo; un rullo con 16 gradini suoi o meno usa i suoi
+(es. 0–10 → «/ 10»). Se il rullo non dichiara il passo: unità intere su una scala ampia, decimi su una stretta.
+Partenza e sprint sono **posizioni sulla scala**: la seduta parte da 5 di 16 e, collegando un rullo con 10 gradini, diventa 3 di 10;
+lo sprint salva il livello con la sua scala (`levels` in `mascoach-rulli-sprint`; un valore senza scala era su 0–10: 7 di 10 = 11 di 16).
+**Su PC (bozza, da approvare)**: si usa tutta la larghezza. A sinistra griglia 2×2 (da novembre 2026 senza la scheda del DFA α1);
 a destra profilo grande con la potenza dal vivo disegnata sopra e note; in basso una barra unica con strumenti collegati,
 selettore ERG / Resistenza e comandi.
 
@@ -123,7 +129,9 @@ selettore ERG / Resistenza e comandi.
 
 - RR dalla fascia → correzione artefatti (battiti che si scostano oltre ~20% dalla mediana locale) → **finestra 120 s**,
   ricalcolo ogni ~5 s, DFA di breve periodo (scale 4–16 battiti).
-- Primi 2 minuti: "in calcolo". Artefatti > 5%: valore mostrato come poco affidabile. Senza RR: "non disponibile".
+- A schermo: solo il numero, piccolo, nell'angolo della potenza, colorato con le soglie (≥ 0,75 verde acqua,
+  0,5–0,75 giallo, sotto 0,5 rosso) e grigio con artefatti > 5% (poco affidabile). Si vede solo con la fascia collegata che manda gli RR:
+  nei primi 2 minuti, senza RR o senza fascia non compare nulla.
 - Soglie indicative Rogers & Gronwald: 0,75 ≈ VT1, 0,5 ≈ VT2 (le stesse di `lib/physio/fitnessTest.ts`).
 - **Solo visualizzazione**: il DFA non comanda niente.
 - Calcolo puro e testato in `lib/physio/` (come il resto del motore fisiologico).
@@ -191,8 +199,10 @@ Bozza della schermata su PC approvata il 31 ottobre.
 Scelte fatte scrivendo il codice (da confermare sul rullo):
 - La seduta **parte quando inizi a pedalare** (o con Play) e si registra solo il tempo pedalato.
 - −/+ in ERG valgono **solo per lo step in corso** (allo step successivo si torna all'obiettivo del piano).
-- Il gradino di partenza della resistenza è il 3; con una scala 0–100 i gradini sono 10.
-- Un rullo che rifiuta il livello di resistenza riceve una pendenza fissa (0–10% sui gradini).
+- Il gradino di partenza della resistenza è il 5 di 16 (era il 3 di 10); con una scala 0–100 i gradini sono 16.
+- Un rullo che non supporta il livello di resistenza, o lo rifiuta come valore non valido, riceve una pendenza fissa (0–10% in passi uguali sui gradini).
+- Un obiettivo rifiutato dal rullo (potenza o resistenza) non conta come applicato: compare in rosso nel player, e lo stesso valore
+  si rimanda solo dopo 10 s; se un'altra app tiene il controllo del rullo lo dice la riga del rullo.
 - Se il caricamento non riesce (niente rete, dati demo) la seduta resta sul dispositivo: `/rulli` la ricarica appena c'è rete, o si scarica il FIT.
 
 ## 13. Cosa serve dall'atleta

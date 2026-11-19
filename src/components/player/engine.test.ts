@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { demoWorkout } from "@/lib/player/load";
+import { START_LEVEL } from "@/lib/player/session";
 import type { PlayerWorkout } from "@/lib/player/timeline";
 import { PlayerEngine } from "./engine";
 
@@ -59,8 +60,31 @@ describe("player engine", () => {
     engine.adjust(1);
     expect(engine.getView().target).toBe(base + 10);
     engine.setMode("resistance");
+    expect(engine.getView().levels).toHaveLength(17); // 0–16 without a trainer's own range
     engine.adjust(-1);
-    expect(engine.getView().session.level).toBe(2);
+    expect(engine.getView().session.level).toBe(START_LEVEL - 1);
+    for (let i = 0; i < 20; i++) engine.adjust(1);
+    expect(engine.getView().session.level).toBe(16);
+  });
+
+  it("keeps the resistance and the sprint at the same place when the trainer brings its own, shorter scale", () => {
+    const engine = new PlayerEngine(demoWorkout(250, "2026-10-31"));
+    engine.setMode("resistance");
+    expect(engine.getView().session.level).toBe(START_LEVEL); // 5 of 16
+    // The trainer connects with 10 steps of its own (0–10 by 1).
+    const t = engine.trainer as unknown as { levels: number[]; status: string; changed: () => void };
+    t.levels = Array.from({ length: 11 }, (_, k) => k);
+    t.status = "connected";
+    t.changed();
+    expect(engine.getView().session.level).toBe(3); // not 5 of 10, half the resistance
+    expect(engine.getView().levels).toHaveLength(11);
+    const sent: unknown[] = [];
+    engine.trainer.setTarget = (x) => void sent.push(x);
+    engine.adjust(1);
+    expect(sent.at(-1)).toEqual({ mode: "resistance", level: 4 });
+    // A sprint level picked on this trainer is saved with its scale.
+    engine.setSprint({ level: 7 });
+    expect(engine.getView().sprint.cfg).toMatchObject({ level: 7, levels: 10 });
   });
 
   it("finishes: keeps the session when the upload fails", async () => {

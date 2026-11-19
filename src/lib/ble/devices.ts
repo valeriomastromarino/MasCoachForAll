@@ -3,6 +3,7 @@
 // Manual management, chosen by the athlete on 10 November 2026 (reconnecting by itself caused trouble): no device is
 // remembered between sessions, each one is chosen with a tap, and a link that drops stays down until «Ricollega».
 import {
+  CONTROL_RESULT,
   type ControlResponse,
   type CyclingPowerMeasurement,
   crankCadence,
@@ -222,13 +223,27 @@ abstract class Link {
 
 export type TrainerTarget = { mode: "erg"; watts: number } | { mode: "resistance"; level: number };
 
+/**
+ * A target the trainer answered "no" to: what it was, why, and when (it is sent again only after a while). `target` null:
+ * the trainer gives control to no one but another app, so no target goes out until it is asked again.
+ */
+export type TrainerRefusal = { target: TrainerTarget | null; reason: string; at: number };
+
+/** Why control is refused, in words: on FTMS only one app at a time can command the trainer. */
+const CONTROL_TAKEN = "un'altra app comanda il rullo";
+
+/** A refused target is not sent again every second (the trainer would say no every second): once more after this. */
+export const REFUSED_RETRY_MS = 10000;
+
 export class Trainer extends Link {
   features: FtmsFeatures | null = null;
   range: Range | null = null;
   /** Resistance levels the − / + buttons step through. */
   levels: number[] = resistanceSteps(null);
-  /** Resistance is set as a fixed grade when the trainer does not take a resistance level. */
+  /** Resistance is set as a fixed grade when the trainer does not take a resistance level (or not the one sent). */
   resistanceAsGrade = false;
+  /** The last target the trainer refused, until one is taken: shown on the player, never counted as applied. */
+  refused: TrainerRefusal | null = null;
   private waiting: { op: number; resolve: (r: ControlResponse | null) => void } | null = null;
   private chain: Promise<unknown> = Promise.resolve();
   private desired: TrainerTarget | null = null;
@@ -261,6 +276,9 @@ export class Trainer extends Link {
       this.range = null;
     }
     this.levels = resistanceSteps(this.range);
+    // Another trainer may be chosen in the same session: what the last one took or refused is found out again.
+    this.resistanceAsGrade = false;
+    this.refused = null;
 
     await this.stage(
       "attivo i dati del rullo",
@@ -277,7 +295,9 @@ export class Trainer extends Link {
         }
       }),
     );
-    await this.command(ftmsCommand.requestControl());
+    const control = await this.command(ftmsCommand.requestControl());
+    // Another app holds the trainer: the link stays up (its data still arrive), and «Prima di partire» says why ERG will not work.
+    if (control && !control.ok) this.refused = { target: null, reason: CONTROL_TAKEN, at: Date.now() };
     await this.command(ftmsCommand.start());
     // After a reconnection, put the last target back.
     this.applied = null;
@@ -320,38 +340,71 @@ export class Trainer extends Link {
   private async flush() {
     this.flushing = true;
     try {
-      while (this.desired && !same(this.desired, this.applied) && this.status === "connected") {
+      while (this.desired && this.status === "connected") {
         const t = this.desired;
-        if (await this.apply(t)) this.applied = t;
-        else break;
+        if (same(t, this.applied)) {
+          // Back to what the trainer already has: a refusal of another target is over (control refused is not).
+          if (this.refused?.target) this.clearRefusal();
+          break;
+        }
+        const refused = this.refused;
+        if (refused && (refused.target === null || same(t, refused.target)) && Date.now() - refused.at < REFUSED_RETRY_MS) break;
+        const r = await this.apply(t);
+        if (r !== "ok") break; // "retry" goes out again with the next second's target; a refusal waits (see above)
+        this.applied = t;
+        this.clearRefusal();
       }
     } finally {
       this.flushing = false;
     }
   }
 
-  private async apply(t: TrainerTarget): Promise<boolean> {
-    let r: ControlResponse | null;
-    if (t.mode === "erg") r = await this.command(ftmsCommand.power(t.watts));
-    else if (!this.resistanceAsGrade) {
-      r = await this.command(ftmsCommand.resistance(t.level));
-      if (r && r.result === 2) {
-        this.resistanceAsGrade = true;
-        r = await this.command(ftmsCommand.simulation(this.grade(t.level)));
-      }
-    } else r = await this.command(ftmsCommand.simulation(this.grade(t.level)));
-    if (r && r.result === 5) {
-      // Control taken by another app or lost: ask again once.
-      await this.command(ftmsCommand.requestControl());
-      return false;
-    }
-    return r !== null;
+  private clearRefusal() {
+    if (!this.refused) return;
+    this.refused = null;
+    this.set(this.status);
   }
 
-  /** Resistance level → grade 0–10 % for trainers that only take a simulated slope. */
+  /**
+   * Sends one target. "ok": taken. "retry": no answer, or control lost (asked for again). "refused": the trainer said no;
+   * before, any answer counted as applied, and a sprint whose resistance was refused was ridden in ERG without a word.
+   * A resistance level that is not supported, or not valid for this trainer, is sent from then on as a fixed grade.
+   */
+  private async apply(t: TrainerTarget): Promise<"ok" | "retry" | "refused"> {
+    let r: ControlResponse | null = null;
+    if (t.mode === "erg") r = await this.command(ftmsCommand.power(t.watts));
+    else {
+      if (!this.resistanceAsGrade) {
+        r = await this.command(ftmsCommand.resistance(t.level));
+        if (r && (r.result === 2 || r.result === 3)) this.resistanceAsGrade = true;
+      }
+      if (this.resistanceAsGrade) r = await this.command(ftmsCommand.simulation(this.grade(t.level)));
+    }
+    if (r === null) return "retry";
+    if (r.ok) return "ok";
+    if (r.result === 5) {
+      // Control lost: ask for it again; when given, the target goes out again on the next second. When another app keeps
+      // it, nothing is sent for a while (before, target and request went out every second without a word on screen).
+      const control = await this.command(ftmsCommand.requestControl());
+      if (!control || control.ok) return "retry";
+      return this.refuse(null, CONTROL_TAKEN);
+    }
+    return this.refuse(t, CONTROL_RESULT[r.result] ?? `errore ${r.result}`);
+  }
+
+  private refuse(target: TrainerTarget | null, reason: string): "refused" {
+    this.refused = { target, reason, at: Date.now() };
+    this.set(this.status);
+    return "refused";
+  }
+
+  /** Resistance level → grade 0–10 % for trainers that only take a simulated slope: equal steps, by position on the scale. */
   private grade(level: number): number {
+    const top = this.levels.length - 1;
+    const k = this.levels.indexOf(level);
+    if (k >= 0 && top > 0) return (k / top) * 10;
     const lo = this.levels[0] ?? 0;
-    const hi = this.levels[this.levels.length - 1] ?? 100;
+    const hi = this.levels[top] ?? 100;
     return hi > lo ? ((level - lo) / (hi - lo)) * 10 : 0;
   }
 }

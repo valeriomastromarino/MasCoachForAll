@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RawStep } from "../workout";
 import { adjust, ergTarget, initialSession, plannedTarget, recalibrate, start, tick } from "./session";
-import { DEFAULT_SPRINT, isSprintStep, readSprintConfig, sprintPhase } from "./sprint";
+import { DEFAULT_SPRINT, isSprintStep, readSprintConfig, sprintLevelOn, sprintPhase } from "./sprint";
 import { buildTimeline, targetAt } from "./timeline";
 
 describe("recalibrate", () => {
@@ -80,6 +80,31 @@ describe("sprint", () => {
   it("reads saved settings safely", () => {
     expect(readSprintConfig(null)).toEqual(DEFAULT_SPRINT);
     expect(readSprintConfig("not json")).toEqual(DEFAULT_SPRINT);
-    expect(readSprintConfig(JSON.stringify({ on: true, watts: 500, leadSecs: 7, maxStepSecs: 60, level: 3 }))).toEqual({ on: true, watts: 500, leadSecs: 3, maxStepSecs: 60, level: 3 });
+    expect(readSprintConfig(JSON.stringify({ on: true, watts: 500, leadSecs: 7, maxStepSecs: 60, level: 3, levels: 16 }))).toEqual({ on: true, watts: 500, leadSecs: 3, maxStepSecs: 60, level: 3, levels: 16 });
+    expect(readSprintConfig(JSON.stringify({ level: 40, levels: 16 })).level).toBe(16);
+  });
+
+  it("rides a level saved on the old 0–10 scale at the same place on the 0–16 one", () => {
+    // Settings saved before 19 November 2026 have no scale: their level was one of 0–10.
+    const old = readSprintConfig(JSON.stringify({ on: true, watts: 500, leadSecs: 3, maxStepSecs: 30, level: 7 }));
+    expect(old).toMatchObject({ on: true, level: 7, levels: 10 });
+    expect(sprintLevelOn(old, 16)).toBe(11);
+    expect(sprintLevelOn(readSprintConfig(JSON.stringify({ level: 10 })), 16)).toBe(16);
+    expect(sprintLevelOn(readSprintConfig(JSON.stringify({ level: 0 })), 16)).toBe(0);
+    expect(sprintLevelOn(readSprintConfig(JSON.stringify({ level: 3 })), 16)).toBe(5);
+    // Read again after being saved, the value does not move.
+    expect(sprintLevelOn(readSprintConfig(JSON.stringify(old)), 16)).toBe(11);
+    // A trainer with up to 20 steps of its own kept those before: a level above 10 without its scale is not the hardest one.
+    expect(readSprintConfig(JSON.stringify({ level: 15 }))).toMatchObject({ level: DEFAULT_SPRINT.level, levels: DEFAULT_SPRINT.levels });
+    expect(readSprintConfig(JSON.stringify({ level: 15, levels: 20 }))).toMatchObject({ level: 15, levels: 20 });
+  });
+
+  it("keeps the sprint at the same place on a trainer with its own, shorter scale", () => {
+    // The default (11 of 16) is not the top of a trainer with 10 steps, and a level saved there reads back the same.
+    expect(sprintLevelOn(DEFAULT_SPRINT, 10)).toBe(7);
+    expect(sprintLevelOn({ ...DEFAULT_SPRINT, level: 7, levels: 10 }, 10)).toBe(7);
+    expect(sprintLevelOn({ ...DEFAULT_SPRINT, level: 7, levels: 10 }, 16)).toBe(11);
+    expect(sprintLevelOn({ ...DEFAULT_SPRINT, level: 16, levels: 16 }, 4)).toBe(4);
+    expect(sprintLevelOn(DEFAULT_SPRINT, 0)).toBe(0);
   });
 });

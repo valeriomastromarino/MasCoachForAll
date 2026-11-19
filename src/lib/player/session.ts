@@ -32,7 +32,10 @@ export type SessionState = {
 /** The fractions the player offers to recalibrate to. */
 export const SCALE_OPTIONS = [1, 0.95, 0.9, 0.85] as const;
 
-export function initialSession(level = 3): SessionState {
+/** Resistance level the session starts from: 5 of 16 (it was 3 of 10 until the scale became finer, 19 November 2026). */
+export const START_LEVEL = 5;
+
+export function initialSession(level = START_LEVEL): SessionState {
   return { status: "ready", autoPaused: false, pos: 0, elapsed: 0, stepIndex: 0, offset: 0, mode: "erg", level, stillSecs: 0, scale: 1, scaleFrom: 0 };
 }
 

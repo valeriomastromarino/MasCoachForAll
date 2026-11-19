@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CalendarActivity, CalendarData, CalendarWorkout } from "@/lib/calendar";
 import type { DashboardData } from "@/lib/dashboard";
 import { addDays, dateRange, weekStart } from "@/lib/dates";
-import { refreshDashboard } from "../data/remote";
+import { refreshDashboard, useRefreshTick } from "../data/remote";
 import { loadRide, prefetchRide } from "../data/rides";
 import { fmt, fmtDuration } from "../format";
 import { ActivityModal, DayModal, type Night, NIGHT_COLOR, WorkoutModal } from "./Modals";
@@ -23,11 +23,12 @@ const WEEKDAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 // Ranges already loaded in this visit: coming back to the home page shows them at once instead of
 // downloading again (and the in-flight promise is shared, so a double mount doesn't fetch twice).
 const RANGE_TTL_MS = 60_000;
-const ranges = new Map<string, { at: number; value: Promise<CalendarData | { error: string }> }>();
+const ranges = new Map<string, { at: number; tick: number; value: Promise<CalendarData | { error: string }> }>();
 
-function loadRange(url: string): Promise<CalendarData | { error: string }> {
+/** `tick` is the «Aggiorna dati» counter: a range loaded before the last refresh is read again. */
+function loadRange(url: string, tick: number): Promise<CalendarData | { error: string }> {
   const hit = ranges.get(url);
-  if (hit && Date.now() - hit.at < RANGE_TTL_MS) return hit.value;
+  if (hit && hit.tick === tick && Date.now() - hit.at < RANGE_TTL_MS) return hit.value;
   const value = apiFetch(url)
     .then(async (r) => {
       const json = await r.json();
@@ -38,7 +39,7 @@ function loadRange(url: string): Promise<CalendarData | { error: string }> {
       if ("error" in res) ranges.delete(url);
       return res;
     });
-  ranges.set(url, { at: Date.now(), value });
+  ranges.set(url, { at: Date.now(), tick, value });
   return value;
 }
 
@@ -133,18 +134,23 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
   const weatherByDay = useMemo(() => new Map(forecast.days.map((d) => [d.date, d])), [forecast.days]);
   const [moving, setMoving] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
+  // «Aggiorna dati» (the symbol by the logo) reads the range again; until it arrives the old one stays on screen.
+  const tick = useRefreshTick();
   const key = `${start}|${version}`;
   const nights = useMemo(() => nightsByDate(dashboard), [dashboard]);
 
   useEffect(() => {
     let alive = true;
-    loadRange(`/api/calendar?from=${start}&to=${end}${ftp ? `&ftp=${ftp}` : ""}`).then(
-      (r) => alive && setData("error" in r ? { key, error: r.error } : { key, cal: r }),
-    );
+    loadRange(`/api/calendar?from=${start}&to=${end}${ftp ? `&ftp=${ftp}` : ""}`, tick).then((r) => {
+      if (!alive) return;
+      // A failed «Aggiorna dati» keeps the same weeks on screen instead of an error.
+      if ("error" in r) setData((prev) => (prev && "cal" in prev && prev.key === key ? prev : { key, error: r.error }));
+      else setData({ key, cal: r });
+    });
     return () => {
       alive = false;
     };
-  }, [start, end, ftp, key]);
+  }, [start, end, ftp, key, tick]);
 
   // After a change on Intervals.icu: reload this range and, quietly, the dashboard numbers.
   const changed = useCallback(() => {

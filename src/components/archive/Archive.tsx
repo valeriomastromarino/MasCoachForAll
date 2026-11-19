@@ -9,6 +9,7 @@ import type { ActivityCategory, ActivityRow } from "@/lib/activities";
 import { addDays } from "@/lib/dates";
 import { fmt, fmtDuration, fmtWeekday } from "../format";
 import { SectionHeading } from "../sections/SectionPage";
+import { useRefreshTick } from "../data/remote";
 import { apiFetch } from "../data/transport";
 
 export type Filter = "bici" | "strada" | "offroad" | "rulli" | "test" | "altro";
@@ -164,6 +165,19 @@ export default function Archive({ section = "uscite", initialFilter = "bici" }: 
       cancelled = true;
     };
   }, []);
+
+  // «Aggiorna dati» (the symbol by the logo): the newest rides are read again; a page with the same dates replaces the old one.
+  const tick = useRefreshTick();
+  useEffect(() => {
+    if (!tick) return;
+    let cancelled = false;
+    fetchPage().then((r) => {
+      if (!cancelled && !("error" in r)) apply(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tick]);
 
   const loadMore = async () => {
     const last = state.pages[state.pages.length - 1];

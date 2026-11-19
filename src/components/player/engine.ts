@@ -20,7 +20,7 @@ import {
   stepRemaining,
   tick,
 } from "@/lib/player/session";
-import { DEFAULT_SPRINT, readSprintConfig, type SprintConfig, type SprintPhase, sprintPhase } from "@/lib/player/sprint";
+import { DEFAULT_SPRINT, readSprintConfig, type SprintConfig, type SprintPhase, sprintLevelOn, sprintPhase } from "@/lib/player/sprint";
 import { deleteRecording, saveRecording } from "@/lib/player/store";
 import type { PlayerWorkout } from "@/lib/player/timeline";
 import { uploadRecording } from "./upload";
@@ -34,6 +34,8 @@ export type DeviceView = {
   retry: boolean;
   /** It was connected during this session and is not now: shown at the top of the player. */
   dropped: boolean;
+  /** Connected, but the trainer refused the last target: the detail says why, in red. */
+  warning: boolean;
 };
 
 export type PlayerView = {
@@ -46,13 +48,13 @@ export type PlayerView = {
   target: number;
   levels: number[];
   dfa: DfaLive | null;
-  /** α1 every 5 s over the last 10 minutes: seconds ridden, value. */
-  dfaHistory: { t: number; a: number }[];
   /** Power actually ridden along the workout (position, watts). */
   trace: { pos: number; w: number }[];
   devices: Record<DeviceKind, DeviceView>;
   /** Trainer/pedal ratio applied to ERG when pedals are connected. */
   match: number | null;
+  /** The trainer said no to the last target (ERG power or resistance; null: control held by another app), and why: shown under the target. */
+  refused: { mode: "erg" | "resistance" | null; reason: string } | null;
   recording: boolean;
   finished: Recording | null;
   uploading: boolean;
@@ -83,7 +85,7 @@ export class PlayerEngine {
   readonly hrStrap: HeartRateStrap;
   readonly pedals: PowerMeter;
 
-  private session: SessionState = initialSession(3);
+  private session: SessionState = initialSession();
   private trainerData: IndoorBikeData | null = null;
   private trainerAt = 0;
   private pmPower: number | null = null;
@@ -104,7 +106,11 @@ export class PlayerEngine {
   private traceSum = 0;
   private traceN = 0;
   private dfa: DfaLive | null = null;
-  private dfaHistory: { t: number; a: number }[] = [];
+  /**
+   * The top of the scale the session's resistance level is on. A trainer that brings its own scale (e.g. 10 steps
+   * instead of 16) moves the level to the same place on it, so the ride does not start at half the resistance.
+   */
+  private levelsTop: number;
   private powerWindow: number[] = [];
   /** Epoch ms when the current soft start began (null = none in progress). */
   private softStartAt: number | null = null;
@@ -128,11 +134,15 @@ export class PlayerEngine {
   private view: PlayerView;
 
   constructor(private readonly workout: PlayerWorkout) {
-    const changed = () => this.emit();
+    const changed = () => {
+      this.fitLevels();
+      this.emit();
+    };
     this.trainer = new Trainer(changed, (d) => {
       this.trainerData = d;
       this.trainerAt = Date.now();
     });
+    this.levelsTop = this.trainer.levels.length - 1;
     this.hrStrap = new HeartRateStrap(changed, (hr, rr) => {
       this.hr = hr;
       this.hrAt = Date.now();
@@ -228,10 +238,24 @@ export class PlayerEngine {
     return this.match.p.length >= 10 && sumP > 0 ? Math.min(1.15, Math.max(0.85, sumT / sumP)) : null;
   }
 
+  /** The trainer's levels arrived (on connection): the session's level goes to the same place on the new scale (5 of 16 → 3 of 10). */
+  private fitLevels() {
+    const top = this.trainer.levels.length - 1;
+    if (top === this.levelsTop || top < 1) return;
+    const level = this.levelsTop > 0 ? Math.round((this.session.level * top) / this.levelsTop) : 0;
+    this.session = { ...this.session, level: Math.min(top, Math.max(0, level)) };
+    this.levelsTop = top;
+  }
+
   private deviceView(kind: DeviceKind): DeviceView {
     const l = this.link(kind);
     let detail: string | null = null;
-    if (kind === "trainer" && l.status === "connected") detail = this.trainer.features?.power === false ? "senza ERG" : "ERG";
+    if (kind === "trainer" && l.status === "connected") {
+      const t = this.trainer;
+      detail = `${t.features?.power === false ? "senza ERG" : "ERG"} · ${t.levels.length - 1} livelli${t.resistanceAsGrade ? " in pendenza" : ""}`;
+      const r = t.refused;
+      if (r) detail = r.target ? `non accetta ${r.target.mode === "erg" ? "la potenza" : "la resistenza"}: ${r.reason}` : `controllo non concesso: ${r.reason}`;
+    }
     if (kind === "hr" && l.status === "connected") detail = this.hrStrap.sendsRr ? "RR" : "solo FC";
     if (l.status === "connecting") detail = l.step;
     return {
@@ -241,6 +265,7 @@ export class PlayerEngine {
       detail,
       retry: l.device !== null && (l.status === "off" || l.status === "lost"),
       dropped: l.wasConnected && l.status !== "connected",
+      warning: kind === "trainer" && l.status === "connected" && this.trainer.refused !== null,
     };
   }
 
@@ -254,10 +279,10 @@ export class PlayerEngine {
       target: ergTarget(this.session, this.workout.steps),
       levels: this.trainer.levels,
       dfa: this.dfa,
-      dfaHistory: this.dfaHistory,
       trace: this.trace,
       devices: { trainer: this.deviceView("trainer"), hr: this.deviceView("hr"), power: this.deviceView("power") },
       match: this.matchFactor(),
+      refused: this.trainer.status === "connected" && this.trainer.refused ? { mode: this.trainer.refused.target?.mode ?? null, reason: this.trainer.refused.reason } : null,
       recording: this.rec?.status === "recording",
       finished: this.finished,
       uploading: this.uploading,
@@ -351,7 +376,6 @@ export class PlayerEngine {
       // A strap that dropped or went quiet breaks the beat series: the old window would show (and record) a stale α1.
       if (this.hrStrap.status !== "connected" || now - this.rrAt > RR_GAP_MS) this.rr = [];
       this.dfa = this.rr.length ? dfaLive(this.rr) : null;
-      if (this.dfa?.alpha1 != null && this.moving) this.dfaHistory = [...this.dfaHistory, { t: this.session.elapsed, a: this.dfa.alpha1 }].slice(-120);
     }
     if (this.rec?.status === "recording" && this.ticks % 10 === 0) void saveRecording(this.rec);
     this.drive();
@@ -454,15 +478,12 @@ export class PlayerEngine {
   private drive() {
     if (this.trainer.status !== "connected") return;
     const s = this.session;
-    // A sprint (warning included) is ridden in resistance mode, at the level used last.
-    if (sprintPhase(s, this.workout.steps, this.sprintCfg).phase !== "off") {
-      const lv = this.trainer.levels;
-      this.trainer.setTarget({ mode: "resistance", level: lv[Math.min(lv.length - 1, this.sprintCfg.level)] ?? 0 });
-    } else if (s.mode === "erg") this.trainer.setTarget({ mode: "erg", watts: Math.round(ergTarget(s, this.workout.steps) * (this.matchFactor() ?? 1) * this.softFactor()) });
-    else {
-      const lv = this.trainer.levels;
-      this.trainer.setTarget({ mode: "resistance", level: lv[Math.min(lv.length - 1, s.level)] ?? 0 });
-    }
+    const lv = this.trainer.levels;
+    const top = lv.length - 1;
+    // A sprint (warning included) is ridden in resistance mode, at the level used last (the same place on this trainer's scale).
+    if (sprintPhase(s, this.workout.steps, this.sprintCfg).phase !== "off") this.trainer.setTarget({ mode: "resistance", level: lv[sprintLevelOn(this.sprintCfg, top)] ?? 0 });
+    else if (s.mode === "erg") this.trainer.setTarget({ mode: "erg", watts: Math.round(ergTarget(s, this.workout.steps) * (this.matchFactor() ?? 1) * this.softFactor()) });
+    else this.trainer.setTarget({ mode: "resistance", level: lv[Math.min(top, s.level)] ?? 0 });
   }
 
   private beep(freq: number, ms: number) {
@@ -538,7 +559,8 @@ export class PlayerEngine {
   adjust(dir: 1 | -1) {
     // During a sprint (or its warning) − / + move the sprint's resistance level, which is kept for the next one.
     if (sprintPhase(this.session, this.workout.steps, this.sprintCfg).phase !== "off") {
-      this.setSprint({ level: Math.min(this.trainer.levels.length - 1, Math.max(0, this.sprintCfg.level + dir)) });
+      const top = this.trainer.levels.length - 1;
+      this.setSprint({ level: Math.min(top, Math.max(0, sprintLevelOn(this.sprintCfg, top) + dir)) });
       return;
     }
     this.act((s) => adjustSession(s, dir, this.trainer.levels.length, this.workout.steps));
@@ -549,9 +571,10 @@ export class PlayerEngine {
     this.act((s) => recalibrateSession(s, scale));
   }
 
-  /** Changes the sprint settings and keeps them on the device. */
+  /** Changes the sprint settings and keeps them on the device. A level is a position on this trainer's scale, saved with it. */
   setSprint(patch: Partial<SprintConfig>) {
-    this.sprintCfg = { ...this.sprintCfg, ...patch };
+    const scale = patch.level !== undefined ? { levels: this.trainer.levels.length - 1 } : {};
+    this.sprintCfg = { ...this.sprintCfg, ...patch, ...scale };
     try {
       localStorage.setItem(SPRINT_KEY, JSON.stringify(this.sprintCfg));
     } catch {

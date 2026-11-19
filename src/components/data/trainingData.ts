@@ -10,6 +10,7 @@ import type { TodayOverrides } from "@/lib/coach/chat/context";
 import { addDays } from "@/lib/dates";
 import { type LifeEvent, lifeFrom } from "@/lib/training/life";
 import { loadSeason } from "@/lib/training/seasonStore";
+import { onRefresh } from "./remote";
 import { apiFetch } from "./transport";
 
 function createStore<T>(initial: T) {
@@ -78,7 +79,10 @@ async function loadPlanned(key: string) {
   if (plannedKey !== key) return;
   // Weights, Pilates and other sports are on the calendar too, but they are not rides: the day's card, the week and the
   // chat count bike sessions and races only (a day with «Pesi» looked like a day with a ride already planned).
-  planned.set({ key, list: c ? c.workouts.filter(isBikeSession) : [] });
+  // A failed read again («Aggiorna dati», a write) keeps what was read before for the same day.
+  const cur = planned.get();
+  if (c) planned.set({ key, list: c.workouts.filter(isBikeSession) });
+  else if (cur.key !== key || cur.list === null) planned.set({ key, list: [] });
   // Without the calendar the card ignores what is already planned: read it again in a while.
   if (!c && ++plannedTries < MAX_TRIES) setTimeout(() => plannedKey === key && void loadPlanned(key), RETRY_MS);
   if (c) plannedTries = 0;
@@ -122,6 +126,9 @@ async function loadSeasonCalendar(key: string) {
   }
   // A newer season was asked meanwhile: its answer wins. (Weights stay in this list: the gym rule reads them.)
   if (seasonCalendarKey !== key) return;
+  // A part that could not be read again keeps the whole list read before (a refresh never empties the weeks).
+  const cur = seasonCalendar.get();
+  if (parts.some((p) => !p) && cur.key === key && cur.list) return;
   seasonCalendar.set({ key, list });
 }
 /** Planned workouts from the Monday `from` for `weeks` weeks; null while loading. */
@@ -176,6 +183,18 @@ export function useHistory(): HistoryData | null {
   }, []);
   return v;
 }
+
+// «Aggiorna dati» (the symbol by the logo): what is already loaded is read again; what no page asked for stays unloaded.
+onRefresh(() => {
+  if (libraryState === "ok") {
+    libraryTries = 0;
+    loadLibrary();
+  }
+  plannedTries = 0;
+  refreshPlanned();
+  if (seasonCalendarKey) void loadSeasonCalendar(seasonCalendarKey);
+  refreshLife();
+});
 
 // ── What the athlete asked for today ─────────────────────────────────────────────────────────────
 const subscribeOverrides = (cb: () => void) => {

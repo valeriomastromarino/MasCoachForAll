@@ -12,6 +12,7 @@ import { DEMO_WORKOUT_ID } from "@/lib/player/load";
 import { type Recording, summarize } from "@/lib/player/recording";
 import { deleteRecording, listRecordings } from "@/lib/player/store";
 import { downloadFit, retryStrava, uploadPending, uploadRecording } from "./upload";
+import { useRefreshTick } from "../data/remote";
 import { apiFetch } from "../data/transport";
 import { fmt, fmtClock, fmtDuration, fmtWeekday } from "../format";
 import { useCompact } from "@/lib/compact";
@@ -125,19 +126,24 @@ export default function RulliHome() {
     void listRecordings().then((all) => setSessions(all.filter((r) => r.status !== "uploaded" || r.strava?.status === "error")));
   }, []);
 
+  // «Aggiorna dati» (the symbol by the logo) reads the next days again; if that fails, what was on screen stays.
+  const tick = useRefreshTick();
   useEffect(() => {
     if (!today) return;
     let alive = true;
+    const failed = (error: string) => setCal((prev) => (prev && !("error" in prev) ? prev : { error }));
     apiFetch(`/api/calendar?from=${addDays(today, -1)}&to=${addDays(today, 7)}`)
       .then(async (res) => {
         const json = await res.json().catch(() => ({}));
-        if (alive) setCal(res.ok ? (json as CalendarData) : { error: (json as { error?: string }).error ?? res.statusText });
+        if (!alive) return;
+        if (res.ok) setCal(json as CalendarData);
+        else failed((json as { error?: string }).error ?? res.statusText);
       })
-      .catch((e) => alive && setCal({ error: e instanceof Error ? e.message : String(e) }));
+      .catch((e) => alive && failed(e instanceof Error ? e.message : String(e)));
     return () => {
       alive = false;
     };
-  }, [today]);
+  }, [today, tick]);
 
   // Sessions left on the device: upload them now, and again when the connection comes back.
   useEffect(() => {

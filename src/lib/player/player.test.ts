@@ -40,6 +40,16 @@ describe("timeline", () => {
     expect(tl[5].from).toBe(125);
   });
 
+  it("reads the cadence target of a step, a single value or a range, and none where the step has none", () => {
+    // «- 5m 87.5% 60rpm» and «- 3m 50% 85-95rpm» in the Intervals.icu text (strength workouts with a cadence target).
+    const strength: RawStep[] = [
+      { duration: 300, power: { value: 87.5, units: "%ftp" }, cadence: { value: 60, units: "rpm" } },
+      { duration: 180, power: { value: 50, units: "%ftp" }, cadence: { start: 85, end: 95, units: "rpm" } },
+      { duration: 600, power: { value: 55, units: "%ftp" } },
+    ];
+    expect(buildTimeline(strength, 250).map((s) => s.cadence)).toEqual([{ lo: 60, hi: 60 }, { lo: 85, hi: 95 }, null]);
+  });
+
   it("follows the trainer's FTP for the percentages, whatever FTP Intervals.icu resolved the event with", () => {
     // The event was not marked as indoor: Intervals.icu resolved 80% with the outdoor FTP (260 W → 208 W).
     const outdoor: RawStep[] = [{ duration: 600, power: { value: 80, units: "%ftp" }, _power: { value: 208, start: 202, end: 214 } }];

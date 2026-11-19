@@ -93,13 +93,39 @@ describe("Cycling power", () => {
 });
 
 describe("Resistance steps", () => {
-  it("makes 10 equal steps out of a fine scale", () => {
-    expect(resistanceSteps({ min: 0, max: 100, step: 1 })).toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+  it("makes 16 equal steps out of a fine scale, on values the trainer accepts", () => {
+    expect(resistanceSteps({ min: 0, max: 100, step: 1 })).toEqual([0, 6, 13, 19, 25, 31, 38, 44, 50, 56, 63, 69, 75, 81, 88, 94, 100]);
+    expect(resistanceSteps({ min: 0, max: 100, step: 0.1 })[1]).toBe(6.3);
   });
-  it("keeps the trainer's own steps when they are few", () => {
+  it("keeps the trainer's own steps when they are 16 or fewer", () => {
     expect(resistanceSteps({ min: 1, max: 9, step: 1 })).toHaveLength(9);
+    expect(resistanceSteps({ min: 0, max: 16, step: 1 })).toEqual(Array.from({ length: 17 }, (_, k) => k));
+  });
+  it("never repeats a level when the trainer has a few more steps than 16", () => {
+    const lv = resistanceSteps({ min: 0, max: 20, step: 1 });
+    expect(lv).toHaveLength(17);
+    expect(new Set(lv).size).toBe(17);
+    expect(lv.every(Number.isInteger)).toBe(true);
+    expect([lv[0], lv[16]]).toEqual([0, 20]);
   });
   it("falls back to 0–100 without a range", () => {
-    expect(resistanceSteps(null)).toHaveLength(11);
+    expect(resistanceSteps(null)).toHaveLength(17);
+  });
+  it("sends whole units when the trainer declares no increment on a wide range, tenths on a narrow one", () => {
+    expect(resistanceSteps({ min: 0, max: 100, step: 0 })).toEqual(resistanceSteps({ min: 0, max: 100, step: 1 }));
+    const narrow = resistanceSteps({ min: 0, max: 5, step: 0 });
+    expect(narrow).toHaveLength(17);
+    expect(narrow.every((v) => Math.abs(v * 10 - Math.round(v * 10)) < 1e-9)).toBe(true);
+    expect(narrow.at(-1)).toBe(5);
+  });
+  it("never goes past the maximum when the range is not a whole number of increments", () => {
+    expect(resistanceSteps({ min: 0, max: 25, step: 2 })).toEqual([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24]);
+    const lv = resistanceSteps({ min: 0, max: 100.5, step: 1 });
+    expect(lv.at(-1)).toBe(100);
+    expect(new Set(lv).size).toBe(17);
+  });
+  it("gives two different levels when the range holds one increment or less", () => {
+    expect(resistanceSteps({ min: 0, max: 1, step: 1 })).toEqual([0, 1]);
+    expect(resistanceSteps({ min: 0, max: 0.5, step: 1 })).toEqual([0, 0.5]);
   });
 });

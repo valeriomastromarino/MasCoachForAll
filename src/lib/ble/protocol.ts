@@ -197,10 +197,29 @@ export function crankCadence(prev: { revs: number; time: number }, cur: { revs: 
 
 // ── Resistance steps ("gradini") ────────────────────────────────────────────────────────────────────
 
-/** Levels the − / + buttons step through: the trainer's own steps when few, otherwise 10 equal steps. */
+/**
+ * Resistance levels above the lowest one: the − / + buttons go from 0 to 16 (10 until 19 November 2026, when the athlete
+ * asked for finer steps). The same scale drives the grade used when the trainer does not take a resistance level.
+ */
+export const RESISTANCE_LEVELS = 16;
+
+/**
+ * Levels the − / + buttons step through: 16 equal steps over the trainer's range, each on a value the trainer accepts
+ * (a multiple of its own increment, never above its maximum); the trainer's own steps when it has no more than 16.
+ * The player keeps positions on this scale as fractions of it, so a trainer with its own 10 steps starts at the same place.
+ */
 export function resistanceSteps(range: Range | null): number[] {
-  const r = range && range.max > range.min ? range : { min: 0, max: 100, step: 1 };
-  const count = r.step > 0 ? Math.round((r.max - r.min) / r.step) : 0;
-  if (count >= 2 && count <= 20) return Array.from({ length: count + 1 }, (_, k) => r.min + k * r.step);
-  return Array.from({ length: 11 }, (_, k) => r.min + ((r.max - r.min) * k) / 10);
+  const r = range && Number.isFinite(range.min) && Number.isFinite(range.max) && range.max > range.min ? range : { min: 0, max: 100, step: 1 };
+  const span = r.max - r.min;
+  // A trainer that declares no increment: whole units on a wide range, tenths (the FTMS resolution) on a narrow one.
+  const step = r.step > 0 ? r.step : span >= RESISTANCE_LEVELS ? 1 : 0.1;
+  // Whole increments that fit in the range (a maximum off the trainer's grid is not reached).
+  const count = Math.floor(span / step + 1e-9);
+  if (count < 2) return [round1(r.min), round1(r.max)];
+  if (count <= RESISTANCE_LEVELS) return Array.from({ length: count + 1 }, (_, k) => round1(r.min + k * step));
+  // More than 16 increments: each level is the nearest one on the grid, and two neighbours never round to the same value.
+  return Array.from({ length: RESISTANCE_LEVELS + 1 }, (_, k) => round1(r.min + Math.round((count * k) / RESISTANCE_LEVELS) * step));
 }
+
+/** FTMS resistance has a resolution of 0.1: no float dust (6.300000000000001) in what is sent. */
+const round1 = (v: number) => Math.round(v * 10) / 10;
