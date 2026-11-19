@@ -68,8 +68,9 @@ export function TopBarView({ path, compact, index }: { path: string; compact: bo
   const label = compact ? pageLabel(path) : "";
   return (
     <div className="mx-auto w-full max-w-6xl shrink-0 px-4 pt-5">
-      <div className="flex min-h-9 items-center justify-between gap-3">
-        <Link href="/" aria-label="MasCoach, torna a Oggi" className="inline-flex shrink-0">
+      <div className="flex min-h-9 items-center justify-between gap-2">
+        {/* `topbar-logo`: a little smaller on phones narrower than 360 px, so the page name is not cut short («Impost…»). */}
+        <Link href="/" aria-label="MasCoach, torna a Oggi" className="topbar-logo inline-flex shrink-0">
           <Logo />
         </Link>
         <div className="flex min-w-0 items-center gap-2">

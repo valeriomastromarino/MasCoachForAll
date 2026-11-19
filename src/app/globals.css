@@ -323,3 +323,11 @@ body {
     display: none !important;
   }
 }
+
+/* Top bar on phones narrower than 360 px (e.g. 320 dp): the logo shrinks a little so that the page name and «Aggiorna dati»
+   fit beside it («Impostazioni» was cut to «Impost…»). `zoom` changes the space it takes, unlike a transform. */
+@media (max-width: 359px) {
+  .topbar-logo {
+    zoom: 0.82;
+  }
+}
