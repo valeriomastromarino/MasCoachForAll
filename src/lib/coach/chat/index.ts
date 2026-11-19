@@ -2,6 +2,7 @@
 // rules (intents.ts), answers from the app's own data (answers.ts) and changes things only after a "sì" (actions.ts).
 import * as A from "./answers";
 import * as W from "./actions";
+import { buildChat, buildKind, buildNewFromDraft, saveInLibrary } from "./build";
 import { type ChatContext, type ChatResult, type ChatState, emptyState, type Reply } from "./context";
 import { detectIntent, HELP, type IntentType } from "./intents";
 import { normalize, parseDates } from "./text";
@@ -35,8 +36,41 @@ function unknown(text: string, state: ChatState): ChatResult {
   return { reply, state: { ...state, pending: null } };
 }
 
+const SAVE_LIBRARY = /^(si )?salva(la|lo)?( anche)? (in|nella) libreria\b/;
+const NEW_FROM_DRAFT = /^si una nuova\b/;
+
+/**
+ * Messages the rules answer even when the written coach is on: building and changing sessions is done by the engine
+ * (lib/training/build), at no cost, and a draft waiting for its changes stays with the rules.
+ */
+export function rulesFirst(text: string, state: ChatState, today: string): boolean {
+  const t = normalize(text);
+  if (SAVE_LIBRARY.test(t) || (NEW_FROM_DRAFT.test(t) && !!state.draft)) return true;
+  if (state.draft && state.pending && /^(si|no|ok|annulla)\b/.test(t)) return true;
+  return buildKind(text, state, today) !== null;
+}
+
 export function chat(text: string, ctx: ChatContext, state: ChatState = emptyState()): ChatResult {
-  let intent = detectIntent(text, state);
+  const st: ChatState = { ...emptyState(), ...state };
+  const intent = detectIntent(text, st);
+  // These start with «sì» or read like other intents, so they are checked first.
+  const t = normalize(text);
+  if (SAVE_LIBRARY.test(t)) return saveInLibrary(st);
+  if (NEW_FROM_DRAFT.test(t)) {
+    const r = buildNewFromDraft(ctx, st);
+    if (r) return r;
+  }
+  if (intent.type !== "si" && intent.type !== "no" && intent.type !== "annulla") {
+    const kind = buildKind(text, st, ctx.today);
+    if (kind) return buildChat(kind, ctx, st, text);
+  }
+  const r = rules(text, ctx, st, intent);
+  // Anything else closes the session being built.
+  return st.draft ? { ...r, state: { ...r.state, draft: null } } : r;
+}
+
+function rules(text: string, ctx: ChatContext, state: ChatState, first: ReturnType<typeof detectIntent>): ChatResult {
+  let intent = first;
 
   // A question left open ("dimmi le date"): the next message with dates answers it.
   if (state.awaiting && !state.pending && (intent.type === "unknown" || intent.type === "oggi" || intent.type === "settimana_piano" || intent.type === "pref_minuti")) {
@@ -48,7 +82,8 @@ export function chat(text: string, ctx: ChatContext, state: ChatState = emptySta
     case "si": {
       const action = state.pending;
       if (!action) return { reply: { text: "Non c'è nulla in sospeso da confermare.", chips: ["Cosa faccio oggi?"] }, state };
-      return { reply: { text: "Lo scrivo…" }, state: { ...state, pending: null }, run: action };
+      const built = action.type === "create_workout" || action.type === "update_workout" ? { name: action.name, text: action.text, indoor: action.type === "create_workout" ? action.indoor : /\bindoor\b/i.test(action.name) } : (state.lastBuilt ?? null);
+      return { reply: { text: "Lo scrivo…" }, state: { ...state, pending: null, draft: null, lastBuilt: built }, run: action };
     }
     case "no":
       return { reply: { text: "Va bene, non scrivo nulla.", chips: ["Cosa faccio oggi?", "Cambia"] }, state: { ...state, pending: null } };

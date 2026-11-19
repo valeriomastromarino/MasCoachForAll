@@ -3,7 +3,8 @@
 // The coach's chat: it talks only to the app's own engine (lib/coach/chat), reads the athlete's Italian with rules and answers
 // from the data. What it writes to Intervals.icu, to the sheet or to the plan is shown first and done only after a "sì".
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { type Action, chat, type ChatContext, type ChatState, emptyState } from "@/lib/coach/chat";
+import { type Action, chat, type ChatContext, type ChatState, emptyState, rulesFirst } from "@/lib/coach/chat";
+import type { WorkoutCard } from "@/lib/coach/chat/context";
 import { COACH_PREFILL_EVENT, takeCoachPrefill } from "@/lib/coach/chat/prefill";
 import { normalize } from "@/lib/coach/chat/text";
 import { useCompact } from "@/lib/compact";
@@ -104,7 +105,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
     if (!ctx || started.current || messages.length > 0 || compact) return;
     started.current = true;
     const r = chat("fammi il punto", ctx, emptyState());
-    commit([{ id: uid(), role: "coach", text: r.reply.text, lines: r.reply.lines, proposal: r.reply.proposal, chips: r.reply.chips, at: new Date().toISOString() }], r.state);
+    commit([{ id: uid(), role: "coach", text: r.reply.text, lines: r.reply.lines, proposal: r.reply.proposal, workout: r.reply.workout, chips: r.reply.chips, at: new Date().toISOString() }], r.state);
   }, [ctx, messages.length, compact]);
 
   useEffect(() => {
@@ -178,7 +179,8 @@ export function CoachChat({ data }: { data: DashboardData }) {
     }
 
     // The written coach answers everything it can; if it isn't there (single-file app, no key, no network), the rules do.
-    const tryAi = !aiOff && !state.pending && !(state.awaiting && !aiActions.length) && !NO.test(n) && !/^annulla/.test(n);
+    // Building and changing sessions is the engine's job, with rules and at no cost: those messages never go to the written coach.
+    const tryAi = !aiOff && !state.pending && !(state.awaiting && !aiActions.length) && !NO.test(n) && !/^annulla/.test(n) && !rulesFirst(t, state, today);
     if (tryAi) {
       push([user]);
       setBusy(true);
@@ -190,7 +192,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
     const aiNote = done && !done.ok && done.why ? say(`Il coach scritto non ha risposto (${done.why}). Ti rispondo con le regole dell'app.`) : null;
 
     const r = chat(t, ctx, state);
-    const coach: ChatMessage = { id: uid(), role: "coach", text: r.reply.text, lines: r.reply.lines, proposal: r.reply.proposal, chips: r.reply.chips, at: now };
+    const coach: ChatMessage = { id: uid(), role: "coach", text: r.reply.text, lines: r.reply.lines, proposal: r.reply.proposal, workout: r.reply.workout, chips: r.reply.chips, at: now };
     if (r.resetOverrides) saveOverrides({ date: today });
     else if (r.overrides) saveOverrides({ ...(overrides.date === today ? overrides : { date: today }), ...r.overrides, date: today });
     const shown = aiNote ? [user, aiNote, coach] : [user, coach];
@@ -203,7 +205,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
       id: uid(),
       role: "coach",
       text: result.message,
-      chips: result.ok ? (r.run ? ["Cosa faccio oggi?", "Annulla", "Come va la settimana?"] : ["Cosa faccio oggi?"]) : ["Riprova", "Cosa faccio oggi?"],
+      chips: result.ok ? (r.run ? (r.run.type === "create_workout" || r.run.type === "update_workout" ? ["Salva in libreria", "Annulla", "Cosa faccio oggi?"] : ["Cosa faccio oggi?", "Annulla", "Come va la settimana?"]) : ["Cosa faccio oggi?"]) : ["Riprova", "Cosa faccio oggi?"],
       at: new Date().toISOString(),
     };
     setThread((cur) => ({ messages: [...cur.messages, follow], state: { ...cur.state, undo: r.run ? (result.ok ? (result.undo ?? null) : null) : null } }));
@@ -212,8 +214,9 @@ export function CoachChat({ data }: { data: DashboardData }) {
 
   const lastCoach = [...messages].reverse().find((m) => m.role === "coach");
   const waiting = state.pending !== null || aiActions.length > 0;
-  // Phone: only the Sì/No of a proposal, and three ideas while the chat is still empty.
-  const chips = compact ? (waiting ? (lastCoach?.chips ?? []).filter((c) => c === "Sì" || c === "No") : messages.length === 0 && ctx ? QUICK.slice(0, 3) : []) : (lastCoach?.chips ?? []);
+  // Phone: only the answers to a proposal or to a session being built, and three ideas while the chat is still empty.
+  const phoneChip = (c: string) => c === "Sì" || c === "No" || c.startsWith("Mettila ") || c === "Sì, una nuova" || c === "Decidi tu" || c === "Salva in libreria";
+  const chips = compact ? (waiting || state.draft || lastCoach?.chips?.includes("Salva in libreria") ? (lastCoach?.chips ?? []).filter(phoneChip) : messages.length === 0 && ctx ? QUICK.slice(0, 3) : []) : (lastCoach?.chips ?? []);
 
   return (
     <section className={compact ? "flex h-full min-h-0 flex-col" : "card flex flex-col p-4"} aria-label="Chat con il coach">
@@ -340,6 +343,7 @@ function Bubble({ m, compact = false }: { m: ChatMessage; compact?: boolean }) {
             )}
           </div>
         )}
+        {m.workout && <BuiltCard w={m.workout} />}
         {m.lines && m.lines.length > 0 && (
           <ul className="mt-2 space-y-1 text-xs text-muted">
             {m.lines.map((l, i) => (
@@ -348,6 +352,49 @@ function Bubble({ m, compact = false }: { m: ChatMessage; compact?: boolean }) {
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+/** A session built by the chat: name and day, minutes and load, drawing, steps in watts, what was assumed, the day's check. */
+function BuiltCard({ w }: { w: WorkoutCard }) {
+  return (
+    <div className="mt-2 rounded-xl p-2.5" style={{ border: "1px solid var(--border)" }}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium">{w.name}</span>
+        <span className="shrink-0 text-[11px] text-faint">{w.when}</span>
+      </div>
+      <div className="num mt-0.5 text-xs text-muted">
+        {w.meta}
+        {w.tag && (
+          <span className="ml-1.5 rounded-full px-2 py-0.5 text-[10.5px]" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+            {w.tag}
+          </span>
+        )}
+      </div>
+      {w.blocks.length > 0 && (
+        <div className="mt-2">
+          <WorkoutProfile blocks={w.blocks} height={44} axis={false} />
+        </div>
+      )}
+      <ul className="num mt-2 space-y-0.5 text-xs text-muted">
+        {w.steps.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ul>
+      {w.notes.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5 text-[11px] text-faint">
+          {w.notes.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ul>
+      )}
+      {w.ok && <p className="mt-2 text-xs" style={{ color: "var(--good)" }}>✓ {w.ok}</p>}
+      {w.warning && (
+        <p className="mt-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
+          {w.warning}
+        </p>
+      )}
     </div>
   );
 }

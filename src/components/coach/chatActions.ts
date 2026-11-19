@@ -84,6 +84,28 @@ export async function runAction(action: Action, sheet: SheetContext): Promise<Ac
       const r = await call(`/api/activity/${encodeURIComponent(action.activityId)}`, "PATCH", { rpe: action.rpe });
       return r.ok ? { ok: true, message: "RPE salvato su Intervals." } : { ok: false, message: `Non sono riuscito a salvarlo: ${r.error}` };
     }
+    case "create_workout": {
+      for (const id of action.replace) {
+        const r = await call(`/api/calendar/events/${encodeURIComponent(id)}`, "DELETE");
+        if (!r.ok) return { ok: false, message: `Non sono riuscito a togliere quello che c'era già: ${r.error}` };
+      }
+      const r = await call("/api/calendar/events", "POST", { date: action.date, custom: { name: action.name, text: action.text, indoor: action.indoor, secs: action.secs } });
+      refreshPlanned();
+      if (!r.ok) return { ok: false, message: `Non sono riuscito a scriverla: ${r.error}` };
+      const warn = typeof r.json.warning === "string" ? ` Attenzione: ${r.json.warning}` : "";
+      return { ok: true, message: `Fatto: «${action.name}» è sul calendario di Intervals. Arriva al Garmin${action.indoor ? " e la trovi in Rulli, pronta da avviare" : ""}.${warn}`, undo: { kind: "remove_event", ids: [String(r.json.id ?? "")].filter(Boolean), label: action.label } };
+    }
+    case "update_workout": {
+      const r = await call(`/api/calendar/events/${encodeURIComponent(action.eventId)}`, "PATCH", { name: action.name, description: action.text, secs: action.secs });
+      refreshPlanned();
+      if (!r.ok) return { ok: false, message: `Non sono riuscito a modificarla: ${r.error}` };
+      const warn = typeof r.json.warning === "string" ? ` Attenzione: ${r.json.warning}` : "";
+      return { ok: true, message: `Fatto: «${action.name}» aggiornata su Intervals (e quindi sul Garmin).${warn}`, undo: { kind: "restore_event", id: action.eventId, name: action.prev.name, text: action.prev.text, secs: action.prev.secs, tss: action.prev.tss, label: action.label } };
+    }
+    case "save_library": {
+      const r = await call("/api/library", "POST", { name: action.name, text: action.text, indoor: action.indoor });
+      return r.ok ? { ok: true, message: "Salvata in libreria, cartella «MasCoach Coach»: ora la può proporre anche l'app." } : { ok: false, message: `Non sono riuscito a salvarla: ${r.error}` };
+    }
     case "carbs": {
       const r = await call(`/api/activity/${encodeURIComponent(action.activityId)}`, "PATCH", { carbs_ingested: action.grams ?? 0 });
       return r.ok ? { ok: true, message: "Carboidrati registrati su Intervals." } : { ok: false, message: `Non sono riuscito a registrarli: ${r.error}` };
@@ -101,6 +123,11 @@ export async function runUndo(undo: UndoInfo): Promise<ActionResult> {
     }
     refreshPlanned();
     return failed ? { ok: false, message: `Ne ho tolti ${undo.ids.length - failed} su ${undo.ids.length}: controlla il calendario.` } : { ok: true, message: "Tolto da Intervals." };
+  }
+  if (undo.kind === "restore_event") {
+    const r = await call(`/api/calendar/events/${encodeURIComponent(undo.id)}`, "PATCH", { name: undo.name, description: undo.text, secs: undo.secs });
+    refreshPlanned();
+    return r.ok ? { ok: true, message: "Rimessa com'era su Intervals." } : { ok: false, message: `Non sono riuscito a rimetterla com'era: ${r.error}` };
   }
   const r = await call(`/api/life/${encodeURIComponent(undo.id)}`, "DELETE");
   refreshLife();

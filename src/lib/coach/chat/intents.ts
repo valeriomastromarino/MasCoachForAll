@@ -108,6 +108,7 @@ export function detectIntent(raw: string, state: Pick<ChatState, "pending" | "aw
 /** Phrases that work, per group: the help page and the suggestions when a message isn't understood. */
 export const HELP: { title: string; examples: string[] }[] = [
   { title: "Come sto e cosa faccio", examples: ["come sto?", "cosa faccio oggi?", "perché soglia?", "fammi il punto", "posso fare un VO2 domani?"] },
+  { title: "Creare sedute", examples: ["domani sui rulli 3x12' sweet spot rec 5'", "dammi una soglia da 60'", "inseriscimi 6 sprint nella z2 di domani", "sabato 2 ore con 2x15' tempo nel finale"] },
   { title: "Cambiare l'allenamento", examples: ["cambia", "più facile", "ho solo 45 minuti", "sui rulli", "voglio fare sweet spot", "programma"] },
   { title: "Eventi della vita", examples: ["ferie dal 10 al 20 dicembre", "ho la febbre da ieri", "infortunio al ginocchio", "sto meglio", "oggi non mi alleno"] },
   { title: "Piano e stagione", examples: ["a che punto sono col piano?", "e se salto la prossima settimana?", "questa settimana solo 5 ore", "più prudente col carico", "picco dal 14 giugno per 8 settimane"] },

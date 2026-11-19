@@ -24,6 +24,7 @@ import {
   fetchWatts,
   intervalsConfigured,
   moveEvent,
+  saveLibraryWorkout,
   updateActivity,
   updateEvent,
   uploadActivity,
@@ -259,8 +260,49 @@ const EXTRA_SESSIONS = { pesi: { type: "WeightTraining", name: "Pesi" }, pilates
  * Puts a workout from the Intervals.icu library on a day of the calendar (`indoor` = to be ridden on the trainer, so the
  * percentages follow the indoor FTP), or a session of weights or Pilates (`kind`, `mins`).
  */
-async function addWorkout(body: { workoutId?: number; date?: string; kind?: string; mins?: number; indoor?: boolean } | null): Promise<ApiResult> {
+/**
+ * Intervals.icu reads the text of a workout written by the chat: if the minutes it reads are far from the ones the app
+ * built, a line of the text was not understood and the athlete is told (19 November 2026).
+ */
+function readBack(e: { moving_time?: number | null } | null | undefined, secs: unknown): { warning?: string } {
+  if (typeof secs !== "number" || !e?.moving_time) return {};
+  if (Math.abs(e.moving_time - secs) <= Math.max(60, secs * 0.02)) return {};
+  return { warning: `Intervals legge ${Math.round(e.moving_time / 60)} minuti invece di ${Math.round(secs / 60)}: controlla la seduta sul calendario.` };
+}
+
+/** A session built by the chat: its own name and text, written on the calendar (indoor: the trainer's FTP). */
+async function addCustomWorkout(date: string | undefined, c: { name?: unknown; text?: unknown; indoor?: unknown; secs?: unknown }): Promise<ApiResult> {
+  const name = typeof c.name === "string" ? c.name.trim().slice(0, 120) : "";
+  const text = typeof c.text === "string" ? c.text.trim() : "";
+  if (!name || !text || text.length > 6000 || !ISO_DATE.test(date ?? "") || date! < todayIso()) return fail(400, "Richiesta non valida");
+  const created = await createEvent({ category: "WORKOUT", start_date_local: `${date}T00:00:00`, type: "Ride", name, description: text, indoor: c.indoor === true, external_id: `mascoach-app-${Date.now()}` });
+  return ok({ id: String(created?.id ?? ""), ...readBack(created, c.secs) });
+}
+
+/** A planned workout rewritten by the chat (sprints or a block put inside it), or put back as it was with «annulla». */
+async function rewriteWorkout(id: string, body: { name?: unknown; description?: unknown; secs?: unknown }): Promise<ApiResult> {
   if (!intervalsConfigured()) return DEMO_ONLY();
+  const name = typeof body.name === "string" ? body.name.trim().slice(0, 120) : "";
+  const description = typeof body.description === "string" ? body.description.trim() : null;
+  if (!name || description === null || description.length > 6000) return fail(400, "Richiesta non valida");
+  if (!(await isPlannedWorkout(id))) return fail(400, "Si modificano solo gli allenamenti");
+  const updated = await updateEvent(id, { name, description });
+  return ok({ ok: true, ...readBack(updated, body.secs) });
+}
+
+/** A session built by the chat, saved in the library (folder «MasCoach Coach», like the coach's). */
+async function saveWorkout(body: { name?: unknown; text?: unknown; indoor?: unknown } | null): Promise<ApiResult> {
+  if (!intervalsConfigured()) return DEMO_ONLY();
+  const name = typeof body?.name === "string" ? body.name.trim().slice(0, 120) : "";
+  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  if (!name || !text || text.length > 6000) return fail(400, "Richiesta non valida");
+  const { workout } = await saveLibraryWorkout("MasCoach Coach", { name, description: text, type: "Ride", indoor: body?.indoor === true, tags: ["MasCoach Coach", "Chat"] });
+  return ok({ id: workout.id });
+}
+
+async function addWorkout(body: { workoutId?: number; date?: string; kind?: string; mins?: number; indoor?: boolean; custom?: Record<string, unknown> } | null): Promise<ApiResult> {
+  if (!intervalsConfigured()) return DEMO_ONLY();
+  if (body?.custom && typeof body.custom === "object") return await addCustomWorkout(body.date, body.custom);
   if (body?.kind !== undefined) {
     const extra = EXTRA_SESSIONS[body.kind as keyof typeof EXTRA_SESSIONS];
     if (!extra || !ISO_DATE.test(body.date ?? "") || typeof body.mins !== "number" || !(body.mins >= 10 && body.mins <= 240)) return fail(400, "Richiesta non valida");
@@ -463,6 +505,7 @@ export async function handleApi(method: string, path: string, body: unknown = nu
     if (method === "GET" && p === "/api/activities") return await activities(q);
     if (method === "GET" && p === "/api/calendar") return await calendar(q);
     if (method === "GET" && p === "/api/library") return await library(q);
+    if (method === "POST" && p === "/api/library") return await saveWorkout(body as Parameters<typeof saveWorkout>[0]);
     if (method === "GET" && p === "/api/durability") return await durability(q);
     if (method === "GET" && p === "/api/history") return await history(q);
     if (p === "/api/cloud") return await cloud(method, q, body);
@@ -477,7 +520,11 @@ export async function handleApi(method: string, path: string, body: unknown = nu
     if (p === "/api/calendar/events" && method === "POST") return await addWorkout(body as Parameters<typeof addWorkout>[0]);
     if (p.startsWith("/api/calendar/events/")) {
       const id = seg(/^\/api\/calendar\/events\/([^/]+)$/);
-      if (method === "PATCH") return await moveWorkout(id, body as { date?: string } | null);
+      if (method === "PATCH") {
+        const b = body as Record<string, unknown> | null;
+        if (b && ("description" in b || "name" in b)) return await rewriteWorkout(id, b);
+        return await moveWorkout(id, b as { date?: string } | null);
+      }
       if (method === "DELETE") return await removeWorkout(id);
     }
     return fail(404, `Richiesta sconosciuta: ${method} ${p}`);

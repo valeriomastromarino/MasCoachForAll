@@ -8,6 +8,8 @@ import type { SeasonPlan, SeasonSetup } from "@/lib/training/season";
 import { recentFromRides } from "@/lib/training/done";
 import { choicesOf } from "@/lib/training/weeks";
 import { type Place, type Proposal, type SuggestInput, type WorkoutClass } from "@/lib/training/suggest";
+import type { Spec } from "@/lib/training/build/parse";
+import type { WorkoutBlock } from "@/lib/workout";
 
 /** What the athlete told the chat about today: it only ever applies to `date`. */
 export type TodayOverrides = {
@@ -45,10 +47,46 @@ export type Action =
   | { type: "set_profile"; patch: Partial<AthleteProfile>; label: string }
   | { type: "set_season"; patch: Partial<SeasonSetup>; label: string }
   | { type: "rpe"; activityId: string; rpe: number; label: string }
-  | { type: "carbs"; activityId: string; grams?: number; perHour?: number; label: string };
+  | { type: "carbs"; activityId: string; grams?: number; perHour?: number; label: string }
+  /** A session built by the chat (lib/training/build), written on the calendar; `replace` are the bike workouts it takes the place of. */
+  | { type: "create_workout"; date: string; name: string; text: string; indoor: boolean; secs: number; tss: number; replace: string[]; label: string }
+  /** A session already on the calendar, rewritten (sprints or a block put inside it). `prev` brings it back with «annulla». */
+  | { type: "update_workout"; eventId: string; name: string; text: string; secs: number; tss: number; prev: { name: string; text: string; secs: number | null; tss: number | null }; label: string }
+  | { type: "save_library"; name: string; text: string; indoor: boolean; label: string };
 
 /** What it takes to take back the last write. */
-export type UndoInfo = { kind: "remove_event"; ids: string[]; label: string } | { kind: "life_delete"; id: string; label: string };
+export type UndoInfo =
+  | { kind: "remove_event"; ids: string[]; label: string }
+  | { kind: "life_delete"; id: string; label: string }
+  | { kind: "restore_event"; id: string; name: string; text: string; secs: number | null; tss: number | null; label: string };
+
+/** A session built by the chat, as the reply shows it: drawing, steps in watts, what was assumed and the check with the day. */
+export type WorkoutCard = {
+  name: string;
+  /** "giovedì 20 nov" */
+  when: string;
+  /** "71 min · TSS 67 · sui rulli, FTP 250 W" */
+  meta: string;
+  blocks: WorkoutBlock[];
+  steps: string[];
+  /** What the engine chose where the words said nothing. */
+  notes: string[];
+  ok?: string;
+  warning?: string;
+  /** "nuova, su misura" or "modificata". */
+  tag?: string;
+};
+
+/** The session being built in the chat: what was asked, for which day and, when it changes a planned one, which. */
+export type Draft = {
+  spec: Spec;
+  date: string;
+  place: "indoor" | "outdoor" | null;
+  /** The planned workout it changes (null: a new session). */
+  target: { eventId: string; name: string; text: string | null; blocks: WorkoutBlock[]; secs: number | null; tss: number | null; indoor: boolean } | null;
+  /** Keep the bike workouts already planned that day (otherwise the new one takes their place). */
+  keepOthers: boolean;
+};
 
 export type Reply = {
   text: string;
@@ -59,6 +97,8 @@ export type Reply = {
   chips?: string[];
   /** A write waiting for "sì". */
   confirm?: Action;
+  /** A session built by the chat. */
+  workout?: WorkoutCard;
 };
 
 export type ChatState = {
@@ -72,9 +112,13 @@ export type ChatState = {
   /** A question left open: the next message with dates completes it. */
   awaiting: { intent: "vita_ferie" | "vita_malattia" | "vita_infortunio"; part?: string } | null;
   undo: UndoInfo | null;
+  /** The session being built (it takes the next changes: «fai 4 ripetute», «sposta a venerdì»). */
+  draft?: Draft | null;
+  /** The last session the chat wrote, for «salva in libreria». */
+  lastBuilt?: { name: string; text: string; indoor: boolean } | null;
 };
 
-export const emptyState = (): ChatState => ({ pending: null, options: [], index: 0, optionsDate: null, shown: [], awaiting: null, undo: null });
+export const emptyState = (): ChatState => ({ pending: null, options: [], index: 0, optionsDate: null, shown: [], awaiting: null, undo: null, draft: null, lastBuilt: null });
 
 export type ChatResult = {
   reply: Reply;

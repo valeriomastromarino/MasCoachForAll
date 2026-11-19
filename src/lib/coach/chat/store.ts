@@ -1,7 +1,7 @@
 // What the chat keeps on this device: what the athlete asked for today, and the conversation.
 import type { Proposal } from "@/lib/training/suggest";
 import { isCompact } from "@/lib/compact";
-import { type ChatState, emptyState, type TodayOverrides } from "./context";
+import { type ChatState, emptyState, type TodayOverrides, type WorkoutCard } from "./context";
 
 const TODAY_KEY = "mascoach-today";
 const CHAT_KEY = "mascoach-chat";
@@ -48,6 +48,7 @@ export type ChatMessage = {
   text: string;
   lines?: string[];
   proposal?: Proposal;
+  workout?: WorkoutCard;
   chips?: string[];
   at: string;
 };
