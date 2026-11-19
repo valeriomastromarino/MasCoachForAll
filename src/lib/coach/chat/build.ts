@@ -39,6 +39,8 @@ export function buildKind(text: string, state: ChatState, today: string): BuildK
   if (spec.sets.length && INSERT.test(t) && INTO.test(t)) return "insert";
   if (spec.sets.length) return "new";
   if (spec.vague && (CREATE.test(t) || ASK_TYPED.test(t))) return "new";
+  // «giovedì 60' z2 sui rulli»: a type, its minutes and a day are a request, unless it is a question («posso fare…?»).
+  if (spec.vague?.mins && spec.date !== null && !text.includes("?") && !/\b(posso|potrei|devo|dovrei|meglio|conviene)\b/.test(t)) return "new";
   if (spec.incomplete && (CREATE.test(t) || spec.date !== null || /\b(voglio|vorrei|fammi|dammi)\b/.test(t))) return "new";
   return null;
 }
@@ -324,7 +326,7 @@ export function buildChat(kind: BuildKind, ctx: ChatContext, state: ChatState, t
     };
   }
   const draft: Draft = { spec, date, place: spec.place, target: null, keepOthers: false };
-  const lead = spec.vague ? `Ecco ${CLASS_SAY[spec.vague.cls] === "VO2max" ? "il VO2max" : `la ${CLASS_SAY[spec.vague.cls]}`}: la dose la sceglie il motore.` : "Ecco la seduta.";
+  const lead = spec.vague ? `Ecco una seduta di ${CLASS_SAY[spec.vague.cls]}: la dose la sceglie il motore.` : "Ecco la seduta.";
   return show(ctx, state, draft, lead);
 }
 

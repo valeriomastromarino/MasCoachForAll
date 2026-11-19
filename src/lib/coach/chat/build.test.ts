@@ -72,6 +72,10 @@ describe("the chat builds sessions", () => {
     const [a] = talk(ctx, "dammi una soglia da 60'");
     expect(a.reply.workout!.name).toMatch(/^Soglia \d×\d+'/);
     expect(a.reply.workout!.notes[0]).toMatch(/^Dose scelta dal motore/);
+    const [z2] = talk(ctx, "giovedì 26 novembre 60' z2 sui rulli");
+    expect(z2.reply.workout!.name).toMatch(/^Z2 60' Indoor$|^Z2 1h Indoor$/);
+    expect(z2.reply.workout!.meta).toMatch(/^60 min/);
+    expect(rulesFirst("posso fare 60' z2 giovedì?", emptyState(), ctx.today)).toBe(false);
     // «voglio fare sweet spot» still picks from the library, as before.
     expect(rulesFirst("voglio fare sweet spot", emptyState(), ctx.today)).toBe(false);
   });
