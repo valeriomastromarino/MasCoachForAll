@@ -222,6 +222,14 @@
   --strava: #fc4c02;
 }
 
+/* A planned session held down and moved in the week list (components/calendar/HoldDrag.tsx). */
+:root[data-dragging],
+:root[data-dragging] * {
+  cursor: grabbing;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /*
  * Phone app (data-compact on <html>, design D of 19 November 2026). The bar has the round «Pedala» button standing above it,
  * so pages keep a little more room at the bottom; and no text is smaller than 13 px (lines at 11–12 px read badly in the

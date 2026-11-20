@@ -1,7 +1,7 @@
 "use client";
 
 // Phones: one week at a time, day under day, with the night, races and holidays, rides and planned workouts in full.
-import { IconCalendarEvent, IconCheck, IconMoon, IconPlus, IconX } from "@tabler/icons-react";
+import { IconArrowsExchange, IconCalendarEvent, IconCheck, IconMoon, IconPlus, IconX } from "@tabler/icons-react";
 import type { CalendarActivity, CalendarEvent, CalendarWorkout } from "@/lib/calendar";
 import type { DayWeather } from "@/lib/weather";
 import { fmt, fmtDuration } from "../format";
@@ -48,14 +48,19 @@ function ActivityCard({ a, onOpen }: { a: CalendarActivity; onOpen: () => void }
   );
 }
 
-function WorkoutCard({ w, state, onOpen }: { w: CalendarWorkout; state: WorkoutState; onOpen: () => void }) {
+/** Props that let a card be held down and moved (HoldDrag.tsx). */
+export type HoldProps = { onPointerDown: (e: React.PointerEvent<HTMLElement>) => void; onContextMenu: (e: React.MouseEvent) => void; style: React.CSSProperties };
+
+export function WorkoutCard({ w, state, onOpen, hold, ghost = false }: { w: CalendarWorkout; state: WorkoutState; onOpen: () => void; hold?: HoldProps; ghost?: boolean }) {
   const where = w.type === "VirtualRide" ? "rulli" : w.type === "Ride" ? "strada" : w.type;
   const bits = [where, w.tss !== null ? `${fmt(w.tss)} TSS` : null, w.secs !== null ? fmtDuration(w.secs) : null].filter(Boolean);
   return (
     <button
       onClick={onOpen}
+      onPointerDown={hold?.onPointerDown}
+      onContextMenu={hold?.onContextMenu}
       className="w-full rounded-[16px] px-3.5 py-2.5 text-left"
-      style={{ border: "1.5px dashed var(--faint)", opacity: state === "done" ? 0.65 : 1 }}
+      style={{ ...hold?.style, border: "1.5px dashed var(--faint)", opacity: ghost ? 0.35 : state === "done" ? 0.65 : 1 }}
     >
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
         {state === "done" && <IconCheck size={14} style={{ color: "var(--good-ink)" }} aria-label="fatto" />}
@@ -123,6 +128,7 @@ export function WeekList({
   onOpenDay,
   onOpenActivity,
   onOpenWorkout,
+  hold,
 }: {
   /** Forecast per day (only days within the forecast window). */
   weather?: Map<string, DayWeather>;
@@ -135,7 +141,10 @@ export function WeekList({
   onOpenDay: (date: string) => void;
   onOpenActivity: (a: CalendarActivity) => void;
   onOpenWorkout: (w: CalendarWorkout) => void;
+  /** Holding a planned session down to move it: the session in the hand, the day under the finger and the ride that would swap. */
+  hold?: { bind: (w: CalendarWorkout) => HoldProps; justDropped: () => boolean; heldId: string | null; overDate: string | null; swapName: string | null };
 }) {
+  const holding = !!hold?.heldId;
   let tss = 0;
   let secs = 0;
   let planned = 0;
@@ -171,7 +180,7 @@ export function WeekList({
             </button>
           );
           return (
-            <div key={d} className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-3 py-1">
+            <div key={d} data-drop={`day:${d}`} className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-3 py-1" style={holding && d < today ? { opacity: 0.4 } : undefined}>
               {/* self-start: a button centres its content, so the day used to float halfway down a tall day. */}
               {/* The name begins with what the button shows («Mer 19»), then the month and the weather. */}
               <button
@@ -191,7 +200,16 @@ export function WeekList({
                 </span>
                 {weather?.get(d) && <DayWeatherLine w={weather.get(d)!} />}
               </button>
-              <div className="min-w-0 space-y-2">
+              <div
+                className="min-w-0 space-y-2 rounded-[18px]"
+                style={
+                  holding && d >= today
+                    ? hold!.overDate === d
+                      ? { outline: "2px solid var(--brand)", outlineOffset: 4, background: "color-mix(in srgb, var(--brand) 12%, transparent)" }
+                      : { outline: "1.5px dashed color-mix(in srgb, var(--brand) 55%, transparent)", outlineOffset: 4 }
+                    : undefined
+                }
+              >
                 {dayEvents.map((e) => (
                   <EventLine key={e.id} e={e} />
                 ))}
@@ -220,9 +238,32 @@ export function WeekList({
                     {x.acts.map((a) => (
                       <ActivityCard key={a.id} a={a} onOpen={() => onOpenActivity(a)} />
                     ))}
-                    {x.plans.map((w) => (
-                      <WorkoutCard key={w.id} w={w} state={workoutState(w, x.acts, d, today)} onOpen={() => onOpenWorkout(w)} />
-                    ))}
+                    {x.plans.map((w) => {
+                      const state = workoutState(w, x.acts, d, today);
+                      const held = hold?.heldId === w.id;
+                      // The card stays on the page while it is in the hand (the finger's touch events keep going to it); on the
+                      // day it leaves, a dropped swap shows what comes here.
+                      return (
+                        <div key={w.id} className="relative">
+                          <WorkoutCard
+                            w={w}
+                            state={state}
+                            onOpen={() => !hold?.justDropped() && onOpenWorkout(w)}
+                            hold={hold && state !== "done" ? hold.bind(w) : undefined}
+                            ghost={held}
+                          />
+                          {held && hold.swapName && (
+                            <div
+                              className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-[16px] px-3 text-center text-sm"
+                              style={{ border: "1.5px dashed var(--brand)", color: "var(--accent-ink)", background: "var(--background)" }}
+                            >
+                              <IconArrowsExchange size={16} aria-hidden className="shrink-0" />
+                              Qui va «{hold.swapName}»
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                     {d >= today && (
                       <button
                         onClick={() => onOpenDay(d)}

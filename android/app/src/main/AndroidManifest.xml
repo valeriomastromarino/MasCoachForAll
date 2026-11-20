@@ -80,6 +80,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- A short buzz when a session is held down to move it in the calendar. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Re-arms the widget's 8:00 refresh after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>

@@ -33,18 +33,20 @@ function ErrorLine({ error }: { error: string | null }) {
 
 // ── Planned workout ─────────────────────────────────────────────────────────────────────────────────
 
-export function WorkoutModal({ w, onClose, onChanged }: { w: CalendarWorkout; onClose: () => void; onChanged: () => void }) {
+/** `onMoved` and `onDeleted` tell the calendar what changed, so the season plan learns it too (lib/calendarMove.ts). */
+export function WorkoutModal({ w, onClose, onChanged, onMoved, onDeleted }: { w: CalendarWorkout; onClose: () => void; onChanged: () => void; onMoved?: (to: string) => void; onDeleted?: () => void }) {
   const [moveTo, setMoveTo] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const run = async (url: string, method: "PATCH" | "DELETE", body?: unknown) => {
+  const run = async (url: string, method: "PATCH" | "DELETE", body?: unknown, after?: () => void) => {
     setBusy(true);
     const err = await send(url, method, body);
     setBusy(false);
-    if (err) setError(err);
-    else onChanged();
+    if (err) return setError(err);
+    after?.();
+    onChanged();
   };
 
   return (
@@ -86,7 +88,7 @@ export function WorkoutModal({ w, onClose, onChanged }: { w: CalendarWorkout; on
               className="rounded-lg px-3 py-1.5 text-xs font-medium"
               style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
               disabled={busy || !moveTo || moveTo === w.date}
-              onClick={() => run(`/api/calendar/events/${w.id}`, "PATCH", { date: moveTo })}
+              onClick={() => moveTo && run(`/api/calendar/events/${w.id}`, "PATCH", { date: moveTo }, () => onMoved?.(moveTo))}
             >
               {busy ? "Sposto…" : "Conferma"}
             </button>
@@ -103,7 +105,7 @@ export function WorkoutModal({ w, onClose, onChanged }: { w: CalendarWorkout; on
               className="rounded-lg px-3 py-1.5 text-xs font-medium"
               style={{ background: "var(--critical-bg)", color: "var(--critical-ink)" }}
               disabled={busy}
-              onClick={() => run(`/api/calendar/events/${w.id}`, "DELETE")}
+              onClick={() => run(`/api/calendar/events/${w.id}`, "DELETE", undefined, onDeleted)}
             >
               {busy ? "Elimino…" : "Elimina"}
             </button>

@@ -1,17 +1,22 @@
 "use client";
 
-import { IconCheck, IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react";
+import { IconCheck, IconChevronLeft, IconChevronRight, IconTrash, IconX } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CalendarActivity, CalendarData, CalendarWorkout } from "@/lib/calendar";
+import { changedDays, dropMoves, type Move, moveOf, seasonAfter, undoMoves } from "@/lib/calendarMove";
 import type { DashboardData } from "@/lib/dashboard";
 import { addDays, dateRange, weekStart } from "@/lib/dates";
+import type { SeasonSetup } from "@/lib/training/season";
+import { loadSeason, saveSeason } from "@/lib/training/seasonStore";
+import { scheduleCloudPush } from "../data/cloud";
 import { refreshDashboard, useRefreshTick } from "../data/remote";
 import { loadRide, prefetchRide } from "../data/rides";
 import { fmt, fmtDuration } from "../format";
 import { ActivityModal, DayModal, type Night, NIGHT_COLOR, WorkoutModal } from "./Modals";
-import { CATEGORY_STYLE, CoachBadge, dayLabel, send, tint } from "./shared";
+import { DragLayer, type DropTarget, useHoldDrag } from "./HoldDrag";
+import { CATEGORY_STYLE, CoachBadge, dayLabel, Modal, send, tint } from "./shared";
 import { WeatherPanel } from "./WeatherPanel";
-import { WeekList, type WorkoutState, workoutState } from "./WeekList";
+import { WeekList, WorkoutCard, type WorkoutState, workoutState } from "./WeekList";
 import { apiFetch } from "../data/transport";
 import { useForecast, usePlace } from "../data/weatherData";
 
@@ -134,6 +139,10 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
   const weatherByDay = useMemo(() => new Map(forecast.days.map((d) => [d.date, d])), [forecast.days]);
   const [moving, setMoving] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
+  /** After a move or a removal: what happened, and «Annulla» when it can be put back. */
+  const [toast, setToast] = useState<{ text: string; undo?: () => void } | null>(null);
+  /** The session dropped on «Elimina», waiting for the yes; `rest` = its day stays rest in the season plan. */
+  const [confirmDelete, setConfirmDelete] = useState<{ w: CalendarWorkout; rest: boolean } | null>(null);
   // «Aggiorna dati» (the symbol by the logo) reads the range again; until it arrives the old one stays on screen.
   const tick = useRefreshTick();
   const key = `${start}|${version}`;
@@ -161,6 +170,26 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
   }, []);
 
   const cal = data && "cal" in data ? data.cal : null;
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  /**
+   * Tells the season plan what changed on the calendar (lib/calendarMove.ts): a day left without its ride becomes rest,
+   * so Oggi and Stagione don't propose another session there. Gives back the plan as it was, for «Annulla».
+   */
+  const learn = (moves: Move[], removed: CalendarWorkout | null = null): SeasonSetup | null => {
+    const before = loadSeason();
+    if (!before || !cal) return null;
+    const next = seasonAfter(before, changedDays(cal.workouts, moves, removed), today);
+    if (JSON.stringify(next.weekPlans ?? {}) === JSON.stringify(before.weekPlans ?? {})) return null;
+    saveSeason(next);
+    scheduleCloudPush();
+    return before;
+  };
 
   // Intervals.icu takes seconds to serve a ride's second-by-second data the first time it is asked.
   // Warm up the most likely ones (bike rides of the last two weeks) one at a time in the background.
@@ -192,6 +221,87 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
     return m;
   }, [cal, start, end]);
 
+  /** The sessions planned on a day and not done yet: what a session dropped there can swap with. */
+  const plansOn = (date: string) => {
+    const x = byDay.get(date);
+    return x ? x.plans.filter((p) => workoutState(p, x.acts, date, today) !== "done") : [];
+  };
+  const patch = (m: Move) => send(`/api/calendar/events/${m.id}`, "PATCH", { date: m.to });
+  const dayWord = (d: string) => dayLabel(d, { weekday: "long", day: "numeric" }).toLowerCase();
+
+  const moveSessions = async (moves: Move[]) => {
+    setMoving(moves[0].id);
+    setDropError(null);
+    const done: Move[] = [];
+    for (const m of moves) {
+      const err = await patch(m);
+      if (err) {
+        // Half a swap is worse than none: put back what already moved.
+        for (const back of undoMoves(done)) await patch(back);
+        setMoving(null);
+        setToast({ text: `Spostamento non riuscito: ${err}` });
+        changed();
+        return;
+      }
+      done.push(m);
+    }
+    const before = learn(moves);
+    setMoving(null);
+    const undo = async () => {
+      setToast(null);
+      setMoving(moves[0].id);
+      let failed: string | null = null;
+      for (const back of undoMoves(moves)) failed = (await patch(back)) ?? failed;
+      if (before) {
+        saveSeason(before);
+        scheduleCloudPush();
+      }
+      setMoving(null);
+      if (failed) setToast({ text: `Non sono riuscito a rimetterla: ${failed}` });
+      changed();
+    };
+    const [a] = moves;
+    setToast({ text: moves.length === 2 ? `${dayLabel(a.from, { weekday: "long", day: "numeric" })} e ${dayWord(a.to)} scambiati` : `Spostata a ${dayWord(a.to)}`, undo });
+    changed();
+  };
+
+  const removeSession = async (w: CalendarWorkout) => {
+    setConfirmDelete(null);
+    setMoving(w.id);
+    const err = await send(`/api/calendar/events/${w.id}`, "DELETE");
+    setMoving(null);
+    if (err) return setToast({ text: `Eliminazione non riuscita: ${err}` });
+    const rest = learn([], w);
+    setToast({ text: rest ? `Eliminata: ${dayWord(w.date)} resta di riposo` : "Seduta eliminata" });
+    changed();
+  };
+
+  const onDrop = (w: CalendarWorkout, t: DropTarget | null) => {
+    if (t?.kind === "delete") return setConfirmDelete({ w, rest: !!loadSeason() && !!cal && changedDays(cal.workouts, [], w).emptied.some((d) => d >= today) });
+    if (t?.kind !== "day") return;
+    const moves = dropMoves(w, t.date, plansOn(t.date), today);
+    if (moves.length) void moveSessions(moves);
+  };
+  const hold = useHoldDrag<CalendarWorkout>({ onDrop, onWeek: (dir) => setStart((s) => addDays(s, 7 * dir)) });
+  const heldW = hold.held?.item ?? null;
+  const overDate = hold.target?.kind === "day" ? hold.target.date : null;
+  const pending = heldW && overDate ? dropMoves(heldW, overDate, plansOn(overDate), today) : [];
+  const holdLabel = !heldW
+    ? null
+    : hold.target?.kind === "delete"
+      ? "Lascia qui per eliminarla"
+      : hold.target?.kind === "cancel"
+        ? "Lascia qui per annullare"
+        : hold.target?.kind === "prev"
+          ? "Tienila qui: settimana prima"
+          : hold.target?.kind === "next"
+            ? "Tienila qui: settimana dopo"
+            : pending.length === 2
+              ? `Scambia con «${pending[1].name}»`
+              : pending.length === 1
+                ? `Sposta a ${dayWord(overDate!)}`
+                : null;
+
   const drop = async (e: React.DragEvent, date: string) => {
     e.preventDefault();
     const raw = e.dataTransfer.getData("text/mascoach-event");
@@ -202,8 +312,10 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
     setDropError(null);
     const err = await send(`/api/calendar/events/${id}`, "PATCH", { date });
     setMoving(null);
-    if (err) setDropError(err);
-    else changed();
+    if (err) return setDropError(err);
+    const w = cal?.workouts.find((x) => x.id === id);
+    if (w) learn([moveOf(w, date)]);
+    changed();
   };
 
   const weeks = Array.from({ length: WEEKS }, (_, w) => dateRange(addDays(start, w * 7), addDays(start, w * 7 + 6)));
@@ -266,6 +378,7 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
           onOpenDay={(date) => setOpen({ kind: "day", date })}
           onOpenActivity={(a) => setOpen({ kind: "activity", a })}
           onOpenWorkout={(w) => setOpen({ kind: "workout", w })}
+          hold={{ bind: hold.bind, justDropped: hold.justDropped, heldId: heldW?.id ?? null, overDate: pending.length ? overDate : null, swapName: pending.length === 2 ? pending[1].name : null }}
         />
       </div>
 
@@ -348,8 +461,8 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
       </div>
       <p className="mt-3 text-[11px] text-faint">
         <span className="sm:hidden">
-          Tocca un giorno, un&apos;uscita o un allenamento per i dettagli; con le frecce cambi settimana. Le modifiche vengono salvate
-          su Intervals.icu.
+          Tocca un giorno, un&apos;uscita o un allenamento per i dettagli. Tieni premuto un allenamento pianificato per spostarlo su un
+          altro giorno o eliminarlo. Le modifiche vengono salvate su Intervals.icu.
         </span>
         <span className="hidden sm:inline">
           Clicca un giorno per i dettagli e per aggiungere un allenamento; puoi trascinare un allenamento pianificato su un altro
@@ -357,7 +470,15 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
         </span>
       </p>
 
-      {open?.kind === "workout" && <WorkoutModal w={open.w} onClose={() => setOpen(null)} onChanged={changed} />}
+      {open?.kind === "workout" && (
+        <WorkoutModal
+          w={open.w}
+          onClose={() => setOpen(null)}
+          onChanged={changed}
+          onMoved={(to) => learn([moveOf(open.w, to)])}
+          onDeleted={() => learn([], open.w)}
+        />
+      )}
       {open?.kind === "activity" && <ActivityModal a={open.a} onClose={() => setOpen(null)} onChanged={changed} />}
       {open?.kind === "day" && (
         <DayModal
@@ -370,6 +491,50 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
           onClose={() => setOpen(null)}
           onChanged={changed}
         />
+      )}
+
+      {hold.held && (
+        <DragLayer held={hold.held} target={hold.target} floatRef={hold.floatRef} label={holdLabel}>
+          <WorkoutCard w={hold.held.item} state="planned" onOpen={() => {}} />
+        </DragLayer>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Eliminare la seduta?" subtitle={`${confirmDelete.w.name} · ${dayLabel(confirmDelete.w.date)}`} onClose={() => setConfirmDelete(null)}>
+          <p className="mt-2 text-sm text-muted">
+            La togli da Intervals.icu e dal Garmin.
+            {confirmDelete.rest && " Quel giorno resta di riposo: l'app non ti propone un'altra seduta."}
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-5 text-sm font-semibold"
+              style={{ background: "var(--critical-bg)", color: "var(--critical-ink)" }}
+              onClick={() => void removeSession(confirmDelete.w)}
+            >
+              <IconTrash size={16} aria-hidden />
+              Elimina
+            </button>
+            <button type="button" className="inline-flex min-h-11 items-center rounded-full px-5 text-sm" style={{ border: "1px solid var(--border)" }} onClick={() => setConfirmDelete(null)}>
+              No, tienila
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {toast && (
+        <div
+          role="status"
+          className="fixed inset-x-0 z-[60] mx-auto flex w-max max-w-[92%] items-center gap-3 rounded-2xl px-4 py-1.5 text-[13px] shadow-lg"
+          style={{ bottom: "calc(var(--nav-h, 0px) + 16px)", background: "var(--foreground)", color: "var(--background)" }}
+        >
+          <span className="py-1.5">{toast.text}</span>
+          {toast.undo && (
+            <button type="button" className="min-h-11 px-1 font-semibold underline" onClick={toast.undo}>
+              Annulla
+            </button>
+          )}
+        </div>
       )}
     </section>
   );
