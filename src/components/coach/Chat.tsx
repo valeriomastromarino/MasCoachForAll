@@ -3,6 +3,7 @@
 // The coach's chat: it talks only to the app's own engine (lib/coach/chat), reads the athlete's Italian with rules and answers
 // from the data. What it writes to Intervals.icu, to the sheet or to the plan is shown first and done only after a "sì".
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { IconBolt, IconCalendarEvent, IconFlag, IconMoodSmile } from "@tabler/icons-react";
 import { type Action, chat, type ChatContext, type ChatState, emptyState, rulesFirst } from "@/lib/coach/chat";
 import type { WorkoutCard } from "@/lib/coach/chat/context";
 import { COACH_PREFILL_EVENT, takeCoachPrefill } from "@/lib/coach/chat/prefill";
@@ -19,6 +20,7 @@ import { WorkoutProfile } from "../calendar/shared";
 import { bestOfLastSeasons } from "../firstrun/FirstRun";
 import { useHistory, useLibrary, useLife, useOverrides, usePlanned } from "../data/trainingData";
 import { askFetch } from "../data/transport";
+import { PageTitle } from "../sections/SectionPage";
 import { runAction, runUndo, type SheetContext } from "./chatActions";
 
 const subProfile = (cb: () => void) => {
@@ -31,6 +33,17 @@ const subSeason = (cb: () => void) => {
 };
 
 const QUICK = ["Cosa faccio oggi?", "Come sto?", "Fammi il punto", "Cosa posso chiederti?"];
+/**
+ * Phone app, empty chat (design D, 19 November 2026: the page opened almost empty). A question goes at once; a change starts the
+ * sentence in the box, to be finished by the athlete (nothing is written without the «sì» anyway).
+ */
+const STARTERS: { label: string; icon: "mood" | "calendar" | "bolt" | "flag"; send?: string; begin?: string }[] = [
+  { label: "Come sto?", icon: "mood", send: "Come sto?" },
+  { label: "Cambia la settimana", icon: "calendar", begin: "Sposta l'allenamento di domani a " },
+  { label: "Crea una seduta", icon: "bolt", begin: "Domani sui rulli " },
+  { label: "Ferie o malattia", icon: "flag", begin: "Ferie dal " },
+];
+const STARTER_ICONS = { mood: IconMoodSmile, calendar: IconCalendarEvent, bolt: IconBolt, flag: IconFlag };
 const YES = /^(si|sii|sisi|ok|okay|va bene|certo|confermo|conferma|fallo|procedi|esatto|d accordo|daccordo|perfetto|yes|dai|vai|fai pure|applica)\b/;
 const NO = /^(no|nono|lascia stare|stop|niente|non farlo|ferma|aspetta|indietro|meglio di no|annulla)\b/;
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -60,6 +73,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
   /** The written coach is not reachable here (single-file app, no key): the chat uses its rules. */
   const [aiOff, setAiOff] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLInputElement>(null);
   // A request written by another page (calendar: "Chiedi al coach una tabella") waits in the message box.
   useEffect(() => {
     const take = () => {
@@ -216,17 +230,25 @@ export function CoachChat({ data }: { data: DashboardData }) {
   const waiting = state.pending !== null || aiActions.length > 0;
   // Phone: only the answers to a proposal or to a session being built, and three ideas while the chat is still empty.
   const phoneChip = (c: string) => c === "Sì" || c === "No" || c.startsWith("Mettila ") || c === "Sì, una nuova" || c === "Decidi tu" || c === "Salva in libreria";
-  const chips = compact ? (waiting || state.draft || lastCoach?.chips?.includes("Salva in libreria") ? (lastCoach?.chips ?? []).filter(phoneChip) : messages.length === 0 && ctx ? QUICK.slice(0, 3) : []) : (lastCoach?.chips ?? []);
+  const chips = compact ? (waiting || state.draft || lastCoach?.chips?.includes("Salva in libreria") ? (lastCoach?.chips ?? []).filter(phoneChip) : []) : (lastCoach?.chips ?? []);
+  const start = (s: (typeof STARTERS)[number]) => {
+    if (s.send) return void send(s.send);
+    setDraft(s.begin ?? "");
+    box.current?.focus();
+  };
 
   return (
     <section className={compact ? "flex h-full min-h-0 flex-col" : "card flex flex-col p-4"} aria-label="Chat con il coach">
-      <div className={"flex items-start gap-3 " + (compact ? "justify-end" : "justify-between")}>
-        {!compact && (
+      <div className={"flex gap-3 " + (compact ? "items-center justify-between" : "items-start justify-between")}>
+        {compact ? (
+          <PageTitle>Coach</PageTitle>
+        ) : (
         <div>
           <h2 className="text-sm font-medium">Parla con il coach</h2>
           <p className="mt-0.5 text-xs text-muted">{aiOff ? (isApp() ? "Risponde con le regole dell'app: per il coach scritto inserisci la password in Impostazioni." : "Risponde con i tuoi dati e le regole dell'app.") : "Scrivi come vuoi: il coach (Claude Haiku) legge i tuoi dati."} Scrive su Intervals solo dopo il tuo «sì».</p>
         </div>
         )}
+        {(!compact || messages.length > 0) && (
         <button
           type="button"
           onClick={() => {
@@ -234,16 +256,32 @@ export function CoachChat({ data }: { data: DashboardData }) {
             started.current = false;
             setThread({ messages: [], state: emptyState() });
           }}
-          className={compact ? "card inline-flex h-8 shrink-0 items-center rounded-full px-3.5 text-xs font-medium leading-none" : "shrink-0 rounded-full px-3 py-1 text-xs"}
+          className={compact ? "card inline-flex h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium leading-none" : "shrink-0 rounded-full px-3 py-1 text-xs"}
           style={compact ? undefined : { border: "1px solid var(--border)" }}
         >
-          Nuova conversazione
+          {compact ? "Nuova" : "Nuova conversazione"}
         </button>
+        )}
       </div>
 
       <div ref={scroller} className={compact ? "mt-3 min-h-0 flex-1 space-y-2.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "mt-3 max-h-[62vh] min-h-[220px] space-y-3 overflow-y-auto pr-1"} role="log" aria-live="polite">
         {!ctx && <p className="text-sm text-muted">Preparo i dati…</p>}
-        {compact && ctx && messages.length === 0 && <Bubble m={{ id: "hello", role: "coach", text: "Chiedimi di oggi, del piano o di un cambio.", at: "" }} compact />}
+        {compact && ctx && messages.length === 0 && (
+          <>
+            <Bubble m={{ id: "hello", role: "coach", text: "Chiedimi di oggi, del piano o di un cambio. Scrivo su Intervals solo dopo il tuo «sì».", at: "" }} compact />
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {STARTERS.map((s) => {
+                const Icon = STARTER_ICONS[s.icon];
+                return (
+                  <button key={s.label} type="button" onClick={() => start(s)} className="card flex min-h-[3.25rem] items-center gap-2 px-3 text-left text-sm font-semibold leading-tight">
+                    <Icon size={19} stroke={1.9} className="shrink-0" style={{ color: "var(--accent-ink)" }} aria-hidden />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
         {messages.map((m) => (
           <Bubble key={m.id} m={m} compact={compact} />
         ))}
@@ -259,7 +297,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
                 key={c}
                 type="button"
                 onClick={() => void send(c)}
-                className={"inline-flex items-center rounded-full leading-none " + (compact ? "h-8 px-3.5 text-xs font-medium" : "px-3 py-1 text-xs")}
+                className={"inline-flex items-center rounded-full leading-none " + (compact ? "h-11 px-4 text-sm font-medium" : "px-3 py-1 text-xs")}
                 style={{
                   background: yesNo ? "var(--accent-bg)" : compact ? "var(--surface)" : "transparent",
                   color: yesNo ? "var(--accent-ink)" : "var(--foreground)",
@@ -278,10 +316,13 @@ export function CoachChat({ data }: { data: DashboardData }) {
         className={"flex gap-2 " + (compact ? "mt-3 pb-1" : "mt-3")}
         onSubmit={(e) => {
           e.preventDefault();
+          // On the phone «Invia» never looks switched off: with nothing written it takes you to the box.
+          if (!draft.trim()) return box.current?.focus();
           void send(draft);
         }}
       >
         <input
+          ref={box}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={compact ? "Scrivimi…" : "Scrivimi: «ho male al ginocchio», «ferie dal 10 al 20 dicembre»…"}
@@ -291,7 +332,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
         />
         <button
           type="submit"
-          disabled={!ctx || busy || !draft.trim()}
+          disabled={!ctx || busy || (!compact && !draft.trim())}
           className={(compact ? "h-11 rounded-full px-5 leading-none " : "rounded-xl px-4 py-2 ") + "text-sm font-medium transition-opacity disabled:opacity-45"}
           style={compact ? { background: "var(--brand)", color: "var(--on-brand)" } : { background: "var(--accent-bg)", color: "var(--accent-ink)" }}
         >
@@ -367,7 +408,7 @@ function BuiltCard({ w }: { w: WorkoutCard }) {
       <div className="num mt-0.5 text-xs text-muted">
         {w.meta}
         {w.tag && (
-          <span className="ml-1.5 rounded-full px-2 py-0.5 text-[10.5px]" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+          <span className="ml-1.5 rounded-full px-2 py-0.5 text-[10.5px]" style={{ background: "var(--good-bg)", color: "var(--good-ink)" }}>
             {w.tag}
           </span>
         )}
@@ -389,7 +430,7 @@ function BuiltCard({ w }: { w: WorkoutCard }) {
           ))}
         </ul>
       )}
-      {w.ok && <p className="mt-2 text-xs" style={{ color: "var(--good)" }}>✓ {w.ok}</p>}
+      {w.ok && <p className="mt-2 text-xs" style={{ color: "var(--good-ink)" }}>✓ {w.ok}</p>}
       {w.warning && (
         <p className="mt-2 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
           {w.warning}

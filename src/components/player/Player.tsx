@@ -91,7 +91,7 @@ function DfaCorner({ view }: { view: PlayerView }) {
   const d = view.dfa;
   const a = d?.alpha1 ?? null;
   if (!d || a === null || view.devices.hr.status !== "connected") return null;
-  const color = !d.reliable ? "var(--muted)" : a >= DFA_VT1 ? "var(--hrv-ink)" : a >= DFA_VT2 ? "var(--warning-ink)" : "var(--critical)";
+  const color = !d.reliable ? "var(--muted)" : a >= DFA_VT1 ? "var(--hrv-ink)" : a >= DFA_VT2 ? "var(--warning-ink)" : "var(--critical-ink)";
   const text = fmt(a, 2);
   return (
     <span role="img" aria-label={`DFA alfa 1 ${text}, ${dfaZone(a)}${d.reliable ? "" : `, poco affidabile (artefatti ${fmt(d.artifactPct, 0)}%)`}`}>
@@ -134,7 +134,7 @@ function Metrics({ view, step }: { view: PlayerView; step: PlayerStep | undefine
       <Metric bottom icon={<IconTarget size={15} />} color="var(--good)" label={resistance ? "Livello" : "Obiettivo"}
         value={resistance ? String(level) : fmt(view.target)} unit={resistance ? `/ ${view.levels.length - 1}` : "W"}
         sub={view.refused ? "rifiutato dal rullo" : !resistance && s.offset ? `${s.offset > 0 ? "+" : ""}${s.offset} W su questo step` : resistance ? "resistenza" : null}
-        subColor={view.refused ? "var(--critical)" : undefined} />
+        subColor={view.refused ? "var(--critical-ink)" : undefined} />
       <Metric right icon={<IconHeart size={15} />} color="var(--rhr-ink)" label="FC" value={fmt(view.hr)} unit="bpm" />
       <Metric icon={<IconRefresh size={15} />} color="var(--fitness-ink)" label="Cadenza" value={fmt(view.cadence)} unit="rpm"
         corner={<CadenceCorner step={step} />} />
@@ -255,7 +255,7 @@ function DeviceCard({ kind, d, engine, compact = false }: { kind: DeviceKind; d:
   const ok = d.status === "connected";
   const busy = d.status === "connecting";
   const text = ok ? (d.detail ? `${d.detail} · collegato` : "collegato") : busy ? `${d.detail ?? "collegamento"}…` : STATUS_TEXT[d.status];
-  const color = ok ? (d.warning ? "var(--critical)" : "var(--good)") : d.status === "lost" || d.error ? "var(--critical)" : "var(--muted)";
+  const color = ok ? (d.warning ? "var(--critical-ink)" : "var(--good-ink)") : d.status === "lost" || d.error ? "var(--critical-ink)" : "var(--muted)";
   const action = d.status === "lost" ? "Ricollega" : d.retry ? "Riprova" : "Collega";
   if (compact) {
     return (
@@ -339,11 +339,11 @@ function BeforeStart({ view, engine }: { view: PlayerView; engine: PlayerEngine 
   const ready = NEEDED.filter((k) => d[k].status === "connected").length;
   if (ready === NEEDED.length) {
     return (
-      <div role="status" className="player-flow-only mx-auto mb-3 flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+      <div role="status" className="player-flow-only mx-auto mb-3 flex w-full max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: "var(--good-bg)", color: "var(--good-ink)" }}>
         {KINDS.filter((k) => d[k].status === "connected").map((k) => (
           <span key={k} className="inline-flex min-w-0 items-center gap-1">
             <IconCheck size={14} className="shrink-0" aria-hidden />
-            <span className="truncate" style={d[k].warning ? { color: "var(--critical)" } : undefined}>
+            <span className="truncate" style={d[k].warning ? { color: "var(--critical-ink)" } : undefined}>
               {d[k].name ?? DEVICE_INFO[k].short}
               {d[k].detail ? ` · ${d[k].detail}` : ""}
             </span>
@@ -375,7 +375,7 @@ function BeforeStartRow({ kind, d, engine }: { kind: DeviceKind; d: DeviceView; 
   const ok = d.status === "connected";
   const busy = d.status === "connecting";
   const sub = ok ? `${d.name ?? "collegato"}${d.detail ? ` · ${d.detail}` : ""}` : busy ? `${d.detail ?? "mi collego"}…` : d.status === "lost" ? "collegamento perso" : (d.error ?? info.role);
-  const subColor = ok ? (d.warning ? "var(--critical)" : "var(--good)") : d.status === "lost" || d.error ? "var(--critical)" : "var(--muted)";
+  const subColor = ok ? (d.warning ? "var(--critical-ink)" : "var(--good-ink)") : d.status === "lost" || d.error ? "var(--critical-ink)" : "var(--muted)";
   const action = d.status === "lost" ? "Ricollega" : d.retry ? "Riprova" : "Collega";
   return (
     <div className="flex items-center gap-2.5 px-1 py-2" style={{ borderColor: "var(--border)" }}>
@@ -389,15 +389,15 @@ function BeforeStartRow({ kind, d, engine }: { kind: DeviceKind; d: DeviceView; 
         </div>
       </div>
       {ok ? (
-        <IconCheck size={18} className="mr-2 shrink-0" style={{ color: "var(--good)" }} aria-label="collegato" />
+        <IconCheck size={18} className="mr-2 shrink-0" style={{ color: "var(--good-ink)" }} aria-label="collegato" />
       ) : busy ? (
-        <button type="button" className="h-8 shrink-0 rounded-lg px-3 text-xs text-muted" onClick={() => engine.disconnect(kind)}>
+        <button type="button" className="h-11 shrink-0 rounded-lg px-3 text-sm text-muted" onClick={() => engine.disconnect(kind)}>
           Annulla
         </button>
       ) : (
         <button
           type="button"
-          className="h-8 shrink-0 rounded-lg px-3 text-xs font-semibold"
+          className="h-11 shrink-0 rounded-lg px-3.5 text-sm font-semibold"
           style={NEEDED.includes(kind) ? { background: "var(--accent-bg)", color: "var(--accent-ink)" } : { border: "1px solid var(--border)", color: "var(--muted)" }}
           onClick={() => engine.connect(kind)}
         >
@@ -418,7 +418,7 @@ function DroppedAlert({ view, engine }: { view: PlayerView; engine: PlayerEngine
         const d = view.devices[k];
         const busy = d.status === "connecting";
         return (
-          <div key={k} role="alert" className="flex items-center justify-between gap-3 rounded-xl px-3 py-2" style={{ background: "var(--critical-bg)", color: "var(--critical)" }}>
+          <div key={k} role="alert" className="flex items-center justify-between gap-3 rounded-xl px-3 py-2" style={{ background: "var(--critical-bg)", color: "var(--critical-ink)" }}>
             <span className="min-w-0">
               <span className="block text-sm font-semibold">{DEVICE_INFO[k].lost}</span>
               <span className="block truncate text-xs">{busy ? `${d.detail ?? "mi collego"}…` : (d.error ?? d.name ?? "")}</span>
@@ -426,8 +426,8 @@ function DroppedAlert({ view, engine }: { view: PlayerView; engine: PlayerEngine
             {!busy && (
               <button
                 type="button"
-                className="h-9 shrink-0 rounded-full px-4 text-xs font-semibold leading-none"
-                style={{ background: "var(--surface)", color: "var(--critical)", border: "1px solid var(--critical)" }}
+                className="h-11 shrink-0 rounded-full px-4 text-sm font-semibold leading-none"
+                style={{ background: "var(--surface)", color: "var(--critical-ink)", border: "1px solid var(--critical)" }}
                 onClick={() => engine.connect(k)}
               >
                 Ricollega
@@ -497,11 +497,11 @@ function SprintToggle({ view, engine, onSettings }: { view: PlayerView; engine: 
   const c = view.sprint.cfg;
   return (
     <div className="flex items-center justify-between gap-3">
-      <button type="button" onClick={onSettings} className="min-w-0 text-left">
+      <button type="button" onClick={onSettings} className="min-h-11 min-w-0 text-left">
         <span className="block text-sm font-medium">Sprint automatici</span>
         <span className="num block truncate text-xs text-muted">≥ {c.watts} W · resistenza {sprintLevel(view)} · avviso {c.leadSecs} s</span>
       </button>
-      <button type="button" role="switch" aria-checked={c.on} aria-label="Sprint automatici" onClick={() => engine.setSprint({ on: !c.on })}>
+      <button type="button" role="switch" aria-checked={c.on} aria-label="Sprint automatici" className="flex h-11 shrink-0 items-center px-1" onClick={() => engine.setSprint({ on: !c.on })}>
         <Switch on={c.on} />
       </button>
     </div>
@@ -520,7 +520,7 @@ function OptionRow<T extends number>({ label, options, value, text, onPick }: { 
             role="radio"
             aria-checked={o === value}
             onClick={() => onPick(o)}
-            className="num flex-1 rounded-xl px-1 py-2 text-sm font-medium"
+            className="num min-h-11 flex-1 rounded-xl px-1 text-sm font-medium"
             style={o === value ? { background: "var(--accent-bg)", color: "var(--accent-ink)", border: "1px solid var(--accent-ink)" } : { border: "1px solid var(--border)" }}
           >
             {text(o)}
@@ -553,7 +553,7 @@ function SprintSheet({ view, engine, onClose }: { view: PlayerView; engine: Play
               role="radio"
               aria-checked={i === current}
               onClick={() => engine.setSprint({ level: i })}
-              className="num rounded-lg py-2 text-sm font-medium"
+              className="num min-h-11 rounded-lg text-sm font-medium"
               style={i === current ? { background: "var(--brand)", color: "var(--on-brand)" } : { border: "1px solid var(--border)" }}
             >
               {i}
@@ -561,7 +561,7 @@ function SprintSheet({ view, engine, onClose }: { view: PlayerView; engine: Play
           ))}
         </div>
       </div>
-      <button className="mt-5 w-full rounded-xl px-4 py-2.5 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={onClose}>Fatto</button>
+      <button className="mt-5 w-full min-h-11 rounded-xl px-4 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={onClose}>Fatto</button>
     </Sheet>
   );
 }
@@ -599,7 +599,7 @@ function RecalSheet({ view, workout, engine, onClose }: { view: PlayerView; work
       )}
       <div className="mt-4 grid grid-cols-1 gap-2">
         <button
-          className="rounded-xl px-4 py-2.5 text-sm font-medium"
+          className="min-h-12 rounded-xl px-4 text-sm font-medium"
           style={{ background: "var(--brand)", color: "var(--on-brand)" }}
           onClick={() => {
             engine.recalibrate(pick);
@@ -608,7 +608,7 @@ function RecalSheet({ view, workout, engine, onClose }: { view: PlayerView; work
         >
           {pick === 1 ? "Torna alla potenza prevista" : `Applica ${Math.round(pick * 100)}%`}
         </button>
-        <button className="rounded-xl px-4 py-2 text-sm text-muted" onClick={onClose}>Annulla</button>
+        <button className="min-h-11 rounded-xl px-4 text-sm text-muted" onClick={onClose}>Annulla</button>
       </div>
     </Sheet>
   );
@@ -622,7 +622,7 @@ function ModeSelector({ view, engine }: { view: PlayerView; engine: PlayerEngine
     <button
       role="radio"
       aria-checked={active === mode}
-      className="num flex-1 rounded-lg px-3 py-2 text-sm"
+      className="num min-h-11 flex-1 rounded-lg px-3 text-sm"
       style={active === mode ? { background: "var(--accent-bg)", color: "var(--accent-ink)", fontWeight: 500 } : { color: "var(--muted)" }}
       onClick={() => engine.setMode(mode)}
     >
@@ -641,12 +641,14 @@ function RoundButton({ label, onClick, children, primary = false, disabled = fal
   label: string; onClick: () => void; children: React.ReactNode; primary?: boolean; disabled?: boolean;
 }) {
   return (
+    // 56 px (design D, 19 November 2026: before 48 px), 48 px on phones narrower than 360 px so the five stay on one row.
     <button
+      type="button"
       aria-label={label}
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full disabled:opacity-40"
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full disabled:opacity-40 min-[360px]:h-14 min-[360px]:w-14"
       style={primary ? { background: "var(--accent-bg)", color: "var(--accent-ink)" } : { background: "var(--neutral-bg)" }}
     >
       {children}
@@ -660,16 +662,16 @@ function Controls({ view, engine }: { view: PlayerView; engine: PlayerEngine }) 
   const running = s.status === "running";
   const step = s.mode === "erg" ? "5 W" : "un gradino";
   return (
-    <div className="flex items-center justify-between gap-2 sm:justify-end">
-      <RoundButton label={`Meno ${step}`} onClick={() => engine.adjust(-1)} disabled={done}><IconMinus size={22} /></RoundButton>
-      <div className="flex items-center gap-1 rounded-full px-2" style={{ background: "var(--neutral-bg)" }}>
-        <RoundButton label="Step precedente" onClick={() => engine.skip(-1)} disabled={done || s.status === "ready"}><IconPlayerSkipBack size={22} /></RoundButton>
+    <div className="flex items-center justify-between gap-1.5 sm:justify-end sm:gap-2">
+      <RoundButton label={`Meno ${step}`} onClick={() => engine.adjust(-1)} disabled={done}><IconMinus size={24} aria-hidden /></RoundButton>
+      <div className="flex items-center gap-1 rounded-full px-1" style={{ background: "var(--neutral-bg)" }}>
+        <RoundButton label="Step precedente" onClick={() => engine.skip(-1)} disabled={done || s.status === "ready"}><IconPlayerSkipBack size={24} aria-hidden /></RoundButton>
         <RoundButton label={running ? "Pausa" : "Avvia"} onClick={() => engine.play()} disabled={done} primary>
-          {running ? <IconPlayerPause size={24} /> : <IconPlayerPlay size={24} />}
+          {running ? <IconPlayerPause size={26} aria-hidden /> : <IconPlayerPlay size={26} aria-hidden />}
         </RoundButton>
-        <RoundButton label="Step successivo" onClick={() => engine.skip(1)} disabled={done}><IconPlayerSkipForward size={22} /></RoundButton>
+        <RoundButton label="Step successivo" onClick={() => engine.skip(1)} disabled={done}><IconPlayerSkipForward size={24} aria-hidden /></RoundButton>
       </div>
-      <RoundButton label={`Più ${step}`} onClick={() => engine.adjust(1)} disabled={done}><IconPlus size={22} /></RoundButton>
+      <RoundButton label={`Più ${step}`} onClick={() => engine.adjust(1)} disabled={done}><IconPlus size={24} aria-hidden /></RoundButton>
     </div>
   );
 }
@@ -693,12 +695,12 @@ function ExitSheet({ onSave, onStay, onDiscard }: { onSave: () => void; onStay: 
       <h2 className="text-base font-medium">Vuoi terminare l&apos;allenamento?</h2>
       <p className="mt-1 text-sm text-muted">La seduta registrata finora viene salvata e caricata su Intervals.icu.</p>
       <div className="mt-4 grid grid-cols-1 gap-2">
-        <button className="rounded-xl px-4 py-2.5 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={onSave}>Termina e salva</button>
-        <button className="rounded-xl px-4 py-2.5 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={onStay}>Continua a pedalare</button>
+        <button type="button" className="min-h-12 rounded-xl px-4 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={onSave}>Termina e salva</button>
+        <button type="button" className="min-h-12 rounded-xl px-4 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={onStay}>Continua a pedalare</button>
         {sure ? (
-          <button className="rounded-xl px-4 py-2.5 text-sm font-medium" style={{ background: "var(--critical-bg)", color: "var(--critical)" }} onClick={onDiscard}>Sì, butta la seduta</button>
+          <button type="button" className="min-h-12 rounded-xl px-4 text-sm font-medium" style={{ background: "var(--critical-bg)", color: "var(--critical-ink)" }} onClick={onDiscard}>Sì, butta la seduta</button>
         ) : (
-          <button className="px-4 py-2 text-sm text-muted" onClick={() => setSure(true)}>Esci senza salvare</button>
+          <button type="button" className="min-h-11 px-4 text-sm text-muted" onClick={() => setSure(true)}>Esci senza salvare</button>
         )}
       </div>
     </Sheet>
@@ -712,7 +714,7 @@ function FinishSheet({ view, engine, onClose }: { view: PlayerView; engine: Play
       <Sheet>
         <h2 className="text-base font-medium">Seduta troppo breve</h2>
         <p className="mt-1 text-sm text-muted">Meno di qualche secondo pedalato: non è stata salvata.</p>
-        <button className="mt-4 w-full rounded-xl px-4 py-2.5 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={onClose}>Chiudi</button>
+        <button className="mt-4 w-full min-h-11 rounded-xl px-4 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={onClose}>Chiudi</button>
       </Sheet>
     );
   }
@@ -745,16 +747,16 @@ function FinishSheet({ view, engine, onClose }: { view: PlayerView; engine: Play
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         {uploaded && rec.uploadedId && (
-          <Link href={`/attivita/${rec.uploadedId}`} className="rounded-xl px-4 py-2.5 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
+          <Link href={`/attivita/${rec.uploadedId}`} className="min-h-12 rounded-xl px-4 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
             Apri l&apos;uscita
           </Link>
         )}
         {!uploaded && !view.uploading && (
-          <button className="rounded-xl px-4 py-2.5 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={() => engine.retryUpload()}>Riprova</button>
+          <button className="min-h-11 rounded-xl px-4 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={() => engine.retryUpload()}>Riprova</button>
         )}
-        <button className="rounded-xl px-4 py-2.5 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={() => downloadFit(rec)}>Scarica FIT</button>
+        <button className="min-h-11 rounded-xl px-4 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={() => downloadFit(rec)}>Scarica FIT</button>
         <span className="flex-1" />
-        <button className="rounded-xl px-4 py-2.5 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={onClose}>Chiudi</button>
+        <button className="min-h-11 rounded-xl px-4 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={onClose}>Chiudi</button>
       </div>
     </Sheet>
   );
@@ -795,19 +797,19 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
       <header className="flex items-center gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button aria-label="Chiudi" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={cardStyle} onClick={close}>
-          <IconX size={20} />
+        <button type="button" aria-label="Chiudi la seduta" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={cardStyle} onClick={close}>
+          <IconX size={20} aria-hidden />
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <div className="truncate text-base font-medium">{workout.name} · {shortDuration(workout.totalSecs)}</div>
+          <h1 className="truncate text-base font-medium">{workout.name} · {shortDuration(workout.totalSecs)}</h1>
           <div className="player-wide-only text-xs text-muted">step {s.stepIndex + 1} di {workout.steps.length} · FTP {workout.ftp} W</div>
         </div>
-        <button aria-label={view.sound ? "Spegni i suoni" : "Accendi i suoni"} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={cardStyle} onClick={() => engine.toggleSound()}>
+        <button type="button" aria-label={view.sound ? "Spegni i suoni" : "Accendi i suoni"} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={cardStyle} onClick={() => engine.toggleSound()}>
           {view.sound ? <IconVolume size={20} /> : <IconVolumeOff size={20} />}
         </button>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         {/* Before the start the phone's «Prima di partire» card shows the devices (a dropped one included); after it, the alert. */}
         {s.status === "ready" ? <BeforeStart view={view} engine={engine} /> : <DroppedAlert view={view} engine={engine} />}
         <SprintAlert view={view} />
@@ -828,7 +830,7 @@ export function Player({ workout, onExit }: { workout: PlayerWorkout; onExit: ()
           )}
           <Devices view={view} engine={engine} />
         </div>
-      </main>
+      </div>
 
       <footer className="border-t px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
         {hasSprint && (

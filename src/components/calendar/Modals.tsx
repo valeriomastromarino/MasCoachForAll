@@ -25,7 +25,7 @@ const NIGHT_TEXT: Record<NightLevel, string> = {
 function ErrorLine({ error }: { error: string | null }) {
   if (!error) return null;
   return (
-    <p className="mt-3 rounded-xl px-3 py-2 text-xs" style={{ background: "var(--critical-bg)", color: "var(--critical)" }}>
+    <p className="mt-3 rounded-xl px-3 py-2 text-xs" style={{ background: "var(--critical-bg)", color: "var(--critical-ink)" }}>
       {error}
     </p>
   );
@@ -101,7 +101,7 @@ export function WorkoutModal({ w, onClose, onChanged }: { w: CalendarWorkout; on
             <span className="text-xs text-muted">Eliminarlo da Intervals.icu e dal Garmin?</span>
             <button
               className="rounded-lg px-3 py-1.5 text-xs font-medium"
-              style={{ background: "var(--critical-bg)", color: "var(--critical)" }}
+              style={{ background: "var(--critical-bg)", color: "var(--critical-ink)" }}
               disabled={busy}
               onClick={() => run(`/api/calendar/events/${w.id}`, "DELETE")}
             >
@@ -112,7 +112,7 @@ export function WorkoutModal({ w, onClose, onChanged }: { w: CalendarWorkout; on
             </button>
           </>
         ) : (
-          <button className="flex items-center gap-1.5 px-2 py-1.5 text-xs" style={{ color: "var(--critical)" }} onClick={() => setConfirmDelete(true)} disabled={busy}>
+          <button className="flex items-center gap-1.5 px-2 py-1.5 text-xs" style={{ color: "var(--critical-ink)" }} onClick={() => setConfirmDelete(true)} disabled={busy}>
             <IconTrash size={15} /> Elimina
           </button>
         )}

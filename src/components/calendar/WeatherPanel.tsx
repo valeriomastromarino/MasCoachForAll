@@ -72,7 +72,7 @@ export function WeatherPanel({
           type="button"
           onClick={ask}
           disabled={status === "asking"}
-          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium"
+          className="mt-3 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium"
           style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
         >
           <IconCurrentLocation size={16} aria-hidden /> {status === "asking" ? "Cerco…" : "Usa la posizione"}
@@ -120,7 +120,7 @@ export function WeatherPanel({
                 type="button"
                 role="tab"
                 aria-selected={on}
-                aria-label={`${dayLabel(d.date)}: ${d.label}, ${d.tMax} gradi, vento ${compass(d.windFrom)} ${d.windKmh} chilometri orari`}
+                aria-label={`${dayLabel(d.date, { weekday: "short", day: "numeric", month: "long" })}: ${d.label}, ${d.tMax} gradi, vento ${compass(d.windFrom)} ${d.windKmh} chilometri orari`}
                 onClick={() => setPicked(d.date)}
                 className="rounded-2xl px-0 py-2 text-center"
                 style={{ background: on ? "var(--brand)" : "var(--surface)", color: on ? "var(--on-brand)" : "var(--muted)" }}

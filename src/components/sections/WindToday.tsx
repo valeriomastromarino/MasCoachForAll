@@ -22,7 +22,7 @@ export function WindToday({ today }: { today: string }) {
           type="button"
           onClick={ask}
           disabled={status === "asking"}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium leading-none"
+          className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-medium leading-none"
           style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
         >
           <IconCurrentLocation size={15} aria-hidden /> {status === "asking" ? "Cerco…" : "Usa la posizione"}

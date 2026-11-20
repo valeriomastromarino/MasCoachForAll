@@ -32,16 +32,17 @@ function applyTheme(t: Theme) {
 export function ThemeToggle() {
   const theme = useSyncExternalStore(subscribe, current, () => "day" as Theme);
   return (
-    <div className="inline-flex gap-0.5 rounded-full p-[3px]" style={{ background: "var(--neutral-bg)" }} role="radiogroup" aria-label="Theme">
+    <div className="inline-flex gap-0.5 rounded-full p-[3px]" style={{ background: "var(--neutral-bg)" }} role="radiogroup" aria-label="Tema">
       {THEMES.map((t) => {
         const on = theme === t.id;
         return (
           <button
             key={t.id}
+            type="button"
             role="radio"
             aria-checked={on}
             onClick={() => applyTheme(t.id)}
-            className="rounded-full px-3 py-1 text-xs transition-colors"
+            className="min-h-11 rounded-full px-4 text-sm transition-colors"
             style={{
               background: on ? "var(--surface)" : "transparent",
               color: on ? "var(--foreground)" : "var(--muted)",

@@ -11,7 +11,7 @@ const ANALISI = { id: "analisi", href: "/analisi", label: "Analisi", description
 export default function Altro() {
   const items = [ANALISI, sectionById("rulli"), sectionById("stagione"), sectionById("test"), SETTINGS];
   return (
-    <main className="mx-auto w-full max-w-xl space-y-4 px-4 py-4 sm:py-6">
+    <div className="mx-auto w-full max-w-xl space-y-4 px-4 py-4 sm:py-6">
       <nav aria-label="Altre sezioni" className="card overflow-hidden">
         {items.map((s, i) => {
           const Icon = s.icon;
@@ -27,6 +27,6 @@ export default function Altro() {
           );
         })}
       </nav>
-    </main>
+    </div>
   );
 }

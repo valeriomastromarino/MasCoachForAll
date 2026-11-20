@@ -138,7 +138,7 @@ function Buttons({ onBack, onNext, nextLabel }: { onBack?: () => void; onNext: (
 
 export const Err = ({ text }: { text: string }) =>
   text ? (
-    <p className="mt-3 text-xs" style={{ color: "var(--critical)" }} role="alert">
+    <p className="mt-3 text-xs" style={{ color: "var(--critical-ink)" }} role="alert">
       {text}
     </p>
   ) : null;
@@ -560,7 +560,7 @@ function FirstRun({ needsKey, KeyStep }: { needsKey: boolean; KeyStep?: Componen
     body = (
       <>
         <div className="py-2 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "var(--good-bg)", color: "var(--good-ink)" }}>
             <IconCheck size={24} />
           </div>
           <h2 className="mt-3 text-lg font-medium">Tutto pronto</h2>

@@ -2,51 +2,80 @@
 
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { IconCalendarEvent, IconDots } from "@tabler/icons-react";
+import { IconBike, IconCalendarEvent, IconHome, IconMessageChatbot, IconPlayerPlayFilled } from "@tabler/icons-react";
 import { useCompact } from "@/lib/compact";
+import { useTodayOnTrainer } from "../data/trainingData";
 import { replacePath } from "./replacePath";
 import { isActive, type Section, SECTIONS, SETTINGS } from "./sections";
-import { tabIndex } from "./tabs";
+import { tabIndex, tabPath } from "./tabs";
 import { useCurrentPath } from "./useCurrentPath";
 
-/** Phone app: four big tabs. Everything that isn't today, the calendar, the coach or the rides is under "Altro". */
-const ALTRO = { href: "/altro", label: "Altro", color: "var(--muted)" };
-type Tab = { id: string; href: string; label: string; icon: Section["icon"]; color: string };
-const tabOf = (id: "oggi" | "coach" | "uscite"): Tab => SECTIONS.find((s) => s.id === id)!;
-const CALENDARIO: Tab = { id: "calendario", href: "/calendario", label: "Calendario", icon: IconCalendarEvent, color: "var(--accent-ink)" };
-const tabOn = (s: Tab, pathname: string) => (s.href === "/" ? pathname === "/" : pathname === s.href || pathname.startsWith(s.href + "/"));
+/**
+ * Phone app, design D «Azione» (chosen on 19 November 2026): Oggi · Piano · [Pedala] · Coach · Uscite. «Pedala» is the round
+ * button in the middle, always under the thumb: today's session on the trainer if there is one, the trainer page otherwise.
+ * Analisi, Stagione, Test and Impostazioni (before under «Altro») open from the menu at the top.
+ */
+type Tab = { id: string; href: string; label: string; icon: Section["icon"]; on: (p: string) => boolean };
+const under = (base: string) => (p: string) => p === base || p.startsWith(base + "/");
+const TABS: Tab[] = [
+  { id: "oggi", href: "/", label: "Oggi", icon: IconHome, on: (p) => p === "/" },
+  { id: "piano", href: "/calendario", label: "Piano", icon: IconCalendarEvent, on: (p) => p === "/calendario" || p === "/stagione" },
+  { id: "coach", href: "/coach", label: "Coach", icon: IconMessageChatbot, on: under("/coach") },
+  { id: "uscite", href: "/attivita", label: "Uscite", icon: IconBike, on: under("/attivita") },
+];
+
+function PedalaButton({ pathname }: { pathname: string }) {
+  const today = useTodayOnTrainer();
+  const on = under("/rulli")(pathname);
+  return (
+    // pb-1.5: the label sits on the same line as the others (they are centred in their 52 px).
+    <Link href={today ? `/rulli/${encodeURIComponent(today)}` : "/rulli"} aria-current={on ? "page" : undefined} className="flex flex-1 flex-col items-center gap-1 pb-1.5 text-[12px] font-semibold leading-none" style={{ color: "var(--accent-ink)" }}>
+      <span
+        className="-mt-7 flex h-[58px] w-[58px] items-center justify-center rounded-full"
+        style={{ background: "var(--brand)", color: "var(--on-brand)", boxShadow: on ? "0 0 0 4px var(--accent-bg), 0 6px 16px rgba(0,0,0,0.2)" : "0 6px 16px rgba(0,0,0,0.2)" }}
+        aria-hidden
+      >
+        <IconPlayerPlayFilled size={26} />
+      </span>
+      Pedala
+    </Link>
+  );
+}
 
 function CompactBar({ pathname }: { pathname: string }) {
-  const tabs: Tab[] = [tabOf("oggi"), CALENDARIO, tabOf("coach"), tabOf("uscite")];
-  const inTabs = tabs.some((s) => tabOn(s, pathname));
-  // On one of the five pages the pager slides to the tapped one; from any other page the tap opens it normally.
-  const slide = (href: string) => (e: React.MouseEvent) => {
+  // On one of the pages of the pager it slides to the tapped one; from any other page the tap opens it normally.
+  const slide = (i: number) => (e: React.MouseEvent) => {
     if (tabIndex(pathname) < 0 || e.metaKey || e.ctrlKey) return;
     e.preventDefault();
-    replacePath(href);
+    replacePath(tabPath(i));
   };
-  const tab = "flex h-[3.25rem] flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl text-[11px] leading-none transition-colors";
+  const tab = (s: Tab, i: number) => {
+    const Icon = s.icon;
+    const on = s.on(pathname);
+    return (
+      <Link
+        key={s.id}
+        href={i === 1 ? tabPath(1) : s.href}
+        onClick={slide(i)}
+        className="flex min-h-[3.25rem] flex-1 flex-col items-center justify-center gap-1 rounded-2xl text-[12px] leading-none transition-colors"
+        aria-current={on ? "page" : undefined}
+        style={{ background: on ? "var(--accent-bg)" : undefined, color: on ? "var(--accent-ink)" : "var(--muted)", fontWeight: on ? 600 : 500 }}
+      >
+        <Icon size={24} stroke={on ? 2.1 : 1.7} aria-hidden />
+        <span>{s.label}</span>
+      </Link>
+    );
+  };
   return (
     <nav
       aria-label="Sezioni"
       className="fixed inset-x-0 bottom-0 z-40"
       style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="flex gap-1 px-2 py-1.5">
-        {tabs.map((s) => {
-          const Icon = s.icon;
-          const on = tabOn(s, pathname);
-          return (
-            <Link key={s.id} href={s.href} onClick={slide(s.href)} className={tab} aria-current={on ? "page" : undefined} style={{ background: on ? "var(--accent-bg)" : undefined, color: on ? "var(--accent-ink)" : "var(--muted)" }}>
-              <Icon size={24} stroke={on ? 2.1 : 1.7} aria-hidden />
-              <span>{s.label}</span>
-            </Link>
-          );
-        })}
-        <Link href={ALTRO.href} onClick={slide(ALTRO.href)} className={tab} aria-current={!inTabs ? "page" : undefined} style={{ background: !inTabs ? "var(--accent-bg)" : undefined, color: !inTabs ? "var(--accent-ink)" : "var(--muted)" }}>
-          <IconDots size={24} stroke={!inTabs ? 2.1 : 1.7} aria-hidden />
-          <span>{ALTRO.label}</span>
-        </Link>
+      <div className="flex items-end gap-1 px-2 py-1.5">
+        {TABS.slice(0, 2).map((s, i) => tab(s, i))}
+        <PedalaButton pathname={pathname} />
+        {TABS.slice(2).map((s, i) => tab(s, i + 2))}
       </div>
     </nav>
   );

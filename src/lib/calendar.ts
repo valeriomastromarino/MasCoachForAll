@@ -37,7 +37,12 @@ export type CalendarWorkout = {
   coach: CoachMark | null;
   /** A race (A, B or C) planned on the calendar: for the training engine it is a hard day, like a quality session. */
   race?: boolean;
+  /** The event carries `indoor`: the app writes trainer sessions so, often keeping the library's type «Ride». */
+  indoor?: boolean;
 };
+
+/** A session for the trainer: by its type or by the `indoor` mark (see `eventFromLibrary`). */
+export const onTrainer = (w: Pick<CalendarWorkout, "type" | "indoor">): boolean => w.type === "VirtualRide" || w.indoor === true;
 
 /**
  * A session on the bike, or a race. The calendar also holds strength, Pilates and other sports (the day sheet writes
@@ -122,6 +127,7 @@ export function toCalendarWorkout(e: IcuEvent, ftp: number | null): CalendarWork
     blocks: workoutBlocks(e.workout_doc?.steps, ftp),
     coach: coachMarkOf(e.external_id),
     ...(e.category?.startsWith("RACE_") ? { race: true } : {}),
+    ...(e.indoor === true ? { indoor: true } : {}),
   };
 }
 

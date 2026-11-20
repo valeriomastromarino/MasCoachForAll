@@ -44,7 +44,7 @@ function monthLabel(iso: string): string {
 
 const CATEGORY_BADGE: Partial<Record<ActivityCategory, { label: string; bg: string; ink: string }>> = {
   rulli: { label: "Rulli", bg: "var(--accent-bg)", ink: "var(--accent-ink)" },
-  offroad: { label: "Off-road", bg: "var(--good-bg)", ink: "var(--good)" },
+  offroad: { label: "Off-road", bg: "var(--good-bg)", ink: "var(--good-ink)" },
 };
 
 const pill = "num rounded-full px-2.5 py-0.5 text-xs";
@@ -76,7 +76,7 @@ function RideBubble({ r }: { r: ActivityRow }) {
     <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
       {fmtWeekday(r.date)}
       {r.isTest && (
-        <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
           TEST
         </span>
       )}
@@ -213,7 +213,7 @@ export default function Archive({ section = "uscite", initialFilter = "bici" }: 
   const th = "py-2 font-normal text-faint";
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
+    <div className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
       <SectionHeading id={section} />
       {oldestLoaded && (
         <p className="-mt-3 text-xs text-faint">
@@ -228,20 +228,23 @@ export default function Archive({ section = "uscite", initialFilter = "bici" }: 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Cerca per nome, es. ramp test"
-          className="w-full rounded-full px-4 py-2 text-sm outline-none sm:max-w-xs"
+          aria-label="Cerca un'attività per nome"
+          className="min-h-11 w-full rounded-full px-4 text-sm outline-none sm:max-w-xs"
           style={{ background: "var(--background)", border: "1px solid var(--border)" }}
         />
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quali attività">
           {FILTERS.map((f) => {
             const on = filter === f.id;
             return (
               <button
                 key={f.id}
+                type="button"
+                aria-pressed={on}
                 onClick={() => setFilter(f.id)}
-                className="rounded-full px-3 py-1.5 text-xs"
+                className="min-h-11 rounded-full px-4 text-sm"
                 style={{
                   background: on ? (f.id === "test" ? "var(--warning-bg)" : "var(--accent-bg)") : "var(--background)",
-                  color: on ? (f.id === "test" ? "var(--warning)" : "var(--accent-ink)") : "var(--muted)",
+                  color: on ? (f.id === "test" ? "var(--warning-ink)" : "var(--accent-ink)") : "var(--muted)",
                   fontWeight: on ? 500 : 400,
                 }}
               >
@@ -253,7 +256,7 @@ export default function Archive({ section = "uscite", initialFilter = "bici" }: 
       </div>
 
       {state.error && (
-        <p className="card p-4 text-sm" style={{ color: "var(--critical)" }}>
+        <p className="card p-4 text-sm" style={{ color: "var(--critical-ink)" }}>
           Impossibile leggere le attività: {state.error}
         </p>
       )}
@@ -320,7 +323,7 @@ export default function Archive({ section = "uscite", initialFilter = "bici" }: 
                         {r.isTest && (
                           <span
                             className="ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium"
-                            style={{ background: "var(--warning-bg)", color: "var(--warning)" }}
+                            style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}
                           >
                             TEST
                           </span>
@@ -353,13 +356,13 @@ export default function Archive({ section = "uscite", initialFilter = "bici" }: 
           <button
             onClick={loadMore}
             disabled={state.loading || state.pages.length === 0}
-            className="card px-4 py-2 text-sm disabled:opacity-50"
+            className="card min-h-11 px-5 text-sm disabled:opacity-50"
             style={{ color: "var(--accent-ink)" }}
           >
             {state.loading ? "Carico…" : "Carica i 12 mesi precedenti"}
           </button>
         )}
       </div>
-    </main>
+    </div>
   );
 }

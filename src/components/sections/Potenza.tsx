@@ -33,12 +33,12 @@ export function RecordsTable({ records }: { records: DashboardData["records"] })
               <td className="py-2 text-right">
                 <span className="font-medium">{fmt(r.current, 0, " W")}</span>
                 {record ? (
-                  <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px]" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+                  <span className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px]" style={{ background: "var(--good-bg)", color: "var(--good-ink)" }}>
                     Record
                   </span>
                 ) : (
                   up !== null && (
-                    <span className="ml-1.5 text-[11px]" style={{ color: up >= 0 ? "var(--good)" : "var(--faint)" }}>
+                    <span className="ml-1.5 text-[11px]" style={{ color: up >= 0 ? "var(--good-ink)" : "var(--faint)" }}>
                       {up >= 0 ? "+" : ""}
                       {fmt(up)}
                     </span>

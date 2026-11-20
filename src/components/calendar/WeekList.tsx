@@ -58,8 +58,8 @@ function WorkoutCard({ w, state, onOpen }: { w: CalendarWorkout; state: WorkoutS
       style={{ border: "1.5px dashed var(--faint)", opacity: state === "done" ? 0.65 : 1 }}
     >
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
-        {state === "done" && <IconCheck size={14} style={{ color: "var(--good)" }} aria-label="fatto" />}
-        {state === "missed" && <IconX size={14} style={{ color: "var(--warning)" }} aria-label="non fatto" />}
+        {state === "done" && <IconCheck size={14} style={{ color: "var(--good-ink)" }} aria-label="fatto" />}
+        {state === "missed" && <IconX size={14} style={{ color: "var(--warning-ink)" }} aria-label="non fatto" />}
         <span className="min-w-0 break-words" style={{ textDecoration: state === "missed" ? "line-through" : undefined }}>
           {w.name}
         </span>
@@ -94,10 +94,12 @@ function EventLine({ e }: { e: CalendarEvent }) {
   );
 }
 
-/** Weather and wind of a day, small, under its date. */
+const weatherWords = (w: DayWeather) => `${w.label}, ${w.tMax} gradi, vento ${w.windKmh} chilometri orari`;
+
+/** Weather and wind of a day, small, under its date (read out by the day's button). */
 function DayWeatherLine({ w }: { w: DayWeather }) {
   return (
-    <span className="num mt-1 block text-[11px] text-muted" aria-label={`${w.label}, ${w.tMax} gradi, vento ${w.windKmh} chilometri orari`}>
+    <span className="num mt-1 block text-[11px] text-muted" aria-hidden>
       <span className="flex items-center gap-0.5">
         <WeatherIcon kind={w.kind} size={14} />
         {w.tMax}°
@@ -162,7 +164,7 @@ export function WeekList({
           const isToday = d === today;
           const empty = !x.acts.length && !x.plans.length;
           const nightLine = night && (
-            <button onClick={() => onOpenDay(d)} className="num -my-1.5 flex min-h-7 items-center gap-1.5 text-[11px] leading-none text-muted">
+            <button type="button" onClick={() => onOpenDay(d)} className="num -my-2.5 flex min-h-11 items-center gap-1.5 text-[11px] leading-none text-muted">
               <span className="h-2 w-2 rounded-full" style={{ background: NIGHT_COLOR[night.level] }} />
               HRV {fmt(night.hrv, 0)} · FC {fmt(night.rhr)}
               {night.sleepHours !== null && ` · ${fmtDuration(night.sleepHours * 3600)}`}
@@ -171,7 +173,13 @@ export function WeekList({
           return (
             <div key={d} className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-3 py-1">
               {/* self-start: a button centres its content, so the day used to float halfway down a tall day. */}
-              <button onClick={() => onOpenDay(d)} className="self-start pt-2 text-left" aria-label={dayLabel(d)}>
+              {/* The name begins with what the button shows («Mer 19»), then the month and the weather. */}
+              <button
+                type="button"
+                onClick={() => onOpenDay(d)}
+                className="self-start pt-2 text-left"
+                aria-label={`${dayLabel(d, { weekday: "short", day: "numeric", month: "long" })}${weather?.get(d) ? `, ${weatherWords(weather.get(d)!)}` : ""}`}
+              >
                 <span className="block text-xs leading-none" style={{ color: isToday ? "var(--accent-ink)" : "var(--muted)" }}>
                   {dayLabel(d, { weekday: "short" })}
                 </span>
@@ -218,7 +226,7 @@ export function WeekList({
                     {d >= today && (
                       <button
                         onClick={() => onOpenDay(d)}
-                        className="inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs leading-none text-muted"
+                        className="inline-flex h-11 items-center gap-1 rounded-full px-4 text-sm leading-none text-muted"
                         style={{ border: "1px solid var(--border)" }}
                       >
                         <IconPlus size={14} aria-hidden /> Aggiungi

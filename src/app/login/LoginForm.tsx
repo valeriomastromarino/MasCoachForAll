@@ -25,7 +25,7 @@ export function LoginFields({ next, error }: { next: string; error: boolean }) {
         />
       </label>
       {error && (
-        <p className="mt-2 text-xs" style={{ color: "var(--critical)" }}>
+        <p className="mt-2 text-xs" style={{ color: "var(--critical-ink)" }}>
           Password sbagliata, riprova.
         </p>
       )}

@@ -22,6 +22,26 @@ export function intervalsConfigured(): boolean {
   return Boolean(apiKey());
 }
 
+/**
+ * What a refused request means, in words the athlete can act on, with the code at the end for whoever has to look into it
+ * (rules of A, 19 November 2026: the pages showed «Intervals.icu 401 su /athlete/…: {"status":401…}»). `body` is the
+ * reply of Intervals.icu: kept only where it says what was wrong with the request itself (400, 409, 422).
+ */
+export function icuErrorText(status: number, body = ""): string {
+  const code = `(errore ${status})`;
+  const said = body.replace(/\s+/g, " ").trim().slice(0, 160);
+  if (status === 401) return `Intervals.icu non accetta la chiave API: controlla che sia giusta ${code}.`;
+  if (status === 403) return `Intervals.icu non dà il permesso per questa richiesta: controlla la chiave API e l'ID atleta ${code}.`;
+  if (status === 404) return `Intervals.icu non trova quello che ho chiesto: forse è stato cancellato o spostato ${code}.`;
+  if (status === 429) return `Intervals.icu sta ricevendo troppe richieste: riprova tra un minuto ${code}.`;
+  if (status >= 500) return `Intervals.icu ha un problema in questo momento: riprova tra poco ${code}.`;
+  if (status === 400 || status === 409 || status === 422) return `Intervals.icu ha rifiutato la richiesta${said ? `: ${said}` : ""} ${code}.`;
+  return `Intervals.icu non ha accettato la richiesta ${code}.`;
+}
+
+/** fetch fails with a TypeError when there is no network or the address cannot be reached. */
+const OFFLINE = "Non riesco a raggiungere Intervals.icu: controlla la connessione e riprova.";
+
 async function icu<T>(
   path: string,
   params: Record<string, string> = {},
@@ -36,6 +56,7 @@ async function icu<T>(
     if (e instanceof DOMException && e.name === "TimeoutError") {
       throw new Error("Intervals.icu non ha risposto in tempo. Di solito basta riprovare.");
     }
+    if (e instanceof TypeError) throw new Error(OFFLINE);
     throw e;
   }
 }
@@ -60,10 +81,7 @@ async function icuRequest<T>(
     },
     body: write?.body !== undefined ? JSON.stringify(write.body) : undefined,
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Intervals.icu ${res.status} su ${path}: ${body.slice(0, 200)}`);
-  }
+  if (!res.ok) throw new Error(icuErrorText(res.status, await res.text().catch(() => "")));
   const text = await res.text();
   return (text ? JSON.parse(text) : null) as T;
 }
@@ -242,8 +260,13 @@ export async function uploadActivity(
     signal: AbortSignal.timeout(60_000),
     headers: { Authorization: `Basic ${btoa(`API_KEY:${apiKey()}`)}`, Accept: "application/json" },
     body: form,
+  }).catch((e: unknown) => {
+    // The session stays on the device and is sent again later: say why in words.
+    if (e instanceof DOMException && e.name === "TimeoutError") throw new Error("Intervals.icu non ha risposto in tempo: riprovo più tardi.");
+    if (e instanceof TypeError) throw new Error(OFFLINE);
+    throw e;
   });
-  if (!res.ok) throw new Error(`Intervals.icu ${res.status} sul caricamento: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+  if (!res.ok) throw new Error(`Caricamento non riuscito. ${icuErrorText(res.status, await res.text().catch(() => ""))}`);
   invalidate("calendar:");
   const created = (await res.json().catch(() => [])) as { id?: string }[];
   return created[0]?.id ?? null;

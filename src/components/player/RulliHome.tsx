@@ -5,7 +5,9 @@
 import { IconDownload, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { bluetoothProblem } from "@/lib/ble/devices";
-import type { CalendarData, CalendarWorkout } from "@/lib/calendar";
+import { type CalendarData, type CalendarWorkout, onTrainer } from "@/lib/calendar";
+import { setCoachPrefill } from "@/lib/coach/chat/prefill";
+import { openCoach } from "../nav/openCoach";
 import type { WorkoutBlock } from "@/lib/workout";
 import { addDays, toIsoDate } from "@/lib/dates";
 import { DEMO_WORKOUT_ID } from "@/lib/player/load";
@@ -49,10 +51,10 @@ function WorkoutRow({ w, today }: { w: CalendarWorkout; today: string }) {
           {w.date === today ? "Oggi" : fmtWeekday(w.date)}
           {w.secs !== null && ` · ${fmtDuration(w.secs)}`}
           {w.tss !== null && ` · ${fmt(w.tss)} TSS`}
-          {w.type === "VirtualRide" ? " · rulli" : ""}
+          {onTrainer(w) ? " · rulli" : ""}
         </div>
       </div>
-      <PedalaLink id={w.id} />
+      <PedalaLink id={w.id} label={w.name} />
     </li>
   );
 }
@@ -71,17 +73,18 @@ function SessionRow({ r, onChange }: { r: Recording; onChange: () => void }) {
           {fmtWeekday(new Date(r.startedAt).toISOString())} · {fmtClock(s.secs)} · {fmt(s.avgPower, 0, " W")}
           {r.status === "recording" ? " · interrotta" : ""}
         </div>
-        {r.error && r.status !== "uploaded" && <div className="text-xs" style={{ color: "var(--warning)" }}>{r.error}</div>}
+        {r.error && r.status !== "uploaded" && <div className="text-xs" style={{ color: "var(--warning-ink)" }}>{r.error}</div>}
         {onIntervals && (
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full px-2 py-0.5 text-[10.5px]" style={{ background: "var(--good-bg)", color: "var(--good)" }}>✓ Intervals</span>
+            <span className="rounded-full px-2 py-0.5 text-[10.5px]" style={{ background: "var(--good-bg)", color: "var(--good-ink)" }}>✓ Intervals</span>
             <span className="rounded-full px-2 py-0.5 text-[10.5px]" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>Strava da mandare</span>
             {r.strava?.error && <span className="text-[11px] text-muted">{r.strava.error}</span>}
           </div>
         )}
       </div>
       <button
-        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium disabled:opacity-50"
+        type="button"
+        className="flex min-h-11 items-center gap-1.5 rounded-xl px-3.5 text-sm font-medium disabled:opacity-50"
         style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
         disabled={busy}
         onClick={async () => {
@@ -93,20 +96,21 @@ function SessionRow({ r, onChange }: { r: Recording; onChange: () => void }) {
           onChange();
         }}
       >
-        <IconUpload size={14} /> {busy ? (onIntervals ? "Mando…" : "Carico…") : onIntervals ? "Riprova" : "Carica"}
+        <IconUpload size={16} aria-hidden /> {busy ? (onIntervals ? "Mando…" : "Carico…") : onIntervals ? "Riprova" : "Carica"}
       </button>
-      <button className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs" style={{ background: "var(--neutral-bg)" }} onClick={() => downloadFit(r)}>
-        <IconDownload size={14} /> FIT
+      <button type="button" className="flex min-h-11 items-center gap-1.5 rounded-xl px-3.5 text-sm" style={{ background: "var(--neutral-bg)" }} onClick={() => downloadFit(r)} aria-label={`FIT: scarica il file di ${r.name}`}>
+        <IconDownload size={16} aria-hidden /> FIT
       </button>
       <button
-        aria-label="Elimina la seduta"
-        className="rounded-lg p-1.5 text-muted"
+        type="button"
+        aria-label={`Elimina la seduta ${r.name}`}
+        className="flex h-11 w-11 items-center justify-center rounded-xl text-muted"
         onClick={async () => {
           await deleteRecording(r.id);
           onChange();
         }}
       >
-        <IconTrash size={15} />
+        <IconTrash size={18} aria-hidden />
       </button>
     </li>
   );
@@ -160,8 +164,10 @@ export default function RulliHome() {
 
   const next = workouts[0];
   const rest = compact ? workouts.slice(1, 4) : workouts;
+  /** The calendar was read and holds nothing to ride. */
+  const empty = !!cal && !("error" in cal) && workouts.length === 0;
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
+    <div className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
       <SectionHeading id="rulli" />
       {problem && (
         <p className="max-w-2xl rounded-2xl px-4 py-3 text-sm" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
@@ -174,14 +180,32 @@ export default function RulliHome() {
           <div className="text-[11px] font-medium uppercase leading-none tracking-wider opacity-80">{next.date === today ? "Oggi" : fmtWeekday(next.date)}</div>
           <div className="mt-2 text-xl font-medium leading-tight">{next.name}</div>
           <div className="num mt-1 text-xs opacity-85">
-            {[next.secs !== null ? fmtDuration(next.secs) : null, next.tss !== null ? `${fmt(next.tss)} TSS` : null, next.type === "VirtualRide" ? "rulli" : null].filter(Boolean).join(" · ")}
+            {[next.secs !== null ? fmtDuration(next.secs) : null, next.tss !== null ? `${fmt(next.tss)} TSS` : null, onTrainer(next) ? "rulli" : null].filter(Boolean).join(" · ")}
           </div>
           <MiniProfile blocks={next.blocks} height={44} onBrand className="mt-3" />
-          <PedalaLink id={next.id} className="mt-4 !h-11 w-full !text-sm" tone="onBrand" />
+          <PedalaLink id={next.id} label={next.name} className="mt-4 !h-14 w-full !text-base" tone="onBrand" />
+        </section>
+      )}
+      {/* Phone app: nothing to ride in the next days. The round «Pedala» of the bar lands here, so the page says what can be done. */}
+      {compact && empty && (
+        <section className="card p-5">
+          <h2 className="text-base font-semibold">Niente da pedalare nei prossimi 7 giorni</h2>
+          <p className="mt-1 text-sm text-muted">Chiedi una seduta al coach, per esempio «oggi sui rulli 60′ Z2», o prova il rullo con la seduta di 14 minuti.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => (setCoachPrefill("Oggi sui rulli "), openCoach())}
+              className="inline-flex min-h-11 items-center rounded-full px-4 text-sm font-semibold"
+              style={{ background: "var(--brand)", color: "var(--on-brand)" }}
+            >
+              Chiedi al coach
+            </button>
+            <PedalaLink id={DEMO_WORKOUT_ID} text="Prova del rullo" />
+          </div>
         </section>
       )}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="card p-5">
+        {!(compact && empty) && <section className="card p-5">
           <h2 className="text-sm font-medium">{compact && next ? "Prossimi giorni" : "Allenamenti dei prossimi giorni"}</h2>
           {!cal ? (
             <p className="mt-2 text-sm text-muted">Carico il calendario…</p>
@@ -198,14 +222,14 @@ export default function RulliHome() {
               ))}
             </ul>
           )}
-        </section>
+        </section>}
         <div className="space-y-4">
           {(!compact || more) && (<section className="card p-5">
             <h2 className="text-sm font-medium">Prova del rullo</h2>
             <p className="mt-1 text-sm text-muted">
               14 minuti per controllare rullo, fascia cardio, ERG e resistenza: riscaldamento, tre cambi di potenza da 1′ e defaticamento.
             </p>
-            <PedalaLink id={DEMO_WORKOUT_ID} className="mt-3" />
+            <PedalaLink id={DEMO_WORKOUT_ID} label="Prova del rullo" className="mt-3" />
           </section>)}
           <section className="card p-5">
             <h2 className="text-sm font-medium">Sedute su questo dispositivo</h2>
@@ -240,12 +264,12 @@ export default function RulliHome() {
             </ul>
           </section>)}
           {compact && !more && (
-            <button type="button" onClick={() => setMore(true)} className="card w-full px-4 py-3 text-left text-sm text-muted">
-              Prova del rullo e istruzioni
+            <button type="button" onClick={() => setMore(true)} aria-expanded={false} className="card min-h-12 w-full px-4 py-3 text-left text-sm text-muted">
+              {empty ? "Istruzioni" : "Prova del rullo e istruzioni"}
             </button>
           )}
         </div>
       </div>
-    </main>
+    </div>
   );
 }

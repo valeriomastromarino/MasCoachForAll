@@ -2,13 +2,14 @@
 
 // Phone app: Forma, Potenza, Cuore and Recupero as the tabs of one page (the full app keeps four pages).
 // The tall ones (Potenza, Cuore, Recupero) open cut short, with a button for the rest.
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Segmented } from "../nav/Segmented";
 import Cuore from "./Cuore";
 import Forma from "./Forma";
 import Potenza from "./Potenza";
 import Recupero from "./Recupero";
+import { PageTitle } from "./SectionPage";
 
 const TABS = [
   { id: "forma", label: "Forma", href: "/analisi", View: Forma },
@@ -45,7 +46,7 @@ function Clamp({ children, reset }: { children: React.ReactNode; reset: string }
       {/* px-4 like the page above: the button used to run from edge to edge of the screen, wider than the cards. */}
       {state.tall && (
         <div className="px-4 pb-4">
-          <button type="button" onClick={() => setState({ key: reset, open: !open, tall: true })} className="card mt-3 w-full px-4 py-2.5 text-sm text-muted">
+          <button type="button" onClick={() => setState({ key: reset, open: !open, tall: true })} aria-expanded={open} className="card mt-3 min-h-11 w-full px-4 py-2.5 text-sm text-muted">
             {open ? "Mostra meno" : "Mostra tutto"}
           </button>
         </div>
@@ -77,19 +78,12 @@ export default function Analisi() {
   };
   return (
     <div className="mx-auto w-full max-w-6xl" onTouchStart={onStart} onTouchEnd={onEnd}>
-      <nav aria-label="Analisi" className="flex gap-1.5 overflow-x-auto px-4 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {TABS.map((t) => (
-          <Link
-            key={t.id}
-            href={t.href}
-            aria-current={t.id === tab.id ? "page" : undefined}
-            className="shrink-0 rounded-full px-4 py-1.5 text-sm"
-            style={{ background: t.id === tab.id ? "var(--accent-bg)" : "transparent", color: t.id === tab.id ? "var(--accent-ink)" : "var(--muted)", border: `1px solid ${t.id === tab.id ? "var(--accent-ink)" : "var(--border)"}` }}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
+      {/* The page's title and the four views with the same switch as Piano (design D with the rules of A, 19 November 2026).
+          A view replaces the address: «Indietro» goes back to where Analisi was opened from, not through the views. */}
+      <div className="space-y-3 px-4 pt-4">
+        <PageTitle>Analisi</PageTitle>
+        <Segmented label="Vista dell'analisi" items={[...TABS]} current={tab.id} onPick={(t) => router.replace(t.href)} />
+      </div>
       <Clamp reset={tab.id}>
         <View />
       </Clamp>

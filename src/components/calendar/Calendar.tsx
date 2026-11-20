@@ -106,8 +106,8 @@ function WorkoutChip({ w, state, onOpen }: { w: CalendarWorkout; state: WorkoutS
       title={`${w.name} · trascina per spostarlo`}
     >
       <span className="num flex items-center gap-1 font-medium">
-        {state === "done" && <IconCheck size={12} style={{ color: "var(--good)" }} aria-label="fatto" />}
-        {state === "missed" && <IconX size={12} style={{ color: "var(--warning)" }} aria-label="non fatto" />}
+        {state === "done" && <IconCheck size={12} style={{ color: "var(--good-ink)" }} aria-label="fatto" />}
+        {state === "missed" && <IconX size={12} style={{ color: "var(--warning-ink)" }} aria-label="non fatto" />}
         {w.tss !== null ? `${fmt(w.tss)} TSS` : ""}
         {w.tss !== null && w.secs !== null ? " · " : ""}
         {w.secs !== null ? fmtDuration(w.secs) : ""}
@@ -211,7 +211,7 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
     `${dayLabel(from, { day: "numeric", month: "short" })} – ${dayLabel(to, { day: "numeric", month: "short", year: "numeric" })}`;
   const rangeLabel = span(start, end);
   const phoneWeek = weeks[PHONE_WEEK];
-  const btn = "card flex h-8 items-center justify-center px-2.5 text-xs disabled:opacity-50";
+  const btn = "card flex h-11 min-w-11 items-center justify-center px-3 text-sm disabled:opacity-50";
 
   return (
     <section className="card min-w-0 p-4 sm:p-5">
@@ -243,12 +243,12 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
         </span>
       </div>
       {data && "error" in data && !loading && (
-        <p className="mt-3 text-xs" style={{ color: "var(--critical)" }}>
+        <p className="mt-3 text-xs" style={{ color: "var(--critical-ink)" }}>
           Impossibile leggere il calendario: {data.error}
         </p>
       )}
       {dropError && (
-        <p className="mt-3 text-xs" style={{ color: "var(--critical)" }}>
+        <p className="mt-3 text-xs" style={{ color: "var(--critical-ink)" }}>
           Spostamento non riuscito: {dropError}
         </p>
       )}
@@ -311,7 +311,8 @@ export function Calendar({ dashboard }: { dashboard: DashboardData }) {
                       outline: isToday ? "1.5px solid var(--accent-ink)" : undefined,
                       opacity: loading ? 0.6 : 1,
                     }}
-                    aria-label={dayLabel(d)}
+                    // Begins with what the cell shows (the day's number): «19 novembre, mercoledì».
+                    aria-label={`${num} ${dayLabel(d, { month: "long" }).toLowerCase()}, ${dayLabel(d, { weekday: "long" }).toLowerCase()}`}
                   >
                     <div className="flex items-center gap-1 text-[11px]">
                       <span className={isToday ? "font-medium" : "text-muted"}>

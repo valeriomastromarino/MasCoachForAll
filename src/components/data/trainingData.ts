@@ -4,7 +4,7 @@
 // workouts on the next days, the calendar's holidays/illness/injuries, the history, and what the athlete asked for today.
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { CalendarData, HistoryData } from "@/lib/api/handlers";
-import { isBikeSession, type LibraryWorkout } from "@/lib/calendar";
+import { isBikeSession, type LibraryWorkout, onTrainer } from "@/lib/calendar";
 import { parseOverrides, OVERRIDES_EVENT, overridesSnapshot } from "@/lib/coach/chat/store";
 import type { TodayOverrides } from "@/lib/coach/chat/context";
 import { addDays } from "@/lib/dates";
@@ -98,6 +98,15 @@ export function usePlanned(today: string, ftp: number | null): CalendarData["wor
     }
   }, [key]);
   return v.key === key ? v.list : null;
+}
+/**
+ * Today's session on the trainer, if the calendar of the coming days is already loaded (by the day's card): the «Pedala» button
+ * of the bar opens it straight away. Loads nothing by itself.
+ */
+export function useTodayOnTrainer(): string | null {
+  const v = useSyncExternalStore(planned.subscribe, planned.get, () => ({ key: "", list: null }));
+  const today = v.key.split("|")[0];
+  return v.list?.find((w) => w.date === today && onTrainer(w) && w.blocks.length > 0)?.id ?? null;
 }
 /** After the chat or a button changed the calendar. */
 export function refreshPlanned() {

@@ -45,7 +45,7 @@ export function TipBox({ title, rows, note }: { title: string; rows: Row[]; note
           <span className="num ml-auto pl-4 text-foreground">{r.value}</span>
         </div>
       ))}
-      {note && <div className="mt-1 font-medium" style={{ color: "var(--critical)" }}>{note}</div>}
+      {note && <div className="mt-1 font-medium" style={{ color: "var(--critical-ink)" }}>{note}</div>}
     </div>
   );
 }

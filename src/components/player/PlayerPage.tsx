@@ -32,7 +32,7 @@ export default function PlayerPage() {
   if (!current) return <div className="p-6 text-sm text-muted">Carico l&apos;allenamento…</div>;
   if ("error" in current) {
     return (
-      <main className="mx-auto w-full max-w-xl space-y-3 px-4 py-6">
+      <div className="mx-auto w-full max-w-xl space-y-3 px-4 py-6">
         <div className="card p-5">
           <div className="text-sm font-medium">Allenamento non disponibile</div>
           <p className="mt-1 text-sm text-muted">{current.error}</p>
@@ -40,7 +40,7 @@ export default function PlayerPage() {
             Torna a Rulli
           </button>
         </div>
-      </main>
+      </div>
     );
   }
   return <Player workout={current.workout} onExit={() => router.push("/rulli")} />;

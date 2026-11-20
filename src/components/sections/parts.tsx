@@ -36,10 +36,11 @@ export function Stat({ label, value, hint, color }: { label: string; value: stri
   );
 }
 
+// The inks are the dark ones, readable on their own backgrounds (--good on --good-bg was 3,7:1; review of 19 November 2026).
 export const LEVEL_STYLE: Record<ReadinessLevel, { ink: string; bg: string; icon: string }> = {
-  verde: { ink: "var(--good)", bg: "var(--good-bg)", icon: "✓" },
-  giallo: { ink: "var(--warning)", bg: "var(--warning-bg)", icon: "!" },
-  rosso: { ink: "var(--critical)", bg: "var(--critical-bg)", icon: "✕" },
+  verde: { ink: "var(--good-ink)", bg: "var(--good-bg)", icon: "✓" },
+  giallo: { ink: "var(--warning-ink)", bg: "var(--warning-bg)", icon: "!" },
+  rosso: { ink: "var(--critical-ink)", bg: "var(--critical-bg)", icon: "✕" },
   grigio: { ink: "var(--muted)", bg: "var(--neutral-bg)", icon: "?" },
 };
 
@@ -91,42 +92,33 @@ function YesterdayRides({ rides, load }: { rides: ActivityRow[]; load: number })
 /** How far along the readiness scale each level sits (the bar shows the level, not a measured percentage). */
 const READINESS_SHARE: Record<ReadinessLevel, number> = { verde: 1, giallo: 0.6, rosso: 0.25, grigio: 0 };
 
-/** Today's verdict on the brand colour: the level in words, a bar along Recupero → Riduci → Pronto and the advice. */
-export function ReadinessHero({ status, size = "full", children }: { status: DashboardData["status"]; size?: "full" | "short"; children?: React.ReactNode }) {
+/**
+ * Today's verdict in one line (phone app, design D with the rules of A, 19 November 2026): the level's mark, the verdict and its
+ * reason; the workout comes right after it. A tap opens Recupero, where the reasons are.
+ */
+export function ReadinessLine({ status }: { status: DashboardData["status"] }) {
+  const r = status.readiness;
+  const s = LEVEL_STYLE[r.level];
+  return (
+    <Link href="/analisi/recupero" className="card flex min-h-14 items-center gap-3 px-4 py-2.5" aria-label={`${r.headline}: ${r.advice} Apri Recupero`}>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold" style={{ background: s.bg, color: s.ink }} aria-hidden>
+        {s.icon}
+      </span>
+      <span className="min-w-0 flex-1 text-sm leading-snug">
+        <b className="font-semibold">{r.headline}</b>
+        <span className="text-muted"> · {r.advice}</span>
+      </span>
+    </Link>
+  );
+}
+
+/**
+ * Today's verdict on the brand colour: the level in words, a bar along Recupero → Riduci → Pronto and the advice. The phone
+ * app shows `ReadinessLine` instead (its slim version of this card was dropped with design D, 19 November 2026).
+ */
+export function ReadinessHero({ status, children }: { status: DashboardData["status"]; children?: React.ReactNode }) {
   const r = status.readiness;
   const share = READINESS_SHARE[r.level];
-  // Slim version (phone app): icon, verdict and level on one line, the bar under it, one short paragraph. No scale labels.
-  if (size === "short") {
-    return (
-      <section className="rounded-[20px] px-4 py-3.5" style={{ background: "var(--brand)", color: "var(--on-brand)" }} aria-label="Stato di oggi">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base font-medium"
-            style={{ background: "var(--on-brand)", color: "var(--brand)" }}
-            aria-hidden
-          >
-            {LEVEL_STYLE[r.level].icon}
-          </span>
-          {/* The verdict alone: the level label next to it only repeated the same word ("Pronto … pronto"). */}
-          <div className="min-w-0 flex-1 text-2xl font-medium leading-none tracking-tight">{r.headline}</div>
-        </div>
-        <div
-          className="mt-3 h-2 overflow-hidden rounded-full"
-          style={{ background: "color-mix(in srgb, var(--on-brand) 28%, transparent)" }}
-          role="meter"
-          aria-label="Prontezza"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(share * 100)}
-          aria-valuetext={r.headline}
-        >
-          <div className="h-full rounded-full transition-[width]" style={{ width: `${share * 100}%`, background: "var(--on-brand)" }} />
-        </div>
-        <p className="mt-2.5 text-[13px] leading-snug opacity-95">{r.advice}</p>
-        {children}
-      </section>
-    );
-  }
   return (
     <section className="rounded-[24px] p-5" style={{ background: "var(--brand)", color: "var(--on-brand)" }} aria-label="Stato di oggi">
       <div className="text-[10px] font-medium uppercase tracking-[0.1em] opacity-85">Stato di oggi</div>
@@ -202,13 +194,13 @@ const MATRIX: { pattern: AutonomicPattern; label: string }[][] = [
 ];
 
 const CELL_TONE: Record<AutonomicPattern, { bg: string; ink: string }> = {
-  stabile: { bg: "var(--good-bg)", ink: "var(--good)" },
-  adattamento_positivo: { bg: "var(--good-bg)", ink: "var(--good)" },
-  hrv_alto: { bg: "var(--good-bg)", ink: "var(--good)" },
-  hrv_basso: { bg: "var(--warning-bg)", ink: "var(--warning)" },
-  fc_alta: { bg: "var(--warning-bg)", ink: "var(--warning)" },
-  saturazione: { bg: "var(--warning-bg)", ink: "var(--warning)" },
-  stress: { bg: "var(--critical-bg)", ink: "var(--critical)" },
+  stabile: { bg: "var(--good-bg)", ink: "var(--good-ink)" },
+  adattamento_positivo: { bg: "var(--good-bg)", ink: "var(--good-ink)" },
+  hrv_alto: { bg: "var(--good-bg)", ink: "var(--good-ink)" },
+  hrv_basso: { bg: "var(--warning-bg)", ink: "var(--warning-ink)" },
+  fc_alta: { bg: "var(--warning-bg)", ink: "var(--warning-ink)" },
+  saturazione: { bg: "var(--warning-bg)", ink: "var(--warning-ink)" },
+  stress: { bg: "var(--critical-bg)", ink: "var(--critical-ink)" },
   discordante: { bg: "var(--neutral-bg)", ink: "var(--muted)" },
   dati_insufficienti: { bg: "var(--neutral-bg)", ink: "var(--muted)" },
 };
@@ -289,7 +281,7 @@ function AnomalousNights({ dates }: { dates: string[] }) {
         <>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {dates.map((d) => (
-              <span key={d} className="rounded-full px-2 py-0.5" style={{ background: "var(--critical-bg)", color: "var(--critical)" }}>
+              <span key={d} className="rounded-full px-2 py-0.5" style={{ background: "var(--critical-bg)", color: "var(--critical-ink)" }}>
                 {fmtDay(d)}
               </span>
             ))}

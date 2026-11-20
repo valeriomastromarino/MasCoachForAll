@@ -5,12 +5,29 @@ import type { DashboardData } from "@/lib/dashboard";
 import { refreshAll, useDashboard } from "../data/remote";
 import { sectionById, type SectionId } from "../nav/sections";
 
+/**
+ * The title of a page of the phone app: one h1 per page, the same size everywhere (design D with the rules of A, 19 November
+ * 2026; before, the page name was only in the pill at the top and screen readers found no title).
+ */
+export function PageTitle({ children, sub }: { children: React.ReactNode; sub?: React.ReactNode }) {
+  return (
+    <header>
+      {sub && <p className="text-sm text-muted">{sub}</p>}
+      <h1 className="text-[26px] font-semibold leading-tight tracking-tight">{children}</h1>
+    </header>
+  );
+}
+
+/** Names of the pages in the phone app where they differ from the full app (the trainer is «Pedala», the button that opens it). */
+const COMPACT_TITLE: Partial<Record<SectionId, string>> = { rulli: "Pedala" };
+/** Tabs of Analisi on the phone app: the page has its own title. */
+const UNDER_ANALISI: SectionId[] = ["oggi", "forma", "potenza", "cuore", "recupero"];
+
 export function SectionHeading({ id }: { id: SectionId }) {
   const compact = useCompact();
   const s = sectionById(id);
   const Icon = s.icon;
-  // Phone app: the pill under the logo already names the page (and goes back to "Altro").
-  if (compact) return null;
+  if (compact) return UNDER_ANALISI.includes(id) ? null : <PageTitle>{COMPACT_TITLE[id] ?? s.label}</PageTitle>;
   return (
     <header className="flex items-center gap-3">
       <span
@@ -28,17 +45,30 @@ export function SectionHeading({ id }: { id: SectionId }) {
   );
 }
 
-/** Frame of a dashboard section: heading, shared data loading and error handling. */
-export function SectionPage({ id, heading = true, children }: { id: SectionId; heading?: boolean; children: (data: DashboardData) => React.ReactNode }) {
+/**
+ * Frame of a dashboard section: heading, shared data loading and error handling. `title` replaces the heading and stays in view
+ * while the data load (the «Piano» page: title and the switch between week and season).
+ */
+export function SectionPage({
+  id,
+  heading = true,
+  title,
+  children,
+}: {
+  id: SectionId;
+  heading?: boolean;
+  title?: React.ReactNode;
+  children: (data: DashboardData) => React.ReactNode;
+}) {
   const { data, error } = useDashboard();
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
-      {heading && <SectionHeading id={id} />}
+    <div className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
+      {title ?? (heading && <SectionHeading id={id} />)}
       {error && !data ? (
-        <div className="card max-w-xl p-5">
-          <h2 className="font-medium">Impossibile leggere i dati</h2>
+        <div className="card max-w-xl p-5" role="alert">
+          <h2 className="font-medium">Non riesco a leggere i dati</h2>
           <p className="mt-2 text-sm text-muted">{error}</p>
-          <button className="card mt-4 px-3 py-1.5 text-sm" onClick={() => refreshAll()}>
+          <button type="button" className="mt-4 inline-flex min-h-11 items-center rounded-full px-5 text-sm font-medium" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }} onClick={() => refreshAll()}>
             Riprova
           </button>
         </div>
@@ -47,6 +77,6 @@ export function SectionPage({ id, heading = true, children }: { id: SectionId; h
       ) : (
         children(data)
       )}
-    </main>
+    </div>
   );
 }

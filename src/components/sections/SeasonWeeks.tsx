@@ -203,7 +203,7 @@ export function SeasonWeeks({ data, setup, plan }: { data: DashboardData; setup:
           <span className="text-[11px] text-muted">tocca una settimana</span>
         </div>
         {/* Phones scroll the strip with the finger; with a mouse (sm and up) a thin scrollbar shows that it scrolls. */}
-        <div ref={strip} className="flex items-end gap-0.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:[scrollbar-width:thin]" role="tablist" aria-label="Settimane della stagione">
+        <div ref={strip} className="flex items-end gap-0.5 overflow-x-auto overscroll-x-contain px-3 pb-1 [scrollbar-width:none] sm:[scrollbar-width:thin]" role="tablist" aria-label="Settimane della stagione">
           {plan.weeks.map((w, i) => {
             const first = i === 0 || mon(w.start) !== mon(plan.weeks[i - 1].start);
             const light = w.kind !== "carico" || setup.lightWeeks?.includes(w.start);
@@ -326,7 +326,7 @@ export function SeasonWeeks({ data, setup, plan }: { data: DashboardData; setup:
             <div className="mt-4 space-y-2">
               {(() => {
                 const todo = view.days.filter((d) => (d.kind === "prop" || d.kind === "mine") && d.date >= today);
-                if (!todo.length) return <p className="flex items-center gap-1.5 text-xs text-muted"><IconCheck size={14} style={{ color: "var(--good)" }} aria-hidden />Niente da programmare: è già tutto su Intervals.</p>;
+                if (!todo.length) return <p className="flex items-center gap-1.5 text-xs text-muted"><IconCheck size={14} style={{ color: "var(--good-ink)" }} aria-hidden />Niente da programmare: è già tutto su Intervals.</p>;
                 if (!near(pw.start)) return <p className="text-xs text-muted">Bozza: si programma su Intervals da 2 settimane prima. Quello che scegli tu resta fisso.</p>;
                 return (
                   <button type="button" disabled={!!busy} onClick={() => void schedule(view, todo)} className="h-10 w-full rounded-full text-sm font-semibold disabled:opacity-60" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
@@ -413,9 +413,9 @@ function DayRow({ d, today, onOpen }: { d: DayView; today: string; onOpen: () =>
   if (d.kind === "done" || d.kind === "cal" || d.kind === "mine" || d.kind === "prop") {
     const tag =
       d.kind === "done" ? (
-        <span className="inline-flex items-center gap-0.5 text-[10.5px]" style={{ color: "var(--good)" }}><IconCheck size={12} aria-hidden />Fatto</span>
+        <span className="inline-flex items-center gap-0.5 text-[10.5px]" style={{ color: "var(--good-ink)" }}><IconCheck size={12} aria-hidden />Fatto</span>
       ) : d.kind === "cal" ? (
-        <span className="inline-flex items-center gap-0.5 text-[10.5px]" style={{ color: "var(--good)" }}><IconCalendarEvent size={12} aria-hidden />Su Intervals</span>
+        <span className="inline-flex items-center gap-0.5 text-[10.5px]" style={{ color: "var(--good-ink)" }}><IconCalendarEvent size={12} aria-hidden />Su Intervals</span>
       ) : d.kind === "mine" ? (
         <span className="inline-flex items-center gap-0.5 text-[10.5px] font-medium" style={{ color: "var(--accent-ink)" }}><IconLock size={12} aria-hidden />Scelto da te</span>
       ) : (
@@ -616,17 +616,17 @@ function DaySheet(props: {
       {d.date >= today && (
         <div className="mt-4 flex flex-wrap gap-2">
           {(d.kind === "prop" || d.kind === "mine") && (
-            <button type="button" onClick={() => props.onRemove(week, d)} className="h-9 rounded-full px-3.5 text-xs" style={{ border: "1px solid var(--border)", color: "var(--critical)" }}>
+            <button type="button" onClick={() => props.onRemove(week, d)} className="h-9 rounded-full px-3.5 text-xs" style={{ border: "1px solid var(--border)", color: "var(--critical-ink)" }}>
               Togli: riposo
             </button>
           )}
           {d.kind === "cal" &&
             (sheet.confirmRemove ? (
-              <button type="button" disabled={!!props.busy} onClick={() => props.onRemove(week, d)} className="h-9 rounded-full px-3.5 text-xs font-semibold" style={{ background: "var(--critical-bg)", color: "var(--critical)" }}>
+              <button type="button" disabled={!!props.busy} onClick={() => props.onRemove(week, d)} className="h-9 rounded-full px-3.5 text-xs font-semibold" style={{ background: "var(--critical-bg)", color: "var(--critical-ink)" }}>
                 Sì, toglilo da Intervals
               </button>
             ) : (
-              <button type="button" onClick={() => setSheet({ ...sheet, confirmRemove: true })} className="h-9 rounded-full px-3.5 text-xs" style={{ border: "1px solid var(--border)", color: "var(--critical)" }}>
+              <button type="button" onClick={() => setSheet({ ...sheet, confirmRemove: true })} className="h-9 rounded-full px-3.5 text-xs" style={{ border: "1px solid var(--border)", color: "var(--critical-ink)" }}>
                 Togli da Intervals
               </button>
             ))}

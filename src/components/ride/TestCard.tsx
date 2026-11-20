@@ -151,7 +151,7 @@ export function TestCard({ test, ftpAtTheTime }: { test: TestResult; ftpAtTheTim
     <section className="card min-w-0 p-5" style={{ background: "linear-gradient(135deg, var(--warning-bg) 0%, var(--surface) 55%)" }}>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-medium">Risultato del test</h2>
-        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>
+        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
           {PROTOCOL_LABEL[test.protocol]}
         </span>
       </div>

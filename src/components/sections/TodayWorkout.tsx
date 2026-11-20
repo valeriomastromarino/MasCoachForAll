@@ -2,7 +2,9 @@
 
 // "Allenamento di oggi": the workout the engine picks from the Intervals.icu library (lib/training/suggest.ts), with
 // the reasons, the alternatives and a week plan. Nothing is written to Intervals.icu until a button says so.
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useId, useMemo, useState, useSyncExternalStore } from "react";
+import { IconChevronDown, IconPlayerPlayFilled } from "@tabler/icons-react";
+import { onTrainer } from "@/lib/calendar";
 import type { DashboardData } from "@/lib/dashboard";
 import { loadProfile, PROFILE_EVENT, profileSnapshot } from "@/lib/profile/profile";
 import { PHASE_INFO, planFromToday, weekFor } from "@/lib/training/season";
@@ -44,15 +46,37 @@ const steps = (text: string) =>
     .join("\n")
     .trim();
 
-/** Phone app: the workout's name and numbers act as a button that opens its steps; elsewhere they are plain text. */
-function TapToOpen({ enabled, open, onToggle, children }: { enabled: boolean; open: boolean; onToggle: () => void; children: React.ReactNode }) {
-  if (!enabled) return <div>{children}</div>;
+// Phone app, design D «Azione» with the rules of A (19 November 2026): the workout in large type, its numbers on one line,
+// the profile, then the one thing to do («Pedala ora» or «Programma su Intervals»); steps, food and reasons under «Dettagli».
+
+/** The text buttons under the workout: each one a full 44 px target. */
+const ROW_BUTTON = "inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-sm font-semibold";
+
+/** Carbohydrates for the numbers line: «30-60 g/h di carboidrati», or «solo acqua». */
+function carbsShort(mins: number, cls: Parameters<typeof fuelFor>[0]["cls"], cap: number | null): string {
+  const c = fuelFor({ mins, cls }, cap).carbs;
+  return c.startsWith("0 ") ? "solo acqua" : `${c} di carboidrati`;
+}
+
+/** Today's session on the trainer starts from here, like the round «Pedala» of the bar. */
+function PedalaOra({ id }: { id: string }) {
   return (
-    <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-start justify-between gap-2 text-left">
-      <span className="min-w-0">{children}</span>
-      <span className="mt-1.5 shrink-0 rounded-full px-2 py-0.5 text-[11px] text-muted" style={{ border: "1px solid var(--border)" }} aria-hidden>
-        {open ? "Chiudi ▴" : "Dettagli ▾"}
-      </span>
+    <Link
+      href={`/rulli/${encodeURIComponent(id)}`}
+      className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] text-[17px] font-semibold"
+      style={{ background: "var(--brand)", color: "var(--on-brand)" }}
+    >
+      <IconPlayerPlayFilled size={22} aria-hidden />
+      Pedala ora
+    </Link>
+  );
+}
+
+function DetailsToggle({ open, onToggle, controls }: { open: boolean; onToggle: () => void; controls: string }) {
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={controls} className={ROW_BUTTON} style={{ color: "var(--accent-ink)" }}>
+      Dettagli
+      <IconChevronDown size={16} aria-hidden className="transition-transform" style={{ transform: open ? "rotate(180deg)" : undefined }} />
     </button>
   );
 }
@@ -97,8 +121,9 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
   const [placeChoice, setPlaceChoice] = useState<Place>("any");
   const [chosen, setChosen] = useState(0);
   const [showOther, setShowOther] = useState(false);
-  /** Phone app: tapping the workout opens its steps and the reasons. */
+  /** Phone app: «Dettagli» opens the steps, food and drink, and the reasons. */
   const [open, setOpen] = useState(false);
+  const detailsId = useId();
   const [saving, setSaving] = useState<string>("");
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
@@ -163,10 +188,10 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
     if (err) setError(err);
     else {
       setDone((d) => ({ ...d, [key]: true }));
-      if (replace) {
-        refreshPlanned();
-        setShowOther(false);
-      }
+      // Read the calendar again: today's card turns into the session in programme (with «Pedala ora» if it is for the
+      // trainer), and the round «Pedala» of the bar opens it. Until 19 November 2026 only a replacement was read again.
+      refreshPlanned();
+      if (replace) setShowOther(false);
     }
   };
 
@@ -178,16 +203,20 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
       .filter((a) => a.date.slice(0, 10) === today && a.movingTime > 0 && ["strada", "offroad", "rulli"].includes(a.category))
       .sort((a, b) => b.movingTime - a.movingTime)[0] ?? null;
 
+  // The card shows the engine's proposal (not a session already in programme, not a rest day).
+  const proposing = !ride && suggestion !== null && planned !== null && !(shownPlanned && !showOther) && suggestion.kind !== "rest";
+  // Phone app: the place matters only for a proposal, so the chips show only then.
   const header = (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-sm font-medium">Allenamento di oggi</h2>
-      {!ride && <div className="flex gap-1" role="group" aria-label="Dove ti alleni oggi">
+      {!ride && (!compact || proposing) && <div className="flex gap-1" role="group" aria-label="Dove ti alleni oggi">
         {PLACES.filter(([p]) => !compact || p !== "any").map(([p, label]) => (
           <button
             key={p}
             type="button"
+            aria-pressed={place === p}
             onClick={() => (setPlace(compact && place === p ? "any" : p), setChosen(0))}
-            className="rounded-full px-3 py-1 text-xs"
+            className={compact ? "min-h-11 rounded-full px-4 text-sm" : "rounded-full px-3 py-1 text-xs"}
             style={{ background: place === p ? "var(--accent-bg)" : "transparent", color: place === p ? "var(--accent-ink)" : "var(--muted)", border: `1px solid ${place === p ? "var(--accent-ink)" : "var(--border)"}` }}
           >
             {label}
@@ -196,6 +225,8 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
       </div>}
     </div>
   );
+  /** Phone app: a text link becomes a 44 px target. */
+  const tap = compact ? " inline-flex min-h-11 items-center" : "";
 
   let body: React.ReactNode;
   if (ride) {
@@ -203,7 +234,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
     body = (
       <Link href={`/attivita/${ride.id}`} className="mt-3 block rounded-2xl p-3 active:scale-[0.99]" style={{ background: "var(--background)", border: "1px solid var(--border)" }}>
         <div className="flex items-center gap-2">
-          <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+          <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ background: "var(--good-bg)", color: "var(--good-ink)" }}>
             Fatto oggi
           </span>
           <span className="text-[11px] text-faint">{ride.indoor ? "rulli" : "fuori"}</span>
@@ -223,8 +254,13 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
   } else if (!suggestion || planned === null) {
     body = <p className="mt-3 text-sm text-muted">Scelgo dalla tua libreria…</p>;
   } else if (shownPlanned && !showOther) {
-    const todayPlanned = shownPlanned;
-    const cls = classifyWorkout({ ...todayPlanned, id: 0 }).cls;
+    const w = shownPlanned;
+    const cls = classifyWorkout({ ...w, id: 0 }).cls;
+    const mins = w.secs ? Math.round(w.secs / 60) : null;
+    const trainer = onTrainer(w);
+    // Today's session on the trainer, right for today: it starts from the card. A session the day does not suit keeps
+    // «Vedi cosa fare oggi» as the main action (the round «Pedala» of the bar still opens it).
+    const pedala = compact && !whenLabel && !unfit && trainer && w.blocks.length > 0;
     body = (
       <div className="mt-3">
         <div className="text-xs text-muted">{whenLabel ? "Oggi niente in programma" : "Hai già in programma su Intervals"}</div>
@@ -237,34 +273,62 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
           <div className="mt-2 rounded-xl px-3 py-2 text-xs" role="alert" style={{ background: "var(--warning-bg)", color: "var(--warning-ink)" }}>
             <div className="font-medium">Oggi non è il giorno giusto per questa seduta</div>
             <div className="mt-0.5">{unfit}</div>
-            <button type="button" onClick={() => setShowOther(true)} className="mt-2 rounded-full px-3 py-1 text-xs font-medium" style={{ background: "var(--warning-ink)", color: "var(--warning-bg)" }}>
+            <button type="button" onClick={() => setShowOther(true)} className={`mt-2 rounded-full font-medium ${compact ? "min-h-11 px-4 text-sm" : "px-3 py-1 text-xs"}`} style={{ background: "var(--warning-ink)", color: "var(--warning-bg)" }}>
               Vedi cosa fare oggi
             </button>
           </div>
         )}
-        <TapToOpen enabled={compact} open={open} onToggle={() => setOpen((o) => !o)}>
-          <div className="mt-1 font-medium">{todayPlanned.name}</div>
-          <div className="num text-xs text-muted">
-            {todayPlanned.secs ? `${Math.round(todayPlanned.secs / 60)} min` : ""}
-            {todayPlanned.tss ? ` · TSS ${Math.round(todayPlanned.tss)}` : ""}
-          </div>
-        </TapToOpen>
-        {todayPlanned.blocks.length > 0 && (
+        {compact ? (
+          <>
+            <div className="mt-1 text-[22px] font-semibold leading-tight tracking-tight">{w.name}</div>
+            <div className="num mt-0.5 text-sm text-muted">
+              {[mins !== null ? `${mins} min${trainer ? " sui rulli" : ""}` : null, w.tss ? `TSS ${Math.round(w.tss)}` : null, mins !== null ? carbsShort(mins, cls, carbCap) : null].filter(Boolean).join(" · ")}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mt-1 font-medium">{w.name}</div>
+            <div className="num text-xs text-muted">
+              {mins !== null ? `${mins} min` : ""}
+              {w.tss ? ` · TSS ${Math.round(w.tss)}` : ""}
+            </div>
+          </>
+        )}
+        {w.blocks.length > 0 && (
           <div className="mt-3">
-            <WorkoutProfile blocks={todayPlanned.blocks} height={44} axis={false} scrub={compact} />
+            <WorkoutProfile blocks={w.blocks} height={compact ? 64 : 44} axis={false} scrub={compact} />
           </div>
         )}
-        {compact && open && todayPlanned.description && (
-          <div className="mt-3">
-            <Description text={steps(todayPlanned.description)} />
-          </div>
-        )}
-        {todayPlanned.secs ? <Fuel mins={Math.round(todayPlanned.secs / 60)} cls={cls} cap={carbCap} /> : null}
-        {/* A race is not swapped for a workout (and Intervals.icu would not let the app remove it). */}
-        {!todayPlanned.race && (
-          <button type="button" onClick={() => setShowOther(true)} className="mt-3 text-xs text-faint underline">
-            Proponimi un&apos;altra cosa
-          </button>
+        {pedala && <PedalaOra id={w.id} />}
+        {compact ? (
+          <>
+            <div className="mt-2 flex flex-wrap justify-center gap-2">
+              <DetailsToggle open={open} onToggle={() => setOpen((o) => !o)} controls={detailsId} />
+              {/* A race is not swapped for a workout (and Intervals.icu would not let the app remove it); another day's session changes in Piano. */}
+              {!w.race && !whenLabel && (
+                <button type="button" onClick={() => setShowOther(true)} className={ROW_BUTTON} style={{ color: "var(--accent-ink)" }} aria-label="Cambia: proponimi un'altra seduta">
+                  Cambia
+                </button>
+              )}
+            </div>
+            <div id={detailsId} hidden={!open}>
+              {w.description && (
+                <div className="mt-2">
+                  <Description text={steps(w.description)} />
+                </div>
+              )}
+              {mins !== null && <Fuel mins={mins} cls={cls} cap={carbCap} />}
+            </div>
+          </>
+        ) : (
+          <>
+            {mins !== null && <Fuel mins={mins} cls={cls} cap={carbCap} />}
+            {!w.race && (
+              <button type="button" onClick={() => setShowOther(true)} className="mt-3 text-xs text-faint underline">
+                Proponimi un&apos;altra cosa
+              </button>
+            )}
+          </>
         )}
       </div>
     );
@@ -272,9 +336,10 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
     body = (
       <div className="mt-3">
         <p className="text-sm">{suggestion.reason}</p>
-        {todayPlanned && (
-          <button type="button" onClick={() => setShowOther(false)} className="mt-3 text-xs text-faint underline">
-            Torna a quello in programma: {todayPlanned.name}
+        {/* Back to the session shown before «Proponimi un'altra cosa» (also when it was the next day's one). */}
+        {showOther && shownPlanned && (
+          <button type="button" onClick={() => setShowOther(false)} className={`mt-3 text-xs text-faint underline${tap}`}>
+            Torna a quello in programma: {shownPlanned.name}
           </button>
         )}
       </div>
@@ -299,34 +364,42 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
             ))}
           </div>
         )}
-        <TapToOpen enabled={compact} open={open} onToggle={() => setOpen((o) => !o)}>
-          <div className="mt-1 text-base font-medium">{p.workout.name}</div>
-          <div className="num text-xs text-muted">
-            {p.mins} min · TSS {p.tss}
-          </div>
-        </TapToOpen>
+        {compact ? (
+          <>
+            <div className="mt-1 text-[22px] font-semibold leading-tight tracking-tight">{p.workout.name}</div>
+            <div className="num mt-0.5 text-sm text-muted">
+              {p.mins} min · TSS {p.tss} · {carbsShort(p.mins, p.cls, carbCap)}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mt-1 text-base font-medium">{p.workout.name}</div>
+            <div className="num text-xs text-muted">
+              {p.mins} min · TSS {p.tss}
+            </div>
+          </>
+        )}
         {p.workout.blocks.length > 0 && (
           <div className="mt-3">
-            <WorkoutProfile blocks={p.workout.blocks} height={52} scrub={compact} axis={!compact} />
+            <WorkoutProfile blocks={p.workout.blocks} height={compact ? 64 : 52} scrub={compact} axis={!compact} />
           </div>
         )}
-        {compact && open && p.workout.description && (
-          <div className="mt-3">
-            <Description text={steps(p.workout.description)} />
-          </div>
+        {!compact && (
+          <>
+            <Fuel mins={p.mins} cls={p.cls} cap={carbCap} />
+            <ul className="mt-3 space-y-1 text-xs text-muted">
+              {p.reasons.map((r) => <li key={r}>{r}</li>)}
+              {p.ftpNote && <li>{p.ftpNote}.</li>}
+            </ul>
+          </>
         )}
-        <Fuel mins={p.mins} cls={p.cls} cap={carbCap} />
-        <ul className="mt-3 space-y-1 text-xs text-muted">
-          {(!compact || open) && p.reasons.map((r) => <li key={r}>{r}</li>)}
-          {(!compact || open) && p.ftpNote && <li>{p.ftpNote}.</li>}
-        </ul>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className={compact ? "mt-4" : "mt-4 flex flex-wrap items-center gap-2"}>
           <button
             type="button"
             disabled={saving === key || done[key]}
             onClick={() => void schedule(p, today, todayPlanned?.id)}
-            className="rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-60"
-            style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
+            className={compact ? "flex min-h-14 w-full items-center justify-center rounded-[18px] text-[17px] font-semibold disabled:opacity-60" : "rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-60"}
+            style={compact ? { background: "var(--brand)", color: "var(--on-brand)" } : { background: "var(--accent-bg)", color: "var(--accent-ink)" }}
           >
             {todayPlanned
               ? done[key]
@@ -340,12 +413,31 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
                   ? "Programmo…"
                   : "Programma su Intervals"}
           </button>
-          {done[key] && <span className="text-xs text-muted">Lo trovi nel calendario; da lì puoi aprirlo sul Garmin o sul rullo.</span>}
+          {done[key] && <span className={`text-xs text-muted${compact ? " mt-2 block" : ""}`}>Lo trovi nel calendario; da lì puoi aprirlo sul Garmin o sul rullo.</span>}
         </div>
+        {compact && (
+          <>
+            <div className="mt-2 flex justify-center">
+              <DetailsToggle open={open} onToggle={() => setOpen((o) => !o)} controls={detailsId} />
+            </div>
+            <div id={detailsId} hidden={!open}>
+              {p.workout.description && (
+                <div className="mt-2">
+                  <Description text={steps(p.workout.description)} />
+                </div>
+              )}
+              <Fuel mins={p.mins} cls={p.cls} cap={carbCap} />
+              <ul className="mt-3 space-y-1 text-xs text-muted">
+                {p.reasons.map((r) => <li key={r}>{r}</li>)}
+                {p.ftpNote && <li>{p.ftpNote}.</li>}
+              </ul>
+            </div>
+          </>
+        )}
         {todayPlanned && (
           <div className="mt-2 text-xs text-muted">
             Prende il posto di «{todayPlanned.name}», che viene tolto dal calendario.{" "}
-            <button type="button" onClick={() => setShowOther(false)} className="text-faint underline">
+            <button type="button" onClick={() => setShowOther(false)} className={`text-faint underline${tap}`}>
               Torna a quello in programma
             </button>
           </div>
@@ -358,8 +450,9 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
                 <button
                   key={o.workout.id}
                   type="button"
+                  aria-pressed={i === chosen}
                   onClick={() => setChosen(i)}
-                  className="rounded-full px-3 py-1 text-xs"
+                  className={compact ? "min-h-11 rounded-full px-4 text-left text-sm" : "rounded-full px-3 py-1 text-xs"}
                   style={{ background: i === chosen ? "var(--accent-bg)" : "transparent", color: i === chosen ? "var(--accent-ink)" : "var(--foreground)", border: `1px solid ${i === chosen ? "var(--accent-ink)" : "var(--border)"}` }}
                 >
                   {o.label}: {o.workout.name}
@@ -391,7 +484,7 @@ export function TodayWorkout({ data, compact = false }: { data: DashboardData; c
       </div>}
       {body}
       {error && (
-        <p className="mt-3 text-xs" style={{ color: "var(--critical)" }} role="alert">
+        <p className="mt-3 text-xs" style={{ color: "var(--critical-ink)" }} role="alert">
           {error}
         </p>
       )}

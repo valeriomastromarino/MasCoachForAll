@@ -1,19 +1,20 @@
 "use client";
 
-// Today on the phone app, short: one verdict, today's workout (or the next one), wind, three numbers.
+// Today on the phone app, design D «Azione» (19 November 2026): the verdict in one line, then today's workout with
+// «Pedala ora» (or the next one), wind, three numbers.
 import Link from "next/link";
 import type { DashboardData } from "@/lib/dashboard";
 import { fmt, fmtDuration } from "../format";
-import { ReadinessHero } from "./parts";
+import { ReadinessLine } from "./parts";
 import { TodayWorkout } from "./TodayWorkout";
 import { WindToday } from "./WindToday";
 
 function Tile({ label, value, hint, href }: { label: string; value: string; hint?: string; href: string }) {
   return (
-    <Link href={href} className="card block px-3 py-2.5">
-      <div className="text-[11px] text-muted">{label}</div>
-      <div className="num text-lg font-medium leading-tight">{value}</div>
-      {hint && <div className="truncate text-[11px] text-muted">{hint}</div>}
+    <Link href={href} className="card block min-h-16 px-3 py-2.5">
+      <div className="text-[13px] text-muted">{label}</div>
+      <div className="num text-xl font-semibold leading-tight">{value}</div>
+      {hint && <div className="truncate text-[13px] text-muted">{hint}</div>}
     </Link>
   );
 }
@@ -24,7 +25,10 @@ export function OggiCompact({ data }: { data: DashboardData }) {
 
   return (
     <div className="space-y-3">
-      <ReadinessHero status={status} size="short" />
+      {/* The page's title for screen readers: on screen the verdict and the workout come first. */}
+      <h1 className="sr-only">Oggi</h1>
+
+      <ReadinessLine status={status} />
 
       <TodayWorkout data={data} compact />
 

@@ -22,6 +22,10 @@ function talk(ctx: ChatContext, ...messages: string[]) {
   });
 }
 
+/** The Italian name of the weekday `days` after today («sabato»). */
+const WEEKDAYS = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"];
+const weekdayIn = (ctx: ChatContext, days: number) => WEEKDAYS[(new Date(`${addDays(ctx.today, days)}T12:00:00`).getDay() + 6) % 7];
+
 const tomorrowZ2 = (ctx: ChatContext): CalendarWorkout => ({
   id: "ev-1",
   date: addDays(ctx.today, 1),
@@ -50,21 +54,25 @@ describe("the chat builds sessions", () => {
     expect(b.state.lastBuilt?.name).toBe("Sweet spot 3×12' Indoor");
   });
 
+  // The day named in these two tests is always three days ahead: with «sabato» they failed on Fridays, when Saturday is
+  // «domani» (found on 20 November 2026).
   it("takes changes with words and keeps the day", () => {
     const ctx = makeCtx();
-    const [, b, c, d] = talk(ctx, "domani 3x12' sweet spot", "fai 4 ripetute e recupero 4'", "sposta a sabato", "sui rulli");
+    const day = weekdayIn(ctx, 3);
+    const [, b, c, d] = talk(ctx, "domani 3x12' sweet spot", "fai 4 ripetute e recupero 4'", `sposta a ${day}`, "sui rulli");
     expect(b.reply.text).toBe("Fatto: 4 ripetute, recupero 4'.");
     expect(b.reply.workout!.steps.join(" ")).toMatch(/4 × 12' .* · 4' /);
-    expect(c.reply.workout!.when).toMatch(/^sabato/);
+    expect(c.reply.workout!.when).toMatch(new RegExp(`^${day}`));
     expect(d.reply.workout!.name).toMatch(/Indoor$/);
     expect(d.state.pending).toMatchObject({ type: "create_workout" });
   });
 
   it("starts over on a whole new request", () => {
     const ctx = makeCtx();
-    const [, b] = talk(ctx, "domani sui rulli 3x12' sweet spot", "sabato 4x8' soglia");
+    const day = weekdayIn(ctx, 3);
+    const [, b] = talk(ctx, "domani sui rulli 3x12' sweet spot", `${day} 4x8' soglia`);
     expect(b.reply.workout!.name).toBe("Soglia 4×8'");
-    expect(b.reply.workout!.when).toMatch(/^sabato/);
+    expect(b.reply.workout!.when).toMatch(new RegExp(`^${day}`));
   });
 
   it("lets the engine choose the dose when asked by type", () => {

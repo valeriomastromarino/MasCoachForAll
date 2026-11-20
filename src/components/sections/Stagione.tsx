@@ -2,6 +2,7 @@
 
 // Season: the first planning screen asks for the goals (peak period, optional A race), the ramp rate the athlete accepts,
 // the hours and the days off; then it shows the plan week by week (lib/training/season.ts).
+import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { addDays } from "@/lib/dates";
 import type { CalendarData } from "@/lib/api/handlers";
@@ -302,16 +303,29 @@ function PlanView({ data, setup, onEdit }: { data: DashboardData; setup: SeasonS
 export default function Stagione() {
   return (
     <SectionPage id="stagione">
-      {(data) => <Body data={data} />}
+      {(data) => <SeasonBody data={data} />}
     </SectionPage>
   );
 }
 
-function Body({ data }: { data: DashboardData }) {
+/** The season itself, without the page around it: the «Piano» page of the phone app shows it as its second view. */
+export function SeasonBody({ data }: { data: DashboardData }) {
   const raw = useSyncExternalStore(subscribe, seasonSnapshot, () => "");
   const setup = useMemo(() => (raw ? loadSeason() : null), [raw]);
   const [editing, setEditing] = useState(false);
-  if (data.source === "demo") return <Note tone="warning">Collega Intervals.icu per programmare la stagione sui tuoi dati.</Note>;
+  // Demo data: say what to do instead of a warning line (rules of A, 19 November 2026).
+  if (data.source === "demo")
+    return (
+      <section className="card p-5">
+        <h2 className="text-base font-semibold">La stagione si programma sui tuoi dati</h2>
+        <p className="mt-1 text-sm text-muted">
+          Ora vedi dati di prova. Collega Intervals.icu in Impostazioni: il piano parte dalla tua forma di oggi e arriva al picco nelle date che scegli.
+        </p>
+        <Link href="/impostazioni" className="mt-4 inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold" style={{ background: "var(--brand)", color: "var(--on-brand)" }}>
+          Apri Impostazioni
+        </Link>
+      </section>
+    );
   if (!setup || editing) return <SetupForm key={editing ? "edit" : "new"} data={data} initial={setup} onSaved={() => setEditing(false)} />;
   return (
     <>
@@ -322,7 +336,7 @@ function Body({ data }: { data: DashboardData }) {
           clearSeason();
           scheduleCloudPush(2000, { seasonCleared: true });
         }}
-        className="text-xs text-faint underline"
+        className="inline-flex min-h-11 items-center text-xs text-faint underline"
       >
         Cancella il piano e ricomincia
       </button>

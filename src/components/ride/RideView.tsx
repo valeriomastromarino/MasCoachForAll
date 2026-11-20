@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useCompact } from "@/lib/compact";
 import type { RideDetail } from "@/lib/ride";
 import { loadRide, type RideResult } from "../data/rides";
 import { fmt, fmtClock, fmtDuration, fmtTime, fmtWeekday } from "../format";
@@ -62,6 +63,8 @@ const ZONE_VARS = ["--z1", "--z2", "--z3", "--z4", "--z5", "--z6", "--z7"];
 const HR_COLORS = ["#c9d1db", "#f9d3da", "#f4b6c1", "#ee8f9f", "#e46f84", "#d65470", "#c24f63"];
 
 function RideBody({ ride }: { ride: RideDetail }) {
+  // Phone app: «Indietro» is in the top bar, the only way back (rules of A, 19 November 2026).
+  const compact = useCompact();
   const [hover, setHover] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const s = ride.summary;
@@ -120,10 +123,12 @@ function RideBody({ ride }: { ride: RideDetail }) {
   );
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
-      <Link href="/attivita" className="text-xs" style={{ color: "var(--accent-ink)" }}>
-        ← Uscite
-      </Link>
+    <div className="mx-auto w-full max-w-6xl space-y-4 px-4 py-4 sm:py-6">
+      {!compact && (
+        <Link href="/attivita" className="text-xs" style={{ color: "var(--accent-ink)" }}>
+          ← Uscite
+        </Link>
+      )}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-medium">{ride.name}</h1>
@@ -139,7 +144,7 @@ function RideBody({ ride }: { ride: RideDetail }) {
           )}
           {/* A test is not a training session: its IF-based label would be misleading. */}
           {ride.label && !ride.test && (
-            <span className="rounded-full px-3 py-1 text-xs" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+            <span className="rounded-full px-3 py-1 text-xs" style={{ background: "var(--good-bg)", color: "var(--good-ink)" }}>
               {ride.label} · IF {fmt(s.IF, 2)}
             </span>
           )}
@@ -226,7 +231,7 @@ function RideBody({ ride }: { ride: RideDetail }) {
           </div>
         )}
       </Section>
-    </main>
+    </div>
   );
 }
 
@@ -269,14 +274,12 @@ export default function RideView() {
   if (!state || state.id !== id || state.attempt !== attempt) return <Loading />;
   if ("error" in state)
     return (
-      <div className="mx-auto max-w-xl p-6">
-        <Link href="/attivita" className="text-xs" style={{ color: "var(--accent-ink)" }}>
-          ← Uscite
-        </Link>
-        <h1 className="mt-3 text-lg font-medium">Impossibile aprire l&apos;uscita</h1>
+      <div className="mx-auto max-w-xl p-6" role="alert">
+        <h1 className="text-lg font-medium">Impossibile aprire l&apos;uscita</h1>
         <p className="mt-2 text-sm text-muted">{state.error}</p>
         <button
-          className="mt-4 rounded-xl px-4 py-2 text-sm font-medium"
+          type="button"
+          className="mt-4 min-h-11 rounded-xl px-5 text-sm font-medium"
           style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
           onClick={() => setAttempt((a) => a + 1)}
         >

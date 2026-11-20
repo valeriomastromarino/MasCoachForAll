@@ -63,13 +63,13 @@ export function StravaCard() {
           Strava
         </h3>
         {connected && (
-          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px]" style={{ background: "var(--good-bg)", color: "var(--good)" }}>
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11.5px]" style={{ background: "var(--good-bg)", color: "var(--good-ink)" }}>
             <span className="h-[7px] w-[7px] rounded-full" style={{ background: "currentColor" }} />
             {ON_SITE && status.athlete ? `Collegato come ${status.athlete}` : "Collegato dal sito"}
           </span>
         )}
       </div>
-      {outcome && <p className="mt-2 text-xs" style={{ color: outcome === OUTCOME.ok ? "var(--good)" : "var(--warning-ink)" }}>{outcome}</p>}
+      {outcome && <p className="mt-2 text-xs" style={{ color: outcome === OUTCOME.ok ? "var(--good-ink)" : "var(--warning-ink)" }}>{outcome}</p>}
 
       {!status ? (
         <p className="mt-2 text-xs text-muted">Controllo il collegamento…</p>
@@ -111,11 +111,11 @@ export function StravaCard() {
           {status.last && <p className="mt-2 text-[11.5px] text-faint">Ultima mandata: {status.last.name}, {when(status.last.at)}.</p>}
           {!ON_SITE && <p className="mt-2 text-[11.5px] text-faint">Il telefono le manda tramite il sito, con la password dell&apos;app (la stessa del coach e del widget).</p>}
           {ON_SITE && (
-            <button type="button" disabled={busy} onClick={() => void disconnect()} className="mt-3 h-9 rounded-full px-4 text-[12.5px] disabled:opacity-60" style={{ border: "1px solid var(--border)", color: "var(--critical)" }}>
+            <button type="button" disabled={busy} onClick={() => void disconnect()} className="mt-3 h-9 rounded-full px-4 text-[12.5px] disabled:opacity-60" style={{ border: "1px solid var(--border)", color: "var(--critical-ink)" }}>
               {busy ? "Scollego…" : "Scollega"}
             </button>
           )}
-          {error && <p className="mt-2 text-xs" style={{ color: "var(--critical)" }}>{error}</p>}
+          {error && <p className="mt-2 text-xs" style={{ color: "var(--critical-ink)" }}>{error}</p>}
         </>
       )}
     </section>

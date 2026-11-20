@@ -31,7 +31,8 @@
   --form-ink: #b4881a;
   --hrv: #45b8a0;
   --hrv-band: #d5f2ea;
-  --hrv-ink: #23866f;
+  /* 5,5:1 on white (it was #23866f, 4,46:1: the DFA α1 in the power box sat at the limit, review of 19 November 2026). */
+  --hrv-ink: #1d7663;
   --rhr: #ee8f9f;
   --rhr-band: #fbe2e6;
   --rhr-ink: #c24f63;
@@ -58,6 +59,9 @@
   --warning-ink: #6b4d0c;
   --critical: #c0504d;
   --critical-bg: #fde6e6;
+  /* Text on the green and red backgrounds: --good and --critical read at 3,7:1 and 3,9:1 there, these above 5:1. */
+  --good-ink: #22744a;
+  --critical-ink: #a33b38;
   --neutral-bg: #f0ece6;
   --sleep: #a7aef2;
   --sleep-ink: #5a62c4;
@@ -120,6 +124,8 @@
   --warning-ink: #ffe3a6;
   --critical: #ff9d9d;
   --critical-bg: #3d2326;
+  --good-ink: #8fe3b4;
+  --critical-ink: #ff9d9d;
   --neutral-bg: #2b221d;
   --sleep: #a9b4ff;
   --sleep-ink: #c3cbff;
@@ -216,6 +222,26 @@
   --strava: #fc4c02;
 }
 
+/*
+ * Phone app (data-compact on <html>, design D of 19 November 2026). The bar has the round «Pedala» button standing above it,
+ * so pages keep a little more room at the bottom; and no text is smaller than 13 px (lines at 11–12 px read badly in the
+ * hand and on the trainer). Tailwind 4 reads text-xs from --text-xs; the few fixed sizes are raised one by one.
+ */
+:root[data-compact] {
+  --nav-h: calc(5.5rem + env(safe-area-inset-bottom));
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.3;
+}
+:root[data-compact] :is(.text-\[10px\], .text-\[10\.5px\], .text-\[11px\], .text-\[11\.5px\], .text-\[12px\], .text-\[12\.5px\]) {
+  font-size: 13px;
+}
+
+/* Keyboard focus is always in view (WCAG 2.4.7): a 2 px ring in the app's colour. A tap does not draw it (:focus-visible). */
+:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+
 /* A page that opens from the swipeable ones slides in from the right. */
 @keyframes page-in {
   from {
@@ -223,8 +249,16 @@
     transform: translateX(14px);
   }
 }
+/* The menu of the phone app comes down from the top. */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  [style*="page-in"] {
+  [style*="page-in"],
+  [style*="menu-in"] {
     animation: none !important;
   }
 }

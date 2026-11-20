@@ -69,7 +69,7 @@ export function ProfileCard() {
       )}
       <div className="mt-5 border-t pt-4" style={{ borderColor: "var(--border)" }}>
         <div className="text-xs font-medium">Copia su Intervals</div>
-        <p className="mt-1 text-xs" style={{ color: cloud.state === "error" ? "var(--critical)" : "var(--muted)" }}>
+        <p className="mt-1 text-xs" style={{ color: cloud.state === "error" ? "var(--critical-ink)" : "var(--muted)" }}>
           {cloudLine}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">

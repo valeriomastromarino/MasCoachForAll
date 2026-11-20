@@ -1,27 +1,25 @@
 "use client";
 
-// The frame of every page: logo on top and the page itself. On the phone app the five main pages (Oggi, Calendario, Coach, Uscite, Altro)
-// sit side by side in a pager: the page follows the finger, and the page name at the right of the logo follows.
+// The frame of every page: logo on top and the page itself, inside the one <main> of the app. On the phone app the four main
+// pages (Oggi, Piano, Coach, Uscite: design D of 19 November 2026) sit side by side in a pager: the page follows the finger.
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useCompact } from "@/lib/compact";
 import { setPagerPos } from "@/lib/pagerPos";
 import { TopBarView } from "../brand/TopBar";
 import { useChartTouchDismiss } from "../chartTouch";
 import Archive from "../archive/Archive";
-import Altro from "../sections/Altro";
-import Calendario from "../sections/Calendario";
 import Coach from "../sections/Coach";
 import Oggi from "../sections/Oggi";
+import Piano from "../sections/Piano";
 import { replacePath } from "./replacePath";
 import { useCurrentPath } from "./useCurrentPath";
-import { TAB_PATHS, tabIndex } from "./tabs";
+import { TAB_PATHS, tabIndex, tabPath } from "./tabs";
 
 const PAGES: { render: () => React.ReactNode; fill?: boolean }[] = [
   { render: () => <Oggi /> },
-  { render: () => <Calendario /> },
+  { render: () => <Piano /> },
   { render: () => <Coach />, fill: true },
   { render: () => <Archive /> },
-  { render: () => <Altro /> },
 ];
 
 /** The finger has been still this long: the page is settled. */
@@ -75,7 +73,7 @@ function TabPager({ index }: { index: number }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       const i = Math.round(el.scrollLeft / el.clientWidth);
-      if (i !== index && i >= 0 && i < TAB_PATHS.length) replacePath(TAB_PATHS[i]);
+      if (i !== index && i >= 0 && i < TAB_PATHS.length) replacePath(tabPath(i));
     }, IDLE_MS);
   };
 
@@ -114,13 +112,19 @@ function Shell({ children, header }: { children: React.ReactNode; header?: React
   const path = useCurrentPath();
   const compact = useCompact();
   useChartTouchDismiss();
+  // The phone app's own sizes in globals.css (13 px text at least, room for the «Pedala» button) hang on this attribute.
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-compact", compact);
+  }, [compact]);
   const index = tabIndex(path);
   if (compact && index >= 0) {
     return (
       <div className="fixed inset-0 z-30 flex flex-col" style={{ background: "var(--background)" }}>
         <TopBarView path={path} compact index={index} />
         {header}
-        <TabPager index={index} />
+        <main id="contenuto" className="flex min-h-0 flex-1 flex-col">
+          <TabPager index={index} />
+        </main>
       </div>
     );
   }
@@ -130,9 +134,9 @@ function Shell({ children, header }: { children: React.ReactNode; header?: React
     <>
       <TopBarView path={path} compact={compact} index={index} />
       {header}
-      <div key={compact ? section : "all"} className="flex min-h-0 flex-1 flex-col" style={compact ? { animation: "page-in 0.22s ease-out" } : undefined}>
+      <main id="contenuto" key={compact ? section : "all"} className="flex min-h-0 flex-1 flex-col" style={compact ? { animation: "page-in 0.22s ease-out" } : undefined}>
         {children}
-      </div>
+      </main>
     </>
   );
 }
@@ -145,7 +149,9 @@ export function AppShell({ children, header }: { children: React.ReactNode; head
         <>
           <TopBarView path="" compact={false} index={-1} />
           {header}
-          {children}
+          <main id="contenuto" className="flex min-h-0 flex-1 flex-col">
+            {children}
+          </main>
         </>
       }
     >
