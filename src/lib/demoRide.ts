@@ -1,4 +1,5 @@
-// Synthetic 2-hour outdoor ride in the same shape as Intervals.icu responses, for demo mode.
+// Synthetic 2-hour outdoor ride in the same shape as Intervals.icu responses, for demo mode: a loop in Val d'Orcia
+// (Tuscany), a well-known cycling area that says nothing about where the athlete lives.
 import type { RawRideDetail, RawStream } from "./ride";
 
 export function demoRide(id: string): { raw: RawRideDetail; streams: RawStream[] } {
@@ -29,8 +30,8 @@ export function demoRide(id: string): { raw: RawRideDetail; streams: RawStream[]
     alt.push(Math.round(320 + Math.sin(angle * 3) * 80));
     dist.push(Math.round(d));
     dfa.push(Math.round((effort ? 0.62 : 1.25 + Math.sin(t / 200) * 0.12) * 100) / 100);
-    lat.push(40.885 + Math.sin(angle) * 0.12 + Math.sin(angle * 5) * 0.01);
-    lng.push(17.17 + Math.cos(angle) * 0.16 + Math.cos(angle * 4) * 0.012);
+    lat.push(43.07 + Math.sin(angle) * 0.12 + Math.sin(angle * 5) * 0.01);
+    lng.push(11.55 + Math.cos(angle) * 0.16 + Math.cos(angle * 4) * 0.012);
   }
   const efforts = [1800, 3600, 5400].map((s) => ({
     type: "WORK",

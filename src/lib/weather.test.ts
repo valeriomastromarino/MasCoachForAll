@@ -3,10 +3,10 @@ import { arrowRotation, compass, forecastUrl, kindOf, parseForecast, windWord } 
 
 describe("weather", () => {
   it("builds a daily forecast request for the position", () => {
-    const u = new URL(forecastUrl(40.8512, 17.1234));
+    const u = new URL(forecastUrl(43.0712, 11.5534));
     expect(u.hostname).toBe("api.open-meteo.com");
-    expect(u.searchParams.get("latitude")).toBe("40.851");
-    expect(u.searchParams.get("longitude")).toBe("17.123");
+    expect(u.searchParams.get("latitude")).toBe("43.071");
+    expect(u.searchParams.get("longitude")).toBe("11.553");
     expect(u.searchParams.get("daily")).toContain("wind_direction_10m_dominant");
     expect(u.searchParams.get("wind_speed_unit")).toBe("kmh");
     expect(u.searchParams.get("forecast_days")).toBe("10");
