@@ -6,7 +6,8 @@ interface MasCoachNativePlugin {
   keepAwake(o: { on: boolean }): Promise<void>;
   sessionService(o: { on: boolean }): Promise<void>;
   setBars(o: { color: string; lightIcons: boolean }): Promise<void>;
-  shareFile(o: { name: string; data: string }): Promise<void>;
+  shareFile(o: { name: string; data: string; mime?: string; title?: string }): Promise<void>;
+  saveImage(o: { name: string; data: string; mime: string }): Promise<void>;
   widgetSetup(o: { url: string; password: string }): Promise<void>;
   takeRoute(): Promise<{ route: string | null }>;
 }
@@ -33,9 +34,18 @@ export function paintSystemBars(color: string, lightIcons: boolean): void {
   if (isApp()) Native.setBars({ color, lightIcons }).catch(quiet);
 }
 
-/** Opens Android's share sheet on a file (base64 data); the WebView cannot download blobs. Rejects when it cannot. */
-export function shareFile(name: string, base64: string): Promise<void> {
-  return Native.shareFile({ name, data: base64 });
+/**
+ * Opens Android's share sheet on a file (base64 data); the WebView cannot download blobs. Rejects when it cannot. Without `mime`
+ * the file is generic (the FIT of a session); a picture says `image/png` or `image/jpeg`, so that the apps that take pictures
+ * (Instagram, WhatsApp…) appear and the sheet shows it. `title` = the title of the sheet.
+ */
+export function shareFile(name: string, base64: string, mime?: string, title?: string): Promise<void> {
+  return Native.shareFile({ name, data: base64, ...(mime ? { mime } : {}), ...(title ? { title } : {}) });
+}
+
+/** Saves a picture (base64) in the gallery, folder Pictures/MasCoach (Android 10 or later). Rejects with the reason. */
+export function saveImage(name: string, base64: string, mime: string): Promise<void> {
+  return Native.saveImage({ name, data: base64, mime });
 }
 
 // ── Home-screen widget ──────────────────────────────────────────────────────────────────────────────

@@ -1,13 +1,15 @@
 "use client";
 
+import { IconShare } from "@tabler/icons-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCompact } from "@/lib/compact";
 import type { RideDetail } from "@/lib/ride";
 import { loadRide, type RideResult } from "../data/rides";
 import { fmt, fmtClock, fmtDuration, fmtTime, fmtWeekday } from "../format";
+import { ShareSheet } from "../share/ShareSheet";
 import { RideCharts } from "./RideCharts";
 import { TestCard } from "./TestCard";
 
@@ -67,6 +69,13 @@ function RideBody({ ride }: { ride: RideDetail }) {
   const compact = useCompact();
   const [hover, setHover] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  // «Condividi» (20 November 2026): the picture of the ride for social media; closing the sheet gives the focus back.
+  const [sharing, setSharing] = useState(false);
+  const shareButton = useRef<HTMLButtonElement>(null);
+  const closeShare = useCallback(() => {
+    setSharing(false);
+    shareButton.current?.focus();
+  }, []);
   const s = ride.summary;
 
   const subline = [
@@ -136,7 +145,7 @@ function RideBody({ ride }: { ride: RideDetail }) {
             {fmtWeekday(ride.date)} · {subline.join(" · ")}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {ride.indoor && (
             <span className="rounded-full px-3 py-1 text-xs" style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}>
               Rulli
@@ -148,8 +157,21 @@ function RideBody({ ride }: { ride: RideDetail }) {
               {ride.label} · IF {fmt(s.IF, 2)}
             </span>
           )}
+          <button
+            ref={shareButton}
+            type="button"
+            onClick={() => setSharing(true)}
+            aria-haspopup="dialog"
+            aria-expanded={sharing}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold"
+            style={{ background: "var(--accent-bg)", color: "var(--accent-ink)" }}
+          >
+            <IconShare size={18} stroke={2} aria-hidden />
+            Condividi
+          </button>
         </div>
       </header>
+      {sharing && <ShareSheet ride={ride} onClose={closeShare} />}
 
       {ride.test && <TestCard test={ride.test} ftpAtTheTime={ride.ftp} />}
 
