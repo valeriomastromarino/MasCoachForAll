@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Text and buttons of the home-screen widget (layout/widget_*.xml). Colours from widget_colors.xml, light or dark. -->
+<resources>
+    <dimen name="w_radius">22dp</dimen>
+
+    <style name="WText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:textColor">@color/w_ink</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+    <!-- Small grey line: labels and the second line of the session. -->
+    <style name="WLab" parent="WText">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:textColor">@color/w_ink2</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+    <style name="WLabWarn" parent="WLab">
+        <item name="android:textColor">@color/w_warn_ink</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:drawableStart">@drawable/w_ic_alert</item>
+        <item name="android:drawablePadding">4dp</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+    <style name="WVal" parent="WText">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="WTitle" parent="WText">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <!-- On the terracotta card. -->
+    <style name="WHeadline" parent="WText">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:textColor">@color/w_hero_ink</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">20sp</item>
+    </style>
+    <style name="WHeroSmall" parent="WText">
+        <item name="android:textColor">@color/w_hero2</item>
+        <item name="android:textSize">12.5sp</item>
+    </style>
+    <style name="WSegLabel" parent="WHeroSmall">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+    <style name="WLogo" parent="WText">
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:textColor">@color/w_hero_ink</item>
+        <item name="android:textSize">12.5sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">-0.04</item>
+        <item name="android:text">MasCoach</item>
+    </style>
+    <!-- «Pedala»: the main action, on the brand colour (a session on the trainer that suits the day). -->
+    <style name="WPedala" parent="WText">
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">@drawable/w_btn_main</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:drawableStart">@drawable/w_ic_play</item>
+        <item name="android:drawablePadding">6dp</item>
+        <item name="android:textColor">@color/w_on_brand</item>
+        <item name="android:textSize">13.5sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:text">Pedala</item>
+    </style>
+    <!-- The other actions written out (large size): «Dettagli», «Vedi proposta»… -->
+    <style name="WPill" parent="WText">
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">@drawable/w_btn_pill</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">12dp</item>
+        <item name="android:drawableEnd">@drawable/w_ic_right</item>
+        <item name="android:drawablePadding">4dp</item>
+        <item name="android:textColor">@color/w_btn_ink</item>
+        <item name="android:textSize">13.5sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <!-- Round button beside a name: 44 dp, as the touch targets of the app. -->
+    <style name="WRound">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:layout_marginStart">10dp</item>
+        <item name="android:background">@drawable/w_btn_round</item>
+        <item name="android:padding">13dp</item>
+        <item name="android:scaleType">fitCenter</item>
+    </style>
+    <!-- Small tile of a number: label, value and its week. -->
+    <style name="WTile">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/w_tile</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:paddingBottom">7dp</item>
+    </style>
+    <style name="WSeg">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:scaleType">fitXY</item>
+        <item name="android:src">@drawable/w_seg_off</item>
+    </style>
+</resources>

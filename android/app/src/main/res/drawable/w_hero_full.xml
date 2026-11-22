@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget: the terracotta card filling the whole widget (2×1 and «Apri MasCoach»). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/w_hero" />
+    <corners android:radius="@dimen/w_radius" />
+</shape>

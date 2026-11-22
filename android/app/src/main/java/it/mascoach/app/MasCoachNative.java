@@ -157,11 +157,20 @@ public class MasCoachNative extends Plugin {
         });
     }
 
-    /** Server and password for the home-screen widget (it asks /api/widget by itself, also at 8:00 with the app closed). */
+    /** Server and password for the home-screen widget (it asks /api/widget by itself at 8:00 and with «Aggiorna»). */
     @PluginMethod
     public void widgetSetup(PluginCall call) {
         MasCoachWidget.configure(getContext(), call.getString("url", ""), call.getString("password", ""));
-        MasCoachWidget.refreshAsync(getContext(), null);
+        // The app gives the widget its day as soon as its data is loaded (widgetPush): ask the site only for a day it lacks.
+        if (MasCoachWidget.hasToday(getContext())) MasCoachWidget.updateAll(getContext());
+        else MasCoachWidget.refreshAsync(getContext(), false, null);
+        call.resolve();
+    }
+
+    /** Today's day for the home-screen widget, built by the app with the rules of Oggi (lib/widget.ts, JSON v2). */
+    @PluginMethod
+    public void widgetPush(PluginCall call) {
+        if (MasCoachWidget.store(getContext(), call.getString("json", ""))) MasCoachWidget.updateAll(getContext());
         call.resolve();
     }
 

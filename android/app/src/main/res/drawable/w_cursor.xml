@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget: the cursor after «MasCoach», as in the logo. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#D96FA6EE" />
+    <corners android:radius="1dp" />
+</shape>

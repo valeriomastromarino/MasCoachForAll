@@ -30,7 +30,7 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
-        <!-- Home-screen widget: today's verdict, key numbers and planned workout; refreshed at 8:00 (see MasCoachWidget). -->
+        <!-- Home-screen widget «B + C»: the verdict, the night's numbers and today's session; the app gives it the day, the site at 8:00 and with «Aggiorna» (see MasCoachWidget). -->
         <receiver
             android:name=".MasCoachWidget"
             android:exported="true"

@@ -10,12 +10,11 @@ createRoot(document.getElementById("root")!).render(<App />);
 if (isApp()) {
   // Home-screen widget: it asks the server by itself, so it needs the address and the password; a tap on it opens a page.
   widgetSetup(coachServer(), coachPassword());
-  void takeLaunchRoute().then((route) => route && navigate(route));
-  // Capacitor's triggerWindowJSEvent copies the JSON fields onto the event itself (not into `detail`).
-  window.addEventListener("mascoach-route", (e) => {
-    const route = (e as Event & { route?: string }).route;
-    if (typeof route === "string" && route.startsWith("/")) navigate(route);
-  });
+  // The page a widget tap asked for: at start-up, and when the app already open is told («mascoach-route»). The route waits on
+  // the Android side until the page takes it, so a tap that arrives while the page is still loading is not lost.
+  const openAsked = () => void takeLaunchRoute().then((route) => route?.startsWith("/") && navigate(route));
+  openAsked();
+  window.addEventListener("mascoach-route", openAsked);
   // Android's Back button: the screen on top first (the player asks before ending a ride), then the previous page, then exit.
   void import("@capacitor/app").then(({ App: CapApp }) => {
     void CapApp.addListener("backButton", ({ canGoBack }) => handleBack(canGoBack, () => void CapApp.exitApp()));

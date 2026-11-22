@@ -8,6 +8,8 @@ import { deleteRecording, listRecordings, saveRecording } from "@/lib/player/sto
 // Relative path on purpose: the single-file build swaps "../data/transport" for the in-page API.
 import { apiFetch } from "../data/transport";
 import { sendToStrava, stravaAuto } from "../data/strava";
+import { refreshDashboard } from "../data/remote";
+import { refreshPlanned } from "../data/trainingData";
 
 function toBase64(bytes: Uint8Array): string {
   let bin = "";
@@ -47,6 +49,11 @@ export async function uploadRecording(rec: Recording): Promise<Recording> {
   }
   next = await withStrava(next, fit);
   await saveRecording(next);
+  // The Oggi card and the home-screen widget now show the ride as done.
+  if (next.status === "uploaded") {
+    refreshDashboard();
+    refreshPlanned();
+  }
   return next;
 }
 

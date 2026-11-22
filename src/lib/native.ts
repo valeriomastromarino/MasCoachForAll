@@ -9,6 +9,7 @@ interface MasCoachNativePlugin {
   shareFile(o: { name: string; data: string; mime?: string; title?: string }): Promise<void>;
   saveImage(o: { name: string; data: string; mime: string }): Promise<void>;
   widgetSetup(o: { url: string; password: string }): Promise<void>;
+  widgetPush(o: { json: string }): Promise<void>;
   takeRoute(): Promise<{ route: string | null }>;
 }
 
@@ -53,6 +54,11 @@ export function saveImage(name: string, base64: string, mime: string): Promise<v
 /** Gives the widget the server and the app password (it refreshes by itself every morning at 8:00). */
 export function widgetSetup(url: string, password: string): void {
   if (isApp() && password) Native.widgetSetup({ url, password }).catch(quiet);
+}
+
+/** Today's day as the app sees it (lib/widget.ts, JSON): the widget shows it at once, with no network needed. */
+export function widgetPush(json: string): void {
+  if (isApp()) Native.widgetPush({ json }).catch(quiet);
 }
 
 /** Page a widget tap asked for, if any (cold start), once. */

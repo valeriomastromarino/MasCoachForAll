@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget: the lit segment of the bar Recupero · Riduci · Pronto. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/w_seg_on" />
+    <corners android:radius="3dp" />
+</shape>

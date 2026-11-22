@@ -1,58 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget «B + C» (22 November 2026), light phone: the app's terracotta on top, the sheet with the numbers
+     and the session under it. Same colours as docs/anteprime-widget-mix-2026-11-22.html; values-night has the dark ones. -->
 <resources>
     <color name="w_bg">#FFFFFF</color>
-    <color name="w_card">#F1EFE8</color>
-    <color name="w_text">#1F1E1B</color>
-    <color name="w_sub">#5F5E5A</color>
-    <color name="w_accent_bg">#E6F1FB</color>
-    <color name="w_accent_text">#0C447C</color>
-
-    <style name="WCard">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:background">@drawable/widget_card</item>
-        <item name="android:orientation">vertical</item>
-        <item name="android:padding">8dp</item>
-    </style>
-    <style name="WVal">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textColor">@color/w_text</item>
-        <item name="android:textSize">16sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:maxLines">1</item>
-    </style>
-    <style name="WLbl">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textColor">@color/w_sub</item>
-        <item name="android:textSize">11sp</item>
-    </style>
-    <style name="WSub">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textColor">@color/w_sub</item>
-        <item name="android:textSize">12sp</item>
-        <item name="android:maxLines">1</item>
-    </style>
-    <style name="WTitle">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:textColor">@color/w_text</item>
-        <item name="android:textSize">15sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:maxLines">1</item>
-    </style>
-    <style name="WButton">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:background">@drawable/widget_button</item>
-        <item name="android:gravity">center</item>
-        <item name="android:paddingHorizontal">14dp</item>
-        <item name="android:paddingVertical">9dp</item>
-        <item name="android:textColor">@color/w_accent_text</item>
-        <item name="android:textSize">13sp</item>
-        <item name="android:textStyle">bold</item>
-    </style>
+    <color name="w_bg2">#F5F1EC</color>
+    <color name="w_ink">#2A2623</color>
+    <color name="w_ink2">#5E5753</color>
+    <color name="w_hero">#9F5F45</color>
+    <color name="w_hero_ink">#FFFFFF</color>
+    <color name="w_hero2">#F2FFFFFF</color>
+    <color name="w_seg_on">#FFFFFF</color>
+    <color name="w_seg_off">#57FFFFFF</color>
+    <color name="w_brand">#9F5F45</color>
+    <color name="w_on_brand">#FFFFFF</color>
+    <color name="w_btn_bg">#F3E3DA</color>
+    <color name="w_btn_ink">#7A4631</color>
+    <color name="w_a_ink">#8F563E</color>
+    <color name="w_good_ink">#22744A</color>
+    <color name="w_warn_ink">#6B4D0C</color>
+    <color name="w_hrv">#45B8A0</color>
+    <color name="w_hrv_ink">#1D7663</color>
+    <color name="w_rhr">#EE8F9F</color>
+    <color name="w_rhr_ink">#A83D52</color>
+    <color name="w_sleep">#A7AEF2</color>
+    <color name="w_form_ink">#8A6510</color>
+    <color name="w_z1">#C9C6BE</color>
+    <color name="w_z2">#8FBCEB</color>
+    <color name="w_z3">#5FC9A5</color>
+    <color name="w_z4">#F0C55E</color>
+    <color name="w_z5">#EE9B6E</color>
+    <color name="w_z6">#E4776F</color>
+    <color name="w_z7">#6B3A28</color>
 </resources>

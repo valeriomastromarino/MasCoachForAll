@@ -42,6 +42,7 @@ import {
 } from "../physio/durability";
 import { buildHistory, type HistoryData } from "../history";
 import { buildRide, type RideDetail } from "../ride";
+import { type LifeEvent, lifeFrom } from "../training/life";
 
 export type { CalendarData, HistoryData };
 export type ActivitiesPage = { rows: ActivityRow[]; oldest: string; newest: string };
@@ -81,16 +82,42 @@ async function dashboard(q: URLSearchParams): Promise<ApiResult> {
 
 // ── Home-screen widget ──────────────────────────────────────────────────────────────────────────────
 
-/** The small summary the Android widget draws (lib/widget.ts): today's verdict, numbers and planned workout. */
+/**
+ * The summary the Android widget draws (lib/widget.ts) when it asks by itself, at 8:00 or with «Aggiorna»: today's verdict,
+ * the numbers of the night and today's session with the rules of the Oggi card. The season and the athlete sheet live on
+ * the phone: here they come from the copy the app keeps on Intervals.icu (the chat's «solo per oggi» requests do not).
+ */
 async function widget(): Promise<ApiResult> {
   const today = todayIso();
   const dash = await dashboard(new URLSearchParams());
   if (dash.status !== 200) return dash;
+  const data = dash.json as DashboardData;
   // With the FTP the steps written in watts get their zone in the widget's profile too (without it they were all Z1).
-  const ftp = (dash.json as DashboardData).athlete.ftp;
-  const cal = await calendar(new URLSearchParams({ from: today, to: today, ...(ftp ? { ftp: String(ftp) } : {}) }));
+  const ftp = data.athlete.ftp;
+  const real = intervalsConfigured();
+  const [cal, lib, copy] = await Promise.all([
+    calendar(new URLSearchParams({ from: today, to: addDays(today, 7), ...(ftp ? { ftp: String(ftp) } : {}) })),
+    library(new URLSearchParams()).catch(() => null),
+    real ? cloud("GET", new URLSearchParams(), null).catch(() => null) : Promise.resolve(null),
+  ]);
   if (cal.status !== 200) return cal;
-  return ok(buildWidget(dash.json as DashboardData, cal.json as CalendarData, today));
+  const payload = copy?.status === 200 ? (copy.json as { payload: CloudPayload | null }).payload : null;
+  const setup = payload?.season ?? null;
+  const lifeRes = real
+    ? await life("GET", "", new URLSearchParams({ from: lifeFrom(today, setup?.start), to: addDays(today, 400) }), null).catch(() => null)
+    : null;
+  return ok(
+    buildWidget({
+      dash: data,
+      library: lib?.status === 200 ? (lib.json as LibraryData).folders.flatMap((f) => f.workouts) : [],
+      planned: (cal.json as CalendarData).workouts,
+      setup,
+      profile: payload?.profile ?? null,
+      phenotype: payload?.phenotype ?? null,
+      life: lifeRes?.status === 200 && Array.isArray(lifeRes.json) ? (lifeRes.json as LifeEvent[]) : [],
+      from: "sito",
+    }),
+  );
 }
 
 // ── Archive ─────────────────────────────────────────────────────────────────────────────────────────

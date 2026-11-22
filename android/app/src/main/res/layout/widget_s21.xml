@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget «B + C», striscia 2×1 (from 110 × 70 dp): the verdict on the brand colour, the bar, HRV and resting HR. -->
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/w_hero_full"
+    android:clipToOutline="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="13dp"
+        android:paddingTop="11dp"
+        android:paddingEnd="13dp"
+        android:paddingBottom="11dp">
+
+        <TextView
+            android:id="@+id/w_word"
+            style="@style/WHeadline"
+            android:paddingEnd="18dp"
+            android:textSize="22sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="5dp"
+            android:orientation="horizontal"
+            android:layout_marginTop="7dp">
+
+            <ImageView
+                android:id="@+id/w_seg0"
+                style="@style/WSeg"
+                android:contentDescription="@null" />
+
+            <ImageView
+                android:id="@+id/w_seg1"
+                style="@style/WSeg"
+                android:layout_marginStart="3dp"
+                android:contentDescription="@null" />
+
+            <ImageView
+                android:id="@+id/w_seg2"
+                style="@style/WSeg"
+                android:layout_marginStart="3dp"
+                android:contentDescription="@null" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/w_nums"
+            style="@style/WHeroSmall"
+            android:layout_width="match_parent" />
+    </LinearLayout>
+
+    <ImageView
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="12dp"
+        android:contentDescription="@null"
+        android:src="@drawable/w_logo" />
+</FrameLayout>

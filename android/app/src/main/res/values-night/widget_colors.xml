@@ -1,9 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget «B + C», dark phone (see values/widget_colors.xml). -->
 <resources>
-    <color name="w_bg">#1B1F2B</color>
-    <color name="w_card">#272C3A</color>
-    <color name="w_text">#F1EFE8</color>
-    <color name="w_sub">#B4B2A9</color>
-    <color name="w_accent_bg">#0C447C</color>
-    <color name="w_accent_text">#B5D4F4</color>
+    <color name="w_bg">#251E1A</color>
+    <color name="w_bg2">#2F2621</color>
+    <color name="w_ink">#F1ECE6</color>
+    <color name="w_ink2">#B5AAA0</color>
+    <color name="w_hero">#7A4631</color>
+    <color name="w_hero_ink">#FFFFFF</color>
+    <color name="w_hero2">#DBFFFFFF</color>
+    <color name="w_seg_on">#FFFFFF</color>
+    <color name="w_seg_off">#4DFFFFFF</color>
+    <color name="w_brand">#A76449</color>
+    <color name="w_on_brand">#FFFFFF</color>
+    <color name="w_btn_bg">#3D2B22</color>
+    <color name="w_btn_ink">#F0C2AD</color>
+    <color name="w_a_ink">#E3A98F</color>
+    <color name="w_good_ink">#8FE3B4</color>
+    <color name="w_warn_ink">#FFE3A6</color>
+    <color name="w_hrv">#86E8D2</color>
+    <color name="w_hrv_ink">#86E8D2</color>
+    <color name="w_rhr">#FF9DB0</color>
+    <color name="w_rhr_ink">#FFB3C1</color>
+    <color name="w_sleep">#A9B4FF</color>
+    <color name="w_form_ink">#FFE08A</color>
+    <color name="w_z1">#8E98AB</color>
+    <color name="w_z2">#8DBBFF</color>
+    <color name="w_z3">#8FE3B4</color>
+    <color name="w_z4">#FFE08A</color>
+    <color name="w_z5">#FFB98A</color>
+    <color name="w_z6">#FF9D9D</color>
+    <color name="w_z7">#D99A7C</color>
 </resources>

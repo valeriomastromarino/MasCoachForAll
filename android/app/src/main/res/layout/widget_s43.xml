@@ -1,0 +1,458 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget «B + C», medio 4×3 (from 250 × 300 dp): verdict and the bar with its words; HRV 7 gg, resting HR, sleep and form against the norm; the session with its profile. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/w_bg"
+    android:clipToOutline="true"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/w_hero"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/w_hero"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="7dp"
+        android:paddingBottom="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="30dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/w_logo"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:contentDescription="@null"
+                android:src="@drawable/w_logo" />
+
+            <TextView
+                style="@style/WLogo"
+                android:layout_marginStart="6dp" />
+
+            <ImageView
+                android:layout_width="5dp"
+                android:layout_height="9dp"
+                android:layout_marginStart="1dp"
+                android:contentDescription="@null"
+                android:src="@drawable/w_cursor" />
+
+            <TextView
+                android:id="@+id/w_stamp"
+                style="@style/WHeroSmall"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:gravity="end"
+                android:textSize="12sp" />
+
+            <ImageView
+                android:id="@+id/w_refresh"
+                android:layout_width="34dp"
+                android:layout_height="30dp"
+                android:contentDescription="Aggiorna"
+                android:paddingStart="9dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="9dp"
+                android:paddingBottom="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/w_ic_refresh" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingEnd="9dp">
+
+            <TextView
+                android:id="@+id/w_headline"
+                style="@style/WHeadline"
+                android:textSize="23sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
+
+                <ImageView
+                    android:id="@+id/w_seg0"
+                    style="@style/WSeg"
+                    android:contentDescription="@null" />
+
+                <ImageView
+                    android:id="@+id/w_seg1"
+                    style="@style/WSeg"
+                    android:layout_marginStart="3dp"
+                    android:contentDescription="@null" />
+
+                <ImageView
+                    android:id="@+id/w_seg2"
+                    style="@style/WSeg"
+                    android:layout_marginStart="3dp"
+                    android:contentDescription="@null" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/w_seg_l0"
+                    style="@style/WSegLabel"
+                    android:text="Recupero" />
+
+                <TextView
+                    android:id="@+id/w_seg_l1"
+                    style="@style/WSegLabel"
+                    android:layout_marginStart="3dp"
+                    android:text="Riduci" />
+
+                <TextView
+                    android:id="@+id/w_seg_l2"
+                    style="@style/WSegLabel"
+                    android:layout_marginStart="3dp"
+                    android:text="Pronto" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/w_t_hrv"
+                style="@style/WTile"
+                android:paddingStart="10dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/WLab"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="HRV 7 gg" />
+
+                    <TextView
+                        android:id="@+id/w_hrv_st"
+                        style="@style/WText"
+                        android:layout_marginStart="4dp"
+                        android:textColor="@color/w_hrv_ink"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="22dp"
+                    android:layout_marginTop="1dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/w_hrv_val"
+                        style="@style/WVal"
+                        android:textSize="18sp" />
+
+                    <TextView
+                        style="@style/WLab"
+                        android:layout_width="wrap_content"
+                        android:layout_marginStart="3dp"
+                        android:text="ms" />
+
+                    <ImageView
+                        android:id="@+id/w_hrv_chart"
+                        android:layout_width="0dp"
+                        android:layout_height="18dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:contentDescription="@null"
+                        android:scaleType="fitXY" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/w_t_rhr"
+                style="@style/WTile"
+                android:paddingStart="10dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="8dp"
+                android:layout_marginStart="6dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/WLab"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="FC riposo" />
+
+                    <TextView
+                        android:id="@+id/w_rhr_st"
+                        style="@style/WText"
+                        android:layout_marginStart="4dp"
+                        android:textColor="@color/w_rhr_ink"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="22dp"
+                    android:layout_marginTop="1dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/w_rhr_val"
+                        style="@style/WVal"
+                        android:textSize="18sp" />
+
+                    <TextView
+                        style="@style/WLab"
+                        android:layout_width="wrap_content"
+                        android:layout_marginStart="3dp"
+                        android:text="bpm" />
+
+                    <ImageView
+                        android:id="@+id/w_rhr_chart"
+                        android:layout_width="0dp"
+                        android:layout_height="18dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:contentDescription="@null"
+                        android:scaleType="fitXY" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/w_t_sleep"
+                style="@style/WTile"
+                android:paddingStart="10dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="8dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/WLab"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="Sonno" />
+
+                    <TextView
+                        android:id="@+id/w_sleep_st"
+                        style="@style/WText"
+                        android:layout_marginStart="4dp"
+                        android:textColor="@color/w_ink2"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="22dp"
+                    android:layout_marginTop="1dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/w_sleep_val"
+                        style="@style/WVal"
+                        android:textSize="18sp" />
+
+                    <ImageView
+                        android:id="@+id/w_sleep_chart"
+                        android:layout_width="0dp"
+                        android:layout_height="18dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:contentDescription="@null"
+                        android:scaleType="fitXY" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/w_t_form"
+                style="@style/WTile"
+                android:paddingStart="10dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="8dp"
+                android:layout_marginStart="6dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        style="@style/WLab"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:text="Forma" />
+
+                    <TextView
+                        android:id="@+id/w_form_st"
+                        style="@style/WText"
+                        android:layout_marginStart="4dp"
+                        android:textColor="@color/w_form_ink"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="22dp"
+                    android:layout_marginTop="1dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/w_form_val"
+                        style="@style/WVal"
+                        android:textSize="18sp" />
+
+                    <ImageView
+                        android:id="@+id/w_form_chart"
+                        android:layout_width="0dp"
+                        android:layout_height="18dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:contentDescription="@null"
+                        android:scaleType="fitXY" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/w_session"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="44dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/w_lab"
+                    style="@style/WLab" />
+
+                <TextView
+                    android:id="@+id/w_lab_prop"
+                    style="@style/WLab"
+                    android:textColor="@color/w_a_ink"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/w_lab_done"
+                    style="@style/WLab"
+                    android:textColor="@color/w_good_ink"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/w_title"
+                    style="@style/WTitle" />
+
+                <TextView
+                    android:id="@+id/w_meta"
+                    style="@style/WLab" />
+
+                <TextView
+                    android:id="@+id/w_meta_warn"
+                    style="@style/WLabWarn"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/w_act_pedala"
+                style="@style/WPedala"
+                android:layout_marginStart="10dp"
+                android:visibility="gone" />
+
+            <ImageView
+                android:id="@+id/w_act_go"
+                style="@style/WRound"
+                android:contentDescription="Apri"
+                android:src="@drawable/w_ic_right" />
+
+            <ImageView
+                android:id="@+id/w_act_cal"
+                style="@style/WRound"
+                android:contentDescription="Piano"
+                android:src="@drawable/w_ic_calendar"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/w_profile"
+            android:layout_width="match_parent"
+            android:layout_height="14dp"
+            android:layout_marginTop="6dp"
+            android:contentDescription="@null"
+            android:scaleType="fitXY" />
+
+        <TextView
+            android:id="@+id/w_better"
+            style="@style/WLab"
+            android:layout_marginTop="6dp"
+            android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

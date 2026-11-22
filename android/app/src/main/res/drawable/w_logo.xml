@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget: the MasCoach logo, three lines on the dark tile (as the app icon). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#12151F"
+        android:pathData="M6.72,0h10.56a6.72,6.72 0,0 1,6.72 6.72v10.56a6.72,6.72 0,0 1,-6.72 6.72h-10.56a6.72,6.72 0,0 1,-6.72 -6.72v-10.56a6.72,6.72 0,0 1,6.72 -6.72z" />
+    <path
+        android:pathData="M6.34,6.96L18.6,6.96"
+        android:strokeColor="#B993E8"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.64" />
+    <path
+        android:pathData="M10.64,12L18.6,12"
+        android:strokeColor="#6FA6EE"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.64" />
+    <path
+        android:pathData="M14.54,17.04L18.6,17.04"
+        android:strokeColor="#45B8A0"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.64" />
+</vector>

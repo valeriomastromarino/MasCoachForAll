@@ -4,10 +4,12 @@
 // pages (Oggi, Piano, Coach, Uscite: design D of 19 November 2026) sit side by side in a pager: the page follows the finger.
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useCompact } from "@/lib/compact";
+import { isApp } from "@/lib/native";
 import { setPagerPos } from "@/lib/pagerPos";
 import { TopBarView } from "../brand/TopBar";
 import { useChartTouchDismiss } from "../chartTouch";
 import Archive from "../archive/Archive";
+import { WidgetSync } from "../data/WidgetSync";
 import Coach from "../sections/Coach";
 import Oggi from "../sections/Oggi";
 import Piano from "../sections/Piano";
@@ -156,6 +158,8 @@ export function AppShell({ children, header }: { children: React.ReactNode; head
       }
     >
       <Shell header={header}>{children}</Shell>
+      {/* Android: the home-screen widget gets today's day from the app while it is open. */}
+      {isApp() && <WidgetSync />}
     </Suspense>
   );
 }
