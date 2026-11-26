@@ -131,14 +131,14 @@ export function perColore(ctx: ChatContext, state: ChatState, text: string): Cha
 
 // ── The sessions of a day ────────────────────────────────────────────────────────────────────────
 
-const stepsOf = (ctx: ChatContext, w: CalendarWorkout) => {
+export const stepsOf = (ctx: ChatContext, w: CalendarWorkout) => {
   const ftp = onTrainer(w) ? (ctx.data.athlete.indoorFtp ?? ctx.data.athlete.ftp) : ctx.data.athlete.ftp;
   const s = parseIntervalsText(w.description, ftp) ?? sectionsFromBlocks(w.blocks);
   return sectionLines(s, ftp).slice(0, 5);
 };
 
 /** The engine's check of a planned session on its day. Another day than today is judged with the readiness of today. */
-function check(ctx: ChatContext, w: CalendarWorkout) {
+export function check(ctx: ChatContext, w: CalendarWorkout) {
   const input = suggestInput(ctx, w.date === ctx.today ? { date: w.date } : { date: w.date, readiness: ctx.data.status.readiness.level === "rosso" ? "giallo" : ctx.data.status.readiness.level, tsbYesterday: null, feeling: null });
   return plannedFits({ ...input, recent: input.recent.filter((a) => !a.planned) }, { ...w, id: 0 });
 }

@@ -113,6 +113,12 @@ export function usePlace(): { place: Place | null; status: PlaceStatus; ask: () 
 }
 
 type Cached = { key: string; at: number; days: DayWeather[] };
+
+/** The forecast the calendar saved last (up to a day old), for the coach's chat: no request of its own. */
+export function savedForecast(): DayWeather[] {
+  const c = parse<Cached>(forecastSnapshot());
+  return c && Date.now() - c.at < 24 * 3600_000 ? c.days : [];
+}
 const keyOf = (lat: number, lon: number) => `${lat.toFixed(1)},${lon.toFixed(1)}`;
 
 /** The daily forecast for the place: kept for an hour, and shown from the saved copy when the network fails. */

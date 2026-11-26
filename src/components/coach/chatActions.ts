@@ -80,6 +80,27 @@ export async function runAction(action: Action, sheet: SheetContext): Promise<Ac
       const n = action.items.length;
       return failed ? { ok: false, message: `Ne ho cancellate ${n - failed} su ${n}: controlla il calendario.` } : { ok: true, message: n === 1 ? "Cancellata da Intervals." : `Cancellate da Intervals: ${n} sedute.` };
     }
+    case "move_many": {
+      // All or none: if one move fails, the ones already moved go back.
+      const done: typeof action.items = [];
+      for (const item of action.items) {
+        const r = await call(`/api/calendar/events/${encodeURIComponent(item.eventId)}`, "PATCH", { date: item.to });
+        if (!r.ok) {
+          for (const d of done) await call(`/api/calendar/events/${encodeURIComponent(d.eventId)}`, "PATCH", { date: d.from });
+          refreshPlanned();
+          return { ok: false, message: `Non sono riuscito a spostarle (${r.error}): ho rimesso tutto com'era.` };
+        }
+        done.push(item);
+      }
+      refreshPlanned();
+      return { ok: true, message: `Spostate: ${done.length} sedute, anche sul Garmin.`, undo: { kind: "move_back", moves: done.map((d) => ({ id: d.eventId, to: d.from })), label: action.label } };
+    }
+    case "race_add": {
+      const r = await call("/api/life", "POST", { category: action.priority, from: action.date, to: action.date, name: action.name });
+      refreshLife();
+      refreshPlanned();
+      return r.ok ? { ok: true, message: "Gara segnata su Intervals: il piano la tratta come un giorno duro.", undo: { kind: "life_delete", id: String(r.json.id ?? ""), label: action.label } } : { ok: false, message: `Non sono riuscito a segnarla: ${r.error}` };
+    }
     case "life_add": {
       const r = await call("/api/life", "POST", { category: action.category, from: action.from, to: action.to, name: action.name });
       refreshLife();
@@ -168,5 +189,6 @@ export async function runUndo(undo: UndoInfo): Promise<ActionResult> {
   }
   const r = await call(`/api/life/${encodeURIComponent(undo.id)}`, "DELETE");
   refreshLife();
+  refreshPlanned();
   return r.ok ? { ok: true, message: "Tolto da Intervals." } : { ok: false, message: `Non sono riuscito a toglierlo: ${r.error}` };
 }

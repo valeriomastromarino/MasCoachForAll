@@ -74,8 +74,11 @@ function fitLines(ctx: ChatContext, date: string, w: CalendarWorkout | LibraryWo
 export function sposta(ctx: ChatContext, state: ChatState, text: string): ChatResult {
   const picked = oneOf(ctx, state, text, (w) => `Sposta ${sayPlanned(w, kindWord(w))}`, "Non trovo la seduta che dici.");
   if (isResult(picked)) return picked;
-  const { w } = picked;
-  const to = destination(text, w.date, ctx.today);
+  return moveTo(ctx, state, picked.w, destination(text, picked.w.date, ctx.today));
+}
+
+/** A planned session moved to a day (a swap when another session is there); no day: the question with free days. */
+export function moveTo(ctx: ChatContext, state: ChatState, w: CalendarWorkout, to: string | null): ChatResult {
   const focus = { intent: "sposta", eventId: w.id, date: w.date };
   if (!to) {
     const free = [1, 2, 3, 4, 5, 6].map((i) => addDays(w.date, i)).filter((d) => !upcoming(ctx).some((x) => x.date === d)).slice(0, 3);
@@ -266,24 +269,28 @@ export function durata(ctx: ChatContext, state: ChatState, text: string): ChatRe
   const picked = oneOf(ctx, state, text, (w) => `${/allung|piu lung/.test(t) ? "Allunga" : "Accorcia"} ${sayPlanned(w, kindWord(w))}`, "Non trovo la seduta da cambiare.");
   if (isResult(picked)) return picked;
   const { w } = picked;
+  const longer = /\b(allung\w*|piu lung\w*|aggiungi)\b/.test(t);
+  const mins = parseMinutes(t.replace(/\b(di )?(un|uno|1|due|2) (giorno|giorni)\b/, ""));
+  const by = /\b(di|in meno|in piu)\b/.test(t) && !/\ba\b \d|\bad\b|\bfino a\b/.test(t) && mins !== null && !/\ba (\d|un|una|mezz)/.test(t);
+  return resizeTo(ctx, state, w, (now) => (mins === null ? Math.round((now * (longer ? 1.25 : 0.75)) / 300) * 300 : by ? now + (longer ? 1 : -1) * mins * 60 : mins * 60));
+}
+
+/** A planned session brought to the length `targetOf` gives for its current length (seconds). */
+export function resizeTo(ctx: ChatContext, state: ChatState, w: CalendarWorkout, targetOf: (now: number) => number, indoor?: boolean): ChatResult {
   if (w.race || !isBikeSession(w)) return plain(state, { text: "Questa non la cambio: è una gara o non è un'uscita in bici.", chips: [] });
   const sections = sectionsOf(ctx, w);
   const now = totalSecs(sections);
   if (!sections.length || now <= 0) return plain(state, { text: `Di «${w.name}» non ho i passi: cambiala dal calendario.`, chips: [] });
-  const longer = /\b(allung\w*|piu lung\w*|aggiungi)\b/.test(t);
-  const mins = parseMinutes(t.replace(/\b(di )?(un|uno|1|due|2) (giorno|giorni)\b/, ""));
-  const by = /\b(di|in meno|in piu)\b/.test(t) && !/\ba\b \d|\bad\b|\bfino a\b/.test(t) && mins !== null && !/\ba (\d|un|una|mezz)/.test(t);
-  let target: number;
-  if (mins === null) target = Math.round((now * (longer ? 1.25 : 0.75)) / 300) * 300;
-  else if (by) target = now + (longer ? 1 : -1) * mins * 60;
-  else target = mins * 60;
+  const target = targetOf(now);
   if (target < 20 * 60) return plain(state, { text: "Sotto i 20 minuti non la porto: se hai così poco tempo, meglio riposo o una sgambata libera.", chips: ["Oggi riposo"] });
   if (Math.abs(target - now) < 120) return plain(state, { text: `Dura già ${durLabel(now)}.`, chips: [] });
   const r = resize(sections, target);
   if (!r) return plain(state, { text: `Non riesco a portare «${w.name}» a ${durLabel(target)} senza snaturarla. Vuoi una seduta diversa da ${minsText(Math.round(target / 60))}?`, chips: [`${capitalize(dayOf(ctx, w.date))} ${Math.round(target / 60)}' z2`] });
   const notes = [`Prima durava ${durLabel(now)}: ${target < now ? "accorciata la parte facile" : "allungata la parte in Z2"}, il lavoro resta quello.`];
   if (r.note) notes.unshift(r.note);
-  return update(ctx, state, w, r.sections, onTrainer(w), `Ecco «${w.name}» di ${dayOf(ctx, w.date)} da ${durLabel(totalSecs(r.sections))}.`, notes);
+  notes.push(...dayRules(ctx, w.date, { ...w, secs: totalSecs(r.sections) }));
+  const where = indoor ?? onTrainer(w);
+  return update(ctx, state, w, r.sections, where, `Ecco «${w.name}» di ${dayOf(ctx, w.date)} da ${durLabel(totalSecs(r.sections))}${where !== onTrainer(w) ? (where ? ", sui rulli" : ", fuori") : ""}.`, notes);
 }
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -318,7 +325,11 @@ export function luogo(ctx: ChatContext, state: ChatState, text: string): ChatRes
   const p = pickPlanned(ctx, state, t.replace(/\b(sui|sul|ai|al) (rulli|rullo)\b|\bindoor\b|\bfuori\b|\ball aperto\b|\bin strada\b/g, " "));
   const list = p.by === "none" ? [] : p.list;
   if (list.length !== 1) return null;
-  const w = list[0];
+  return luogoTo(ctx, state, list[0], indoor);
+}
+
+/** A planned session moved onto the trainer or outdoors: same steps, the watts follow the FTP of the place. */
+export function luogoTo(ctx: ChatContext, state: ChatState, w: CalendarWorkout, indoor: boolean): ChatResult {
   if (onTrainer(w) === indoor) return plain(state, { text: `«${w.name}» di ${dayOf(ctx, w.date)} è già ${indoor ? "sui rulli" : "fuori"}.`, chips: [] });
   const sections = sectionsOf(ctx, w);
   const from = ftpFor(ctx, onTrainer(w));
@@ -329,12 +340,88 @@ export function luogo(ctx: ChatContext, state: ChatState, text: string): ChatRes
   return update(ctx, state, w, sections, indoor, `«${w.name}» di ${dayOf(ctx, w.date)} ${indoor ? "sui rulli" : "fuori"}.`, notes);
 }
 
+// ── Structure and intensity of a planned session (26 November 2026) ─────────────────────────────────
+
+/** The hardest step of a set: the work, as opposed to the recoveries between repeats. */
+const workStep = (s: Section) => s.steps.reduce((a, b) => (mid(b.target) > mid(a.target) ? b : a), s.steps[0]);
+
+const setText = (s: Section) => `${s.reps}×${Math.round(workStep(s).secs / 60) || `${workStep(s).secs}"`}${workStep(s).secs >= 60 ? "'" : ""}`;
+
+/** «il VO2 fallo 5x4», «lo sweet spot 3x15 invece di 2x20»: repeats and length of the work of the main set. */
+export function struttura(ctx: ChatContext, state: ChatState, w: CalendarWorkout, reps: number, workSecs: number | null): ChatResult {
+  const sections = sectionsOf(ctx, w);
+  const main = mainSet(sections);
+  if (!main) return plain(state, { text: `«${w.name}» non ha ripetute da cambiare. Se vuoi una seduta nuova dimmi per esempio «${weekday(w.date)} 5x4' VO2».`, chips: [`${capitalize(weekday(w.date))} 5x4' VO2`] }, { intent: "modifica", eventId: w.id, date: w.date });
+  if (reps < 1 || reps > 20 || (workSecs !== null && (workSecs < 10 || workSecs > 60 * 60))) return plain(state, { text: "Questi numeri non mi tornano: dimmi ripetute e minuti, per esempio «5x4».", chips: [] });
+  const before = setText(main);
+  const out = clone(sections);
+  const target = mainSet(out)!;
+  target.reps = reps;
+  if (workSecs !== null) workStep(target).secs = workSecs;
+  const after = setText(target);
+  if (before === after) return plain(state, { text: `«${w.name}» è già ${after}.`, chips: [] });
+  const work = (s: Section) => s.reps * workStep(s).secs;
+  const notes = [`Lavoro da ${before} a ${after}: ${Math.round(work(main) / 60)} → ${Math.round(work(target) / 60)} minuti alla stessa intensità, la seduta passa da ${durLabel(totalSecs(sections))} a ${durLabel(totalSecs(out))}.`];
+  if (work(target) > work(main) * 1.25) notes.push("È un salto di lavoro grande: se le ultime ripetute le chiudi a fatica, la prossima volta torna più vicino a quello di prima.");
+  if (workSecs !== null && workStep(main).secs !== workSecs && mid(workStep(main).target) >= 1.05 && workSecs > workStep(main).secs * 1.5) notes.push("Ripetute più lunghe alla stessa potenza sono molto più dure: se non tieni il ritmo, abbassa di 5-10 W.");
+  return update(ctx, state, w, out, onTrainer(w), `Ecco «${w.name}» di ${dayOf(ctx, w.date)} con ${after}.`, notes);
+}
+
+/** «rendila più facile», «più dura»: one repeat less or more (or a little less power when it has only two). */
+export function intensita(ctx: ChatContext, state: ChatState, w: CalendarWorkout, harder: boolean): ChatResult {
+  const sections = sectionsOf(ctx, w);
+  const main = mainSet(sections);
+  const focus = { intent: "modifica", eventId: w.id, date: w.date };
+  if (!main) {
+    if (harder) return plain(state, { text: `«${w.name}» è una seduta facile: per renderla più dura posso metterci dentro qualcosa senza allungarla.`, chips: [`Inserisci 5 sprint in quella di ${weekday(w.date)}`, `Inserisci 2x10' tempo in quella di ${weekday(w.date)}`] }, focus);
+    return resizeTo(ctx, state, w, (now) => Math.max(30 * 60, Math.round((now * 0.8) / 300) * 300));
+  }
+  const out = clone(sections);
+  const target = mainSet(out)!;
+  const notes: string[] = [];
+  if (harder) {
+    target.reps += 1;
+    notes.push(`Una ripetuta in più: ${setText(main)} → ${setText(target)}, stessa intensità.`);
+  } else if (main.reps > 2) {
+    target.reps -= 1;
+    notes.push(`Una ripetuta in meno: ${setText(main)} → ${setText(target)}, stessa intensità.`);
+  } else {
+    const st = workStep(target);
+    st.target = { ...st.target, lo: Math.round(st.target.lo * 0.96 * 100) / 100, hi: Math.round(st.target.hi * 0.96 * 100) / 100 };
+    notes.push(`Con 2 ripetute ne tolgo una sola se me lo chiedi; intanto abbasso il lavoro del 4% (da ${Math.round(mid(workStep(main).target) * 100)}% a ${Math.round(mid(st.target) * 100)}% della FTP).`);
+  }
+  notes.push(`La seduta passa da ${durLabel(totalSecs(sections))} a ${durLabel(totalSecs(out))}.`);
+  return update(ctx, state, w, out, onTrainer(w), `Ecco «${w.name}» di ${dayOf(ctx, w.date)} ${harder ? "più impegnativa" : "più facile"}.`, notes);
+}
+
+/** «sposta tutto di un giorno», «rimanda tutto», «anticipa tutto di 2 giorni»: every session ahead shifted together. */
+export function spostaTutto(ctx: ChatContext, state: ChatState, text: string): ChatResult {
+  const t = normalize(text);
+  const span = /\b(da|dal)\s+(oggi|domani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica|\d{1,2})\b.*\b(in poi|in avanti)\b/.test(t) ? parseDates(t.replace(/\bin (poi|avanti)\b/, ""), ctx.today) : null;
+  const items = upcoming(ctx).filter((w) => !w.race && (!span || w.date >= span.from));
+  if (!items.length) return plain(state, { text: "Non vedo sedute in programma da spostare.", chips: ["I prossimi giorni"] });
+  const shift = t.match(/\bdi (un|uno|1|due|2|tre|3) (giorno|giorni)\b/);
+  const n = (shift ? ({ un: 1, uno: 1, "1": 1, due: 2, "2": 2, tre: 3, "3": 3 } as Record<string, number>)[shift[1]] : 1) * (/\banticip\w*|\bindietro\b|\bprima\b/.test(t) ? -1 : 1);
+  if (items.some((w) => addDays(w.date, n) < ctx.today)) return plain(state, { text: "Così una seduta finirebbe nel passato: dimmi da che giorno, per esempio «sposta tutto da martedì in poi di un giorno».", chips: [] });
+  const moves = items.map((w) => ({ eventId: w.id, name: w.name, from: w.date, to: addDays(w.date, n) }));
+  const lines = moves.map((m) => `«${m.name}»: ${weekday(m.from)} → ${weekday(m.to)}`);
+  const off = moves.filter((m) => {
+    const dow = (new Date(`${m.to}T12:00:00`).getDay() + 6) % 7;
+    return ctx.profile?.giorni?.length ? !ctx.profile.giorni.includes(dow) : false;
+  });
+  if (off.length) lines.push(`Attenzione: ${off.map((m) => weekday(m.to)).join(" e ")} nella tua scheda ${off.length === 1 ? "è un giorno" : "sono giorni"} senza allenamento.`);
+  const hardDays = moves.filter((m) => /vo2|soglia|sweet|threshold|sst|30\/15|40\/20/i.test(m.name)).map((m) => m.to).sort();
+  if (hardDays.some((d, i) => i > 0 && addDays(hardDays[i - 1], 1) === d)) lines.push("Attenzione: due sedute di qualità finiscono in giorni di fila.");
+  const label = `${moves.length} sedute ${n > 0 ? "avanti" : "indietro"} di ${Math.abs(n) === 1 ? "un giorno" : `${Math.abs(n)} giorni`}`;
+  return ask(state, { type: "move_many", items: moves, label }, `Sposto ${label}. Confermi?`, lines);
+}
+
 /** Which change of a planned session the words ask for, if any. */
 export function editKind(text: string): "sposta" | "scambia" | "cancella" | "durata" | "ripetute" | "luogo" | null {
   const t = normalize(text);
   if (/\b(scambia\w*|inverti\w*|scambiale|scambiali)\b/.test(t)) return "scambia";
   if (/\b(sposta\w*|rimand\w*|anticip\w*|posticip\w*)\b/.test(t) && !/\b(se|e se)\b.*\?/.test(text)) return "sposta";
-  if (/\b(cancella\w*|elimina\w*|togli\w*|rimuovi\w*|leva\w*)\b/.test(t) && !/\b(ripetut|serie|sprint|intervall|riscaldamento|minuti|richieste|vincoli)\b/.test(t)) return "cancella";
+  if (/\b(cancella\w*|elimina\w*|togli\w*|rimuovi\w*|leva\w*)\b/.test(t) && !/\b(ripetut\w*|serie|sprint\w*|intervall\w*|riscaldamento|minuti|richieste|vincoli)\b/.test(t)) return "cancella";
   if (/\b(\d{1,2}|una|due|tre|quattro|cinque|sei|sette|otto) (ripetut\w*|serie|intervall\w*|blocchi)\b|\b(togli|leva|aggiungi) (una|un) (ripetut|serie|intervall)/.test(t) && /\b(falla|fallo|fai|metti|mettine|togli|leva|aggiungi|con)\b/.test(t)) return "ripetute";
   if (/\b(accorcia\w*|allunga\w*|piu corta|piu corto|piu lunga|piu lungo|riduci\w*)\b/.test(t)) return "durata";
   if (/\b(falla|fallo|farla|farlo|mettila|mettilo|portala|portalo|la faccio|lo faccio|spostala|facciamola)\b.*\b(rulli|rullo|indoor|fuori|all aperto|in strada)\b|\b(rulli|indoor|fuori)\b.*\b(domani|dopodomani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)\b/.test(t)) return "luogo";

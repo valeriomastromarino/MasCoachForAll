@@ -60,6 +60,11 @@ export function pickPlanned(ctx: ChatContext, state: ChatState, source: string):
     if (both.length) return { list: both, by: "kind", kind: kinds[0].say };
     if (hit.length && !days) return { list: hit, by: "kind", kind: kinds[0].say };
     if (days?.length) return { list: days, by: "day" };
+    // «la lunga» when no session is long enough to be called so: the longest of the next days, if it is a real ride.
+    if (kinds.length === 1 && kinds[0].say === "la lunga") {
+      const longest = list.filter(isBikeSession).sort((a, b) => (b.secs ?? 0) - (a.secs ?? 0))[0];
+      if (longest && (longest.secs ?? 0) >= 75 * 60) return { list: [longest], by: "kind", kind: "la lunga" };
+    }
     return { list: [], by: "kind", kind: kinds[0].say };
   }
   if (days) return { list: days, by: "day" };

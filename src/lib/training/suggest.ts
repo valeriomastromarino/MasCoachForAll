@@ -523,7 +523,8 @@ export function suggestWorkout(input: SuggestInput): Suggestion {
     const whose = choice.mine ? "L'hai scelto tu nella Stagione." : "Dalla settimana che hai fissato nella Stagione.";
     if (choice.id === null) return { kind: "rest", reason: `Riposo. ${whose}` };
     const w = input.library.find((x) => x.id === choice.id);
-    const asked = ov.wantClass || ov.easier || ov.maxMins;
+    // «cambia» on a fixed day: the chat leaves the fixed workout out, and the engine proposes another (26 November 2026).
+    const asked = ov.wantClass || ov.easier || ov.maxMins || (choice.id !== null && input.exclude?.includes(choice.id));
     const fit = w && !asked ? plannedFits({ ...input, recent: input.recent.filter((a) => !a.planned) }, w) : null;
     if (w && fit && (fit.ok || (fit.rule === "method" && choice.mine))) {
       const c = classifyWorkout(w);

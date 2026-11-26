@@ -13,6 +13,8 @@ import { examples, phraseFor } from "./examples";
 import { findTerm, GLOSSARY } from "./glossary";
 import { detectIntent, HELP, type Intent, type IntentType, ruleWords } from "./intents";
 import { type Notion, NOTIONS, notionsFor } from "./knowledge";
+import { command } from "./commands";
+import { forget, learn, learnedFor } from "./learned";
 import { clean, learnWords } from "./lexicon";
 import { destination } from "./refs";
 import * as S from "./smart";
@@ -82,7 +84,10 @@ const ADVICE = /\b(come|cosa faccio|che faccio|devo|dovrei|posso|potrei|conviene
 const BAD_WEATHER = /\b(se piove|se dovesse piovere|se c e brutto|se fa brutto|se fa freddo|se nevica|con la pioggia|se c e vento)\b/;
 /** Rules that a notion answers better when the message is a general question (no day, an advice word). */
 const OVERRIDABLE = new Set<IntentType>(["unknown", "vita_ferie", "vita_malattia", "vita_infortunio", "sensazione", "posso", "carbo", "consiglio", "piano", "forma", "recupero", "distribuzione", "stato", "settimana_piano", "libreria", "what_if", "test_cp", "ftp", "sonno", "perche", "cambia", "oggi", "pref_luogo", "durata_check", "record", "mese", "profilo", "zone"]);
-const ORDINAL: Record<string, number> = { prima: 0, primo: 0, "1": 0, uno: 0, seconda: 1, secondo: 1, "2": 1, due: 1, terza: 2, terzo: 2, "3": 2, tre: 2, quarta: 3, quarto: 3, "4": 3, quattro: 3 };
+/** Intents that change today's session, and the general questions that must never do it. */
+const TODAY_CHANGERS = new Set<IntentType>(["cambia", "pref_luogo", "pref_minuti", "riposo_oggi"]);
+const GENERAL_Q = /^(va bene|e meglio|e giusto|e normale|ha senso|conviene|e utile|serve|si puo|e vero|e un problema|e sbagliato|che differenza|quante volte|ogni quanto|quanto spesso)\b/;
+const ORDINAL: Record<string, number> ={ prima: 0, primo: 0, "1": 0, uno: 0, seconda: 1, secondo: 1, "2": 1, due: 1, terza: 2, terzo: 2, "3": 2, tre: 2, quarta: 3, quarto: 3, "4": 3, quattro: 3 };
 
 function notionReply(n: Notion, ctx: ChatContext, state: ChatState): ChatResult {
   const r = n.say(ctx);
@@ -194,16 +199,28 @@ function nearest(text: string, ctx: ChatContext, state: ChatState): ChatResult {
   const t = normalize(text);
   const near = examples().nearest(t, 4, (l) => !["i:si", "i:saluto", "i:programma", "i:rpe", "i:registra_carbo", "i:pref_ore", "i:pref_ramp", "i:pref_giorno", "i:vita_ferie", "i:vita_malattia", "i:vita_infortunio", "i:vita_guarito"].includes(l) && !l.startsWith("i:edit_"));
   const top = near[0];
+  const options = near.filter((x) => x.score >= 0.2).slice(0, 3);
+  const phrases = options.map((x) => phraseFor(x.label)).filter((c, i, a) => a.indexOf(c) === i);
   if (top && top.score >= 0.5) {
     const r = dispatch(top.label, text, ctx, state);
-    if (r) return r;
+    // A guess: «Non era questo» offers the other readings, and the one tapped is learned.
+    if (r) {
+      const alts = phrases.filter((p) => p !== phraseFor(top.label));
+      return { ...r, reply: { ...r.reply, chips: [...(r.reply.chips ?? []).slice(0, 2), "Non era questo"] }, state: { ...r.state, focus: { ...r.state.focus, asked: t, alts } } };
+    }
   }
-  const options = near.filter((x) => x.score >= 0.2).slice(0, 3);
-  if (options.length) {
-    const choices = options.map((x) => phraseFor(x.label)).filter((c, i, a) => a.indexOf(c) === i);
-    return E.choose(state, "Non sono sicuro di aver capito. Intendevi una di queste?", choices, { intent: "unknown" });
-  }
-  return unknown(text, state);
+  if (phrases.length) return E.choose(state, "Non sono sicuro di aver capito. Intendevi una di queste?", phrases, { intent: "unknown", asked: t });
+  return { ...unknown(text, state), state: { ...state, pending: null, focus: { intent: "unknown", asked: t } } };
+}
+
+const NOT_THIS = /^(non era questo|non e questo|non era quello|non intendevo questo|non intendevo quello|hai capito male|non c entra|non c entra niente|sbagliato|no non era questo)$/;
+
+/** «Non era questo»: the other readings of the last message, or a request to say it in other words. */
+function notThis(ctx: ChatContext, state: ChatState): ChatResult {
+  const f = state.focus;
+  if (f?.asked) forget(f.asked);
+  if (f?.alts?.length) return E.choose(state, "Scusa. Allora intendevi una di queste?", [...f.alts, "Nessuna di queste"], { intent: "unknown", asked: f.asked, alts: undefined });
+  return { reply: { text: "Scusa, ho capito male. Dimmelo con altre parole: per esempio «sposta il VO2 a venerdì», «quanto dura la soglia di giovedì?», «oggi ho solo 45 minuti».", chips: ["Cosa posso chiederti?"] }, state: { ...state, pending: null, focus: null } };
 }
 
 /** After the answer: what the conversation is now about, for the next message. */
@@ -220,6 +237,20 @@ function remember(r: ChatResult, before: ChatState, intent: string | null): Chat
 export function chat(text: string, ctx: ChatContext, state: ChatState = emptyState()): ChatResult {
   prime();
   const st: ChatState = { ...emptyState(), ...state };
+  const n = normalize(text);
+  if (NOT_THIS.test(n)) return notThis(ctx, st);
+  // A button tapped after «Intendevi…?»: the chat learns that those words mean this.
+  const f = st.focus;
+  if (f?.intent === "unknown" && f.asked && f.choices?.includes(text.trim())) {
+    if (text.trim() === "Nessuna di queste") return notThis(ctx, { ...st, focus: { asked: f.asked } });
+    learn(f.asked, text.trim());
+  }
+  // Words taught before: straight to what the athlete meant.
+  const taught = !st.pending ? learnedFor(n) : null;
+  if (taught) {
+    const r = route(clean(taught, false), ctx, st, taught);
+    return { ...r, reply: { ...r.reply, chips: [...(r.reply.chips ?? []).slice(0, 2), "Non era questo"] }, state: { ...r.state, focus: { ...r.state.focus, asked: n } } };
+  }
   // Shorthand and repeated letters are always safe to fix; a typo fix is tried only when the message as written says
   // nothing to the chat (a real word close to another, «salva» and «salve», must not change meaning).
   const safe = clean(text, false);
@@ -235,6 +266,7 @@ function understood(text: string, ctx: ChatContext, st: ChatState): boolean {
   if (detectIntent(text, st).type !== "unknown") return true;
   if (E.editKind(text) || buildKind(text, st, ctx.today)) return true;
   if (followUp(text, t, ctx, st)) return true;
+  if (command(text, text, ctx, st)) return true;
   return notionsFor(t).length > 0;
 }
 
@@ -251,6 +283,9 @@ function route(text: string, ctx: ChatContext, st: ChatState, raw: string): Chat
   if (!answer) {
     const follow = followUp(text, t, ctx, st);
     if (follow) return remember(follow, st, null);
+    // The reader of commands: action, session and details (commands.ts). Questions about a session are answered here too.
+    const cmd = command(text, raw, ctx, st);
+    if (cmd) return remember(cmd, st, "command");
     // A session being built takes its changes first («spostala a sabato» is about the draft).
     const kind = buildKind(text, st, ctx.today);
     if (kind && st.draft) return buildChat(kind, ctx, st, text);
@@ -266,6 +301,10 @@ function route(text: string, ctx: ChatContext, st: ChatState, raw: string): Chat
     }
     const known = knowledge(t, raw, ctx, st, intent);
     if (known) return remember(known, st, "notion");
+    // «va bene fare la lunga il giorno dopo il VO2?» asks about training, it does not ask to change today.
+    if (TODAY_CHANGERS.has(intent.type) && GENERAL_Q.test(t) && !/\b(oggi|adesso|ora|stasera|stamattina|subito)\b/.test(t)) {
+      return remember(nearest(text, ctx, st), st, null);
+    }
   }
   if (intent.type === "unknown" && !(st.awaiting && parseDates(text, ctx.today, { past: st.awaiting.intent !== "vita_ferie" }))) {
     const r = nearest(text, ctx, st);

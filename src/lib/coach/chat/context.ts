@@ -9,6 +9,7 @@ import { recentFromRides } from "@/lib/training/done";
 import { choicesOf } from "@/lib/training/weeks";
 import { type Place, type Proposal, type SuggestInput, type WorkoutClass } from "@/lib/training/suggest";
 import type { Spec } from "@/lib/training/build/parse";
+import type { DayWeather } from "@/lib/weather";
 import type { WorkoutBlock } from "@/lib/workout";
 
 /** What the athlete told the chat about today: it only ever applies to `date`. */
@@ -35,6 +36,8 @@ export type ChatContext = {
   life: LifeEvent[];
   overrides: TodayOverrides;
   history: HistoryData | null;
+  /** The daily forecast saved on the device by the calendar (Open-Meteo), when there is one. */
+  weather?: DayWeather[];
 };
 
 /** Everything the chat can ask the app to write. Always after a "sì". */
@@ -46,6 +49,10 @@ export type Action =
   | { type: "swap"; a: { eventId: string; name: string; from: string; to: string }; b: { eventId: string; name: string; from: string; to: string }; label: string }
   /** Several planned sessions taken off the calendar («cancella il weekend»). */
   | { type: "remove_many"; items: { eventId: string; name: string; date: string }[]; label: string }
+  /** Several planned sessions shifted together («sposta tutto di un giorno»); if one fails the moved ones go back. */
+  | { type: "move_many"; items: { eventId: string; name: string; from: string; to: string }[]; label: string }
+  /** A race on the calendar (RACE_A/B/C events of Intervals.icu): the engine reads it as a hard day. */
+  | { type: "race_add"; date: string; priority: "RACE_A" | "RACE_B" | "RACE_C"; name: string; label: string }
   | { type: "life_add"; category: LifeCategory; from: string; to: string; name: string; label: string }
   | { type: "life_close"; id: string; category: LifeCategory; to: string; label: string }
   | { type: "set_profile"; patch: Partial<AthleteProfile>; label: string }
@@ -141,6 +148,9 @@ export type Focus = {
   term?: string;
   /** A question the chat asked, and what each choice means (the chips send these phrases). */
   choices?: string[];
+  /** The message the chat was not sure about, and the other readings it had: «Non era questo» offers them, a tap teaches it. */
+  asked?: string;
+  alts?: string[];
 };
 
 export const emptyState = (): ChatState => ({ pending: null, options: [], index: 0, optionsDate: null, shown: [], awaiting: null, undo: null, draft: null, lastBuilt: null, focus: null });

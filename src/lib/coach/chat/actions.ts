@@ -35,11 +35,15 @@ function repropose(ctx: ChatContext, state: ChatState, patch: Patch, lead: strin
 
 // ── Change the workout ───────────────────────────────────────────────────────────────────────────
 
-export function cambia(ctx: ChatContext, state: ChatState, text: string): ChatResult {
+/** `avoid`: workouts the athlete said no to («oggi niente cadenza»), left out even when the request changes the kind. */
+export function cambia(ctx: ChatContext, state: ChatState, text: string, avoid: number[] = []): ChatResult {
   const t = normalize(text);
   const span = parseDates(text, ctx.today);
   const date = span && span.from >= ctx.today ? span.from : (state.optionsDate ?? ctx.today);
-  const current = state.options[state.index];
+  // Nothing shown yet in this conversation: «cambia» is about today's pick, which must not come back (a day fixed in the
+  // Stagione page used to return the same workout every time).
+  const fresh = !state.options.length && date === ctx.today ? suggestFor(ctx, ctx.today) : null;
+  const current = state.options[state.index] ?? (fresh?.kind === "workout" ? fresh.main : undefined);
   const patch: Patch = {};
   const wanted = classFrom(t);
   if (/(piu facile|meno duro|piu leggero|leggero|piu easy|rilassat)/.test(t)) {
@@ -56,8 +60,10 @@ export function cambia(ctx: ChatContext, state: ChatState, text: string): ChatRe
   if (/(piu corto|piu breve|accorcia)/.test(t)) patch.maxMins = parseMinutes(t) ?? Math.max(20, Math.round(((current?.mins ?? 60) * 0.75) / 5) * 5);
   else if (/(piu lungo|allunga)/.test(t)) patch.maxMins = undefined;
   else if (parseMinutes(t)) patch.maxMins = parseMinutes(t)!;
-  if (/(rulli|indoor|in casa)/.test(t)) patch.place = "indoor";
-  else if (/(fuori|all aperto|in strada|outdoor)/.test(t)) patch.place = "outdoor";
+  // «niente rulli, esco fuori»: a place said no to is not the place asked.
+  const noTrainer = /\b(niente|no|senza|non (sui|sul|sui|ai)?) ?(rulli|rullo|indoor)\b/.test(t);
+  if (/(rulli|indoor|in casa)/.test(t) && !noTrainer) patch.place = "indoor";
+  else if (/(fuori|all aperto|in strada|outdoor)/.test(t) || noTrainer) patch.place = "outdoor";
 
   const changed = Object.keys(patch).length > 0;
   if (date !== ctx.today) {
@@ -66,7 +72,8 @@ export function cambia(ctx: ChatContext, state: ChatState, text: string): ChatRe
     return { reply: suggestionReply(ctx, s, date, "Va bene."), state: s.kind === "workout" ? withOptions(state, [s.main, ...s.alternatives], date) : state };
   }
   const lead = patch.easier ? "Più facile, allora." : patch.wantClass ? `Come chiedi: ${CLASS_SAY[patch.wantClass]}.` : patch.maxMins ? `Entro ${minsText(patch.maxMins)}.` : changed ? "Va bene." : "Ecco un'altra idea.";
-  return repropose(ctx, state, patch, lead, changed ? [] : state.shown);
+  const seen = state.shown.length ? state.shown : current ? [current.workout.id] : [];
+  return repropose(ctx, state, patch, lead, [...(changed ? [] : seen), ...avoid]);
 }
 
 export function programma(ctx: ChatContext, state: ChatState): ChatResult {

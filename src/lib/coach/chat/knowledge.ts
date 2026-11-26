@@ -1017,7 +1017,7 @@ export const NOTIONS: Notion[] = [
   {
     id: "dolore_muscolare",
     title: "Dolore muscolare o articolare",
-    re: /\b(indolenzit\w*|doms|dolori muscolari|muscoli doloranti|male ai muscoli|male alle gambe|polpacci duri|contrattur\w*)\b/,
+    re: /\b(indolenzit\w*|doms|dolori muscolari|muscoli doloranti|male ai muscoli|male alle gambe|mal di gambe|gambe doloranti|gambe che fanno male|polpacci duri|contrattur\w*)\b/,
     ex: ["ho le gambe indolenzite", "ho i muscoli che fanno male dopo i pesi", "polpacci duri dopo l'uscita"],
     say: () => ({
       text: "L'indolenzimento muscolare dopo una seduta nuova o dura è normale: passa in 2-4 giorni.",
@@ -1082,6 +1082,73 @@ export const NOTIONS: Notion[] = [
         "Le prime volte: ritmo più basso, si beve di più, il cuore sale prima.",
         "Per un vantaggio vero servono almeno 2-3 settimane in quota: un weekend non basta.",
       ],
+    }),
+  },
+  // ── Added 26 November 2026, from the questions the chat got wrong on real data ───────────────────
+  {
+    id: "z2_vs_recupero",
+    title: "Z2 e recupero: la differenza",
+    re: /\b(differenz\w*|distingu\w*|cosa cambia)\b.*\b(z2|zona 2|fondo|recupero|z1|rigenerante)\b|\b(z2|fondo)\b.*\b(o|oppure|e|rispetto al?)\b.*\b(recupero|z1|rigenerante)\b.*\b(uguali|stessa cosa|cambia)\b/,
+    ex: ["che differenza c'è tra z2 e recupero?", "z2 o recupero, cosa cambia?", "differenza tra fondo e uscita rigenerante", "la z1 e la z2 sono la stessa cosa?"],
+    say: (c) => ({
+      text: "Sono due cose diverse: la Z2 allena, il recupero fa recuperare.",
+      lines: [
+        `Z2 (${pct(c, 0.56, 0.75)}): fondo aerobico, da 1 a 5 ore. Costruisce mitocondri, capillari e resistenza: è la base di tutto il piano.`,
+        `Recupero (Z1, sotto il ${ftp(c) ? `${r0(Math.round((ftp(c)! * 0.55) / 5) * 5)} W` : "55% della FTP"}): 30-60 minuti agilissimi, gambe che girano. Non allena quasi nulla: serve a far circolare il sangue dopo un lavoro duro.`,
+        "Una Z2 troppo lunga o tirata non è più recupero; un recupero non sostituisce la Z2 nelle settimane di carico.",
+      ],
+      chips: ["Perché tanta Z2?", "Cosa faccio oggi?"],
+    }),
+  },
+  {
+    id: "qualita_settimana",
+    title: "Quante sedute di qualità a settimana",
+    re: /\b(quante volte|quanti giorni|quante sedute|ogni quanto|quanto spesso)\b.*\b(intensit\w*|qualita|duro|dure|ripetute|lavori|vo2|soglia|intervall\w*)\b|\b(intensit\w*|ripetute|lavori duri|qualita)\b.*\b(a settimana|alla settimana|per settimana)\b/,
+    ex: ["quante volte a settimana devo fare intensità?", "quante sedute dure a settimana?", "ogni quanto fare le ripetute?", "quanti lavori duri alla settimana"],
+    say: (c) => {
+      const w = weekFor(c.plan, c.today);
+      return {
+        text: "Due sedute di qualità nelle settimane di carico, mai in due giorni di fila: il resto facile.",
+        lines: [
+          "Qualità = tutto quello sopra la Z2: tempo, sweet spot, soglia, VO2max. La lunga conta a parte.",
+          "Nelle settimane di blocco 3, in quelle leggere una sola e corta. Con meno di 6 ore a settimana bastano 1-2.",
+          w ? `Questa settimana (${PHASE_INFO[w.phase].label}${w.kind === "scarico" ? ", leggera" : ""}) il piano ne prevede al massimo ${w.qualityMax}.` : "Il numero giusto per la settimana lo vedi nella pagina Stagione.",
+          "Se le gambe non recuperano tra una e l'altra, meglio una in meno fatta bene che due fatte a metà.",
+        ],
+        chips: ["Come va la settimana?", "Cosa faccio oggi?"],
+      };
+    },
+  },
+  {
+    id: "qualita_di_fila",
+    title: "Due giorni duri di fila",
+    re: /\b(due giorni|2 giorni|giorni di fila|di fila|consecutiv\w*|back to back|uno dopo l altro)\b.*\b(vo2|soglia|sweet spot|ripetute|duro|duri|dura|dure|intens\w*|qualita)\b|\b(vo2|soglia|ripetute|qualita|duri|dure)\b.*\b(di fila|consecutiv\w*|due giorni)\b|\b(il giorno dopo|dopo)\s+(il|la|lo|le|i)\s+(vo2|soglia|sweet spot|ripetute|qualita|lunga|gara)\b/,
+    ex: ["va bene fare vo2 due giorni di fila?", "posso fare soglia due giorni consecutivi?", "ripetute due giorni di fila?", "due allenamenti duri di fila", "va bene la lunga il giorno dopo il vo2?"],
+    say: () => ({
+      text: "Meglio di no: tra due sedute dure serve almeno un giorno facile.",
+      lines: [
+        "Il secondo giorno di fila le ripetute escono più basse e lasciano più fatica: rendono meno di una sola fatta bene.",
+        "Le eccezioni sono volute: blocchi di 2-3 giorni nel Build per atleti esperti, seguiti da 2-3 giorni facili. Il piano dell'app non li mette da solo.",
+        "Una lunga in Z2 il giorno dopo una qualità va bene se resta davvero facile; una lunga con lavoro dentro conta come dura: serve un giorno facile prima.",
+        "Se devi spostare una qualità, mettila in un giorno che non tocca l'altra: «sposta il VO2 a venerdì» e controllo io i giorni vicini.",
+      ],
+      chips: ["Come va la settimana?", "Cosa faccio oggi?"],
+    }),
+  },
+  {
+    id: "recupero_veloce",
+    title: "Recuperare più in fretta",
+    re: /\b(recuper\w*)\b.*\b(piu in fretta|piu velocemente|piu veloce|in fretta|accelerare|velocizzare|meglio)\b|\b(cosa|che cosa)\b.*\b(aiuta|serve)\b.*\b(recuper\w*)\b/,
+    ex: ["come recupero più in fretta?", "cosa aiuta a recuperare meglio?", "come si accelera il recupero", "cosa serve per recuperare dopo un lavoro duro"],
+    say: (c) => ({
+      text: "Il recupero lo fanno sonno, cibo e giorni facili: tutto il resto aiuta poco.",
+      lines: [
+        "Sonno: 7-9 ore, orari regolari. È la cosa che conta di più, e l'HRV della notte la misura.",
+        `Subito dopo una seduta dura: 1-1,2 g di carboidrati per kg${kg(c) ? ` (${r0(kg(c)!)}-${r0(kg(c)! * 1.2)} g per te)` : ""} e 20-30 g di proteine entro un'ora; bere fino a urine chiare.`,
+        "Il giorno dopo: riposo o 30-60' di Z1 agilissima; mai un'altra qualità.",
+        "Massaggi, calze e stretching fanno stare meglio ma accorciano poco il recupero; il ghiaccio subito dopo le ripetute può persino ridurre l'adattamento.",
+      ],
+      chips: ["Com'è andata stanotte?", "Cosa faccio oggi?"],
     }),
   },
 ];

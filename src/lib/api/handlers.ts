@@ -227,6 +227,8 @@ async function cloud(method: string, q: URLSearchParams, body: unknown): Promise
 }
 
 const LIFE_CATEGORIES = ["HOLIDAY", "SICK", "INJURED"];
+/** What the chat may write and take back on its own: life events and races (a race is read from the calendar, not listed here). */
+const WRITE_CATEGORIES = [...LIFE_CATEGORIES, "RACE_A", "RACE_B", "RACE_C"];
 const LIFE_PREFIX = "mascoach-life-";
 
 /**
@@ -252,20 +254,21 @@ async function life(method: string, id: string, q: URLSearchParams, body: unknow
     return ok(list);
   }
   if (method === "POST") {
-    if (!b.category || !LIFE_CATEGORIES.includes(b.category) || !ISO_DATE.test(b.from ?? "") || !ISO_DATE.test(b.to ?? "") || b.from! > b.to!) return fail(400, "Richiesta non valida");
+    if (!b.category || !WRITE_CATEGORIES.includes(b.category) || !ISO_DATE.test(b.from ?? "") || !ISO_DATE.test(b.to ?? "") || b.from! > b.to!) return fail(400, "Richiesta non valida");
     const created = await createEvent({
       category: b.category,
       start_date_local: `${b.from}T00:00:00`,
       end_date_local: `${addDays(b.to!, 1)}T00:00:00`,
-      name: (b.name ?? "").slice(0, 120) || (b.category === "HOLIDAY" ? "Ferie" : b.category === "SICK" ? "Malattia" : "Infortunio"),
+      name: (b.name ?? "").slice(0, 120) || (b.category === "HOLIDAY" ? "Ferie" : b.category === "SICK" ? "Malattia" : b.category.startsWith("RACE_") ? "Gara" : "Infortunio"),
       external_id: `${LIFE_PREFIX}${Date.now()}`,
     });
     return ok({ id: String(created?.id ?? "") });
   }
   if (!id) return fail(400, "Serve l'id dell'evento");
   const ev = await fetchEvent(id);
-  if (!ev.category || !LIFE_CATEGORIES.includes(ev.category)) return fail(400, "Non è una malattia, un infortunio o una vacanza");
+  if (!ev.category || !WRITE_CATEGORIES.includes(ev.category)) return fail(400, "Non è una malattia, un infortunio, una vacanza o una gara");
   if (method === "PATCH") {
+    if (!LIFE_CATEGORIES.includes(ev.category)) return fail(400, "Non è una malattia, un infortunio o una vacanza");
     if (!ISO_DATE.test(b.to ?? "")) return fail(400, "Data non valida");
     // An end before the start would leave Intervals.icu with an event that ends before it begins.
     if (b.to! < ev.start_date_local.slice(0, 10)) return fail(400, "La fine è prima dell'inizio");

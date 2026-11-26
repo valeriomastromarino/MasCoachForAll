@@ -21,6 +21,7 @@ import { WorkoutProfile } from "../calendar/shared";
 import { bestOfLastSeasons } from "../firstrun/FirstRun";
 import { useHistory, useLibrary, useLife, useOverrides, usePlanned } from "../data/trainingData";
 import { askFetch } from "../data/transport";
+import { savedForecast } from "../data/weatherData";
 import { PageTitle } from "../sections/SectionPage";
 import { runAction, runUndo, type SheetContext } from "./chatActions";
 
@@ -92,7 +93,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
 
   const ctx: ChatContext | null = useMemo(() => {
     if (!library || planned === null) return null;
-    return { today, data, library, planned, profile: stored?.profile ?? null, phenotype: stored?.phenotype ?? null, setup, plan, life, overrides, history };
+    return { today, data, library, planned, profile: stored?.profile ?? null, phenotype: stored?.phenotype ?? null, setup, plan, life, overrides, history, weather: savedForecast() };
   }, [today, data, library, planned, stored, setup, plan, life, overrides, history]);
 
   const pheno = useMemo(() => {
