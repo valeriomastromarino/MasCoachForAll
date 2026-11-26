@@ -3,10 +3,11 @@
 // The coach's chat: it talks only to the app's own engine (lib/coach/chat), reads the athlete's Italian with rules and answers
 // from the data. What it writes to Intervals.icu, to the sheet or to the plan is shown first and done only after a "sì".
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { IconBolt, IconCalendarEvent, IconFlag, IconMoodSmile } from "@tabler/icons-react";
+import { IconAlertTriangle, IconApple, IconBike, IconBolt, IconCalendarEvent, IconChevronRight, IconMoodSmile, IconMoon } from "@tabler/icons-react";
 import { type Action, chat, type ChatContext, type ChatState, emptyState, rulesFirst } from "@/lib/coach/chat";
 import type { WorkoutCard } from "@/lib/coach/chat/context";
 import { COACH_PREFILL_EVENT, takeCoachPrefill } from "@/lib/coach/chat/prefill";
+import { type StartTone, startPage } from "@/lib/coach/chat/starters";
 import { normalize } from "@/lib/coach/chat/text";
 import { useCompact } from "@/lib/compact";
 import { coachAiOn } from "@/lib/coach/server";
@@ -36,16 +37,27 @@ const subSeason = (cb: () => void) => {
 
 const QUICK = ["Cosa faccio oggi?", "Come sto?", "Fammi il punto", "Cosa posso chiederti?"];
 /**
- * Phone app, empty chat (design D, 19 November 2026: the page opened almost empty). A question goes at once; a change starts the
- * sentence in the box, to be finished by the athlete (nothing is written without the «sì» anyway).
+ * Phone app, empty chat («2 · Del momento», chosen on 26 November 2026 among three previews):
+ * the questions of the day come from `startPage`; a change starts the sentence in the box, to be finished by the athlete
+ * (nothing is written without the «sì» anyway).
  */
-const STARTERS: { label: string; icon: "mood" | "calendar" | "bolt" | "flag"; send?: string; begin?: string }[] = [
-  { label: "Come sto?", icon: "mood", send: "Come sto?" },
-  { label: "Cambia la settimana", icon: "calendar", begin: "Sposta l'allenamento di domani a " },
-  { label: "Crea una seduta", icon: "bolt", begin: "Domani sui rulli " },
-  { label: "Ferie o malattia", icon: "flag", begin: "Ferie dal " },
+const CHANGES: { label: string; begin: string }[] = [
+  { label: "Sposta una seduta", begin: "Sposta l'allenamento di domani a " },
+  { label: "Crea una seduta", begin: "Domani sui rulli " },
+  { label: "Oggi più facile", begin: "Oggi più facile" },
+  { label: "Ferie o malattia", begin: "Ferie dal " },
 ];
-const STARTER_ICONS = { mood: IconMoodSmile, calendar: IconCalendarEvent, bolt: IconBolt, flag: IconFlag };
+const TONE: Record<StartTone, { Icon: typeof IconBolt; bg: string; ink: string }> = {
+  warn: { Icon: IconAlertTriangle, bg: "var(--warning-bg)", ink: "var(--warning-ink)" },
+  good: { Icon: IconMoodSmile, bg: "var(--good-bg)", ink: "var(--good-ink)" },
+  night: { Icon: IconMoon, bg: "var(--good-bg)", ink: "var(--good-ink)" },
+  session: { Icon: IconBolt, bg: "var(--accent-bg)", ink: "var(--accent-ink)" },
+  food: { Icon: IconApple, bg: "var(--accent-bg)", ink: "var(--accent-ink)" },
+  ride: { Icon: IconBike, bg: "var(--accent-bg)", ink: "var(--accent-ink)" },
+  plan: { Icon: IconCalendarEvent, bg: "var(--neutral-bg)", ink: "var(--muted)" },
+};
+/** A quick reply that changes something (it still asks for the «sì» before writing): a small dot tells it from a question. */
+const CHANGE_CHIP = /^(programma|più facile|piu facile|cambia|sposta|accorcia|allunga|annulla|rendi|togli|cancella|salva|mettila|riprova|ancora|torna|fallo|falla)/i;
 const YES = /^(si|sii|sisi|ok|okay|va bene|certo|confermo|conferma|fallo|procedi|esatto|d accordo|daccordo|perfetto|yes|dai|vai|fai pure|applica)\b/;
 const NO = /^(no|nono|lascia stare|stop|niente|non farlo|ferma|aspetta|indietro|meglio di no|annulla)\b/;
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -233,15 +245,16 @@ export function CoachChat({ data }: { data: DashboardData }) {
 
   const lastCoach = [...messages].reverse().find((m) => m.role === "coach");
   const waiting = state.pending !== null || aiActions.length > 0;
-  // Phone: only the answers to a proposal or to a session being built, and three ideas while the chat is still empty.
-  const phoneChip = (c: string) => c === "Sì" || c === "No" || c.startsWith("Mettila ") || c === "Sì, una nuova" || c === "Decidi tu" || c === "Salva in libreria";
-  // A question of the chat («Quale seduta?», «A che giorno?») keeps its buttons on the phone too.
-  const chips = compact ? (lastCoach?.choices?.length ? lastCoach.choices : waiting || state.draft || lastCoach?.chips?.includes("Salva in libreria") ? (lastCoach?.chips ?? []).filter(phoneChip) : []) : (lastCoach?.chips ?? []);
-  const start = (s: (typeof STARTERS)[number]) => {
-    if (s.send) return void send(s.send);
-    setDraft(s.begin ?? "");
+  // Phone («A · Sopra la casella», 26 November 2026): every quick reply of the last answer, in one row above the box; a
+  // question of the chat («Quale seduta?», «A che giorno?») shows its choices; with a proposal open «Sì» and «No» come first.
+  const yesNoFirst = (list: string[]) => [...list.filter((c) => c === "Sì" || c === "No"), ...list.filter((c) => c !== "Sì" && c !== "No")];
+  const chips = compact ? (lastCoach?.choices?.length ? lastCoach.choices : yesNoFirst(lastCoach?.chips ?? [])) : (lastCoach?.chips ?? []);
+  const begin = (text: string) => {
+    setDraft(text);
     box.current?.focus();
   };
+  // The questions of the day for the empty chat; the hour only picks the greeting.
+  const page = useMemo(() => (ctx && compact ? startPage(ctx, new Date().getHours()) : null), [ctx, compact]);
 
   return (
     <section className={compact ? "flex h-full min-h-0 flex-col" : "card flex flex-col p-4"} aria-label="Chat con il coach">
@@ -272,20 +285,50 @@ export function CoachChat({ data }: { data: DashboardData }) {
 
       <div ref={scroller} className={compact ? "mt-3 min-h-0 flex-1 space-y-2.5 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "mt-3 max-h-[62vh] min-h-[220px] space-y-3 overflow-y-auto pr-1"} role="log" aria-live="polite">
         {!ctx && <p className="text-sm text-muted">Preparo i dati…</p>}
-        {compact && ctx && messages.length === 0 && (
+        {compact && page && messages.length === 0 && (
           <>
-            <Bubble m={{ id: "hello", role: "coach", text: "Chiedimi di oggi, del piano o di un cambio. Scrivo su Intervals solo dopo il tuo «sì».", at: "" }} compact />
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              {STARTERS.map((s) => {
-                const Icon = STARTER_ICONS[s.icon];
+            <Bubble m={{ id: "hello", role: "coach", text: page.hello, at: "" }} compact />
+            <h2 className="px-1 pt-1 text-xs font-semibold text-faint">Per te, adesso</h2>
+            <ul className="card overflow-hidden p-0">
+              {page.questions.map((q, i) => {
+                const t = TONE[q.tone];
                 return (
-                  <button key={s.label} type="button" onClick={() => start(s)} className="card flex min-h-[3.25rem] items-center gap-2 px-3 text-left text-sm font-semibold leading-tight">
-                    <Icon size={19} stroke={1.9} className="shrink-0" style={{ color: "var(--accent-ink)" }} aria-hidden />
-                    {s.label}
-                  </button>
+                  <li key={q.ask} style={i ? { borderTop: "1px solid var(--border)" } : undefined}>
+                    <button type="button" onClick={() => void send(q.ask)} className="flex min-h-14 w-full items-center gap-2.5 px-3 py-2 text-left text-sm">
+                      <span className="grid size-7 shrink-0 place-items-center rounded-full" style={{ background: t.bg, color: t.ink }} aria-hidden>
+                        <t.Icon size={16} stroke={2} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium leading-snug">{q.ask}</span>
+                        <span className="block text-xs leading-snug text-faint">{q.why}</span>
+                      </span>
+                      <IconChevronRight size={18} className="shrink-0 text-faint" aria-hidden />
+                    </button>
+                  </li>
                 );
               })}
+            </ul>
+            <h2 className="px-1 pt-1 text-xs font-semibold text-faint">Cambia qualcosa</h2>
+            <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {CHANGES.map((c) => (
+                <button key={c.label} type="button" onClick={() => begin(c.begin)} className="card inline-flex h-11 shrink-0 items-center gap-1.5 !rounded-full px-4 text-sm font-medium leading-none">
+                  <span className="size-1.5 rounded-full" style={{ background: "var(--accent-ink)" }} aria-hidden />
+                  {c.label}
+                </button>
+              ))}
             </div>
+            {page.more.length > 0 && (
+              <>
+                <h2 className="px-1 pt-1 text-xs font-semibold text-faint">Altre domande</h2>
+                <div className="flex flex-wrap gap-1.5">
+                  {page.more.map((m) => (
+                    <button key={m} type="button" onClick={() => void send(m)} className="card inline-flex h-11 items-center !rounded-full px-4 text-sm font-medium leading-none">
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
         {messages.map((m) => (
@@ -295,22 +338,25 @@ export function CoachChat({ data }: { data: DashboardData }) {
       </div>
 
       {chips.length > 0 && !busy && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className={compact ? "-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "mt-3 flex flex-wrap gap-1.5"} role="group" aria-label="Risposte pronte">
           {chips.map((c) => {
             const yesNo = waiting && (c === "Sì" || c === "No");
+            const change = compact && !yesNo && CHANGE_CHIP.test(c);
             return (
               <button
                 key={c}
                 type="button"
                 onClick={() => void send(c)}
-                className={"inline-flex items-center rounded-full leading-none " + (compact ? "h-11 px-4 text-sm font-medium" : "px-3 py-1 text-xs")}
+                className={"inline-flex items-center rounded-full leading-none " + (compact ? "h-11 shrink-0 gap-1.5 whitespace-nowrap px-4 text-sm font-medium" : "px-3 py-1 text-xs")}
                 style={{
                   background: yesNo ? "var(--accent-bg)" : compact ? "var(--surface)" : "transparent",
                   color: yesNo ? "var(--accent-ink)" : "var(--foreground)",
+                  fontWeight: yesNo && compact ? 600 : undefined,
                   border: compact ? "none" : "1px solid var(--border)",
                   boxShadow: compact && !yesNo ? "var(--card-shadow)" : undefined,
                 }}
               >
+                {change && <span className="size-1.5 rounded-full" style={{ background: "var(--accent-ink)" }} aria-hidden />}
                 {c}
               </button>
             );
