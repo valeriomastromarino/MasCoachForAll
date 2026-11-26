@@ -12,7 +12,9 @@ export type IntentType =
   | "ultima_uscita" | "record" | "ftp" | "zone" | "profilo" | "libreria" | "carbo" | "confronto" | "mese" | "distribuzione" | "test_cp" | "glossario"
   | "reset_oggi" | "vita_malattia" | "vita_infortunio" | "vita_ferie" | "vita_guarito" | "dolore"
   | "pref_giorno" | "pref_ore" | "pref_ramp" | "pref_picco" | "pref_luogo" | "pref_minuti" | "riposo_oggi"
-  | "sensazione" | "sensazione_buona" | "rpe" | "registra_carbo" | "unknown";
+  | "sensazione" | "sensazione_buona" | "rpe" | "registra_carbo"
+  | "notte" | "sonno" | "hrv_settimana" | "fc_riposo" | "perche_colore" | "seduta_di" | "pronto_per" | "perche_seduta" | "durata_check"
+  | "altro_sport" | "voglia" | "volume" | "unknown";
 
 export type Intent = { type: IntentType; text: string; raw: string };
 
@@ -35,26 +37,36 @@ export function classFrom(t: string): WorkoutClass | null {
 type Rule = [IntentType, RegExp | ((t: string) => boolean)];
 const test = (rule: RegExp | ((t: string) => boolean), t: string) => (typeof rule === "function" ? rule(t) : rule.test(t));
 
+const DAY = "domani|dopodomani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica|weekend|fine settimana";
+const KIND = "lunga|lungo|soglia|sweet spot|sweetspot|vo2|z2|recupero|sprint|tempo|gara|ripetute|rulli|uscita|seduta|allenamento";
+const SPORT = "mtb|mountain bike|gravel|corsa|corso|corsetta|nuoto|nuotato|calcio|calcetto|tennis|padel|sci|camminata|trekking|escursione|palestra|pesi";
+
 const RULES: Rule[] = [
   ["annulla", /^(annulla|torna indietro|disfa|togli l ultim|cancella l ultim|rimetti come prima)|annulla (l ultima|quello che hai fatto|tutto)/],
   ["aiuto", /(cosa (posso|puoi|sai)|che cosa (posso|puoi|sai)|aiuto|^help|comandi|come funzion|esempi|cosa sai fare|cosa mi puoi)/],
   ["glossario", (t) => /(cos e|che cos e|cosa significa|cosa vuol dire|che vuol dire|spiegami|spiega|come si calcola|a cosa serve|differenza tra|cosa sono|cosa e)/.test(t) && findTerm(t) !== null],
+  ["altro_sport", new RegExp(`\\b(ho fatto|ho giocato|sono andato a|sono andata a|ho corso|ho nuotato|stamattina|stasera|oggi|ieri)\\b.*\\b(${SPORT})\\b|\\b(${SPORT})\\b.*\\b(ho fatto|fatto|oggi|stamattina|ieri)\\b.*\\b(cambio|cambia|domani|conta|pesa)\\b`)],
+  ["perche_colore", /\b(perche|come mai|per quale motivo)\b.*\b(giall\w*|ross\w*|verd\w*|grigi\w*)\b|\bcosa (mi )?(rende|fa) (giallo|rosso)\b/],
   ["vita_guarito", /(sto meglio|sono guarit|guarit|non ho piu la febbre|finita la febbre|febbre (passata|finita)|torno ad allenarmi|posso riprendere|infortunio (finito|passato)|va meglio|sono tornato in forma|ho finito la malattia)/],
   ["vita_infortunio", /(infortun|mi sono fatto male|sono caduto|sono caduta|caduta|frattura|distorsion|strappo|contrattura|tendinite|lesione)/],
   ["vita_malattia", /(malat|febbre|influenza|raffreddor|covid|gastro|bronchite|polmonite|tosse forte|sono a letto|mal di gola forte)/],
   ["vita_ferie", /(ferie|vacanz|viaggio|trasferta|sono via|parto|partenza|vado (a|in|via)|sono fuori|stop (dal|da|per)|pausa (dal|da|per)|non mi alleno (dal|da|per|fino)|non potro allenarmi)/],
-  ["dolore", /(mi fa male|ho male|male a|male al|dolore|fastidio|indolenzit|mi duole)/],
+  ["dolore", /(mi fa (un po |un poco |un pochino |parecchio |molto |tanto )?male|mi fanno (un po )?male|ho male|male (a|al|alla|alle|ai|agli|allo)\b|dolore|fastidio|indolenzit|mi duole|mi tira|mi brucia)/],
+  ["voglia", /\b(non ho (proprio |per niente |nessuna )?voglia|nessuna voglia|zero voglia|manca la voglia|senza voglia|che palle|non mi va (di )?(allenarmi|uscire|pedalare|fare)|svogliat\w*|pigro|pigra)\b/],
   ["reset_oggi", /(azzera|ricomincia|resetta|togli (le|i) (richieste|vincoli)|come prima|dimentica quello che ti ho detto)/],
-  ["riposo_oggi", /(oggi non (mi )?alleno|oggi riposo|salto oggi|oggi salto|riposo oggi|non riesco ad allenarmi oggi|oggi niente|non posso allenarmi oggi|oggi non posso|oggi mi riposo)/],
+  ["riposo_oggi", (t) => !/^(perche|come mai|per quale motivo)\b/.test(t) && /(oggi non (mi )?alleno|oggi riposo|salto oggi|oggi salto|riposo oggi|non riesco ad allenarmi oggi|oggi niente|non posso allenarmi oggi|oggi non posso|oggi mi riposo)/.test(t)],
+  ["durata_check", (t) => /\b(posso|potrei|riesco a|va bene se|ok se|e un problema se|conviene)\b/.test(t) && /\b(\d{1,2} ?(ore|h)|un ora|due ore|tre ore|quattro ore|cinque ore|sei ore|\d{2,3} ?(min|minuti))\b/.test(t) && (/\b(invece|anziche|al posto|allungare|allungarla|di piu)\b/.test(t) || new RegExp(`\\b(${DAY})\\b`).test(t)) && classFrom(t.replace(/\blunga\b/, "")) === null],
+  ["pronto_per", (t) => /\b(sono (recuperato|recuperata|pronto|pronta|in grado|a posto)|riesco a fare|ce la faccio|reggo|sono abbastanza fresco|arrivo fresco)\b/.test(t) && new RegExp(`\\b(${KIND}|${DAY})\\b`).test(t)],
+  ["perche_seduta", (t) => /^(perche|come mai|per quale motivo)\b/.test(t) && (new RegExp(`\\b(${DAY})\\b`).test(t) || /\b(mi hai messo|hai messo|c e|ce)\b/.test(t)) && !/\b(giall|ross|verd|grigi)/.test(t)],
   ["what_if", /(e se |cosa succede se|cosa cambia se|se salto|se mi fermo|se non mi alleno|se perdo|se salto)/],
   ["posso", /^(posso|potrei|conviene|mi conviene|e il caso|me la sento|e troppo|sarebbe ok|e una buona idea|faccio bene|dovrei)/],
   ["perche", /^(perche|come mai|per quale motivo|che motivo|spiegami (la|il) (scelta|motivo)|motiva)/],
   ["pref_picco", (t) => /(picco|forma al massimo|forma massima)/.test(t) && /(dal|da |a |nel|per|sposta|metti|vorrei|voglio|cambia|settiman)/.test(t) && !/(quanto manca|come arrivo|a che punto)/.test(t)],
   ["pref_giorno", /(non posso (allenarmi )?(il |di |nei |la )?(lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)|(il |di )?(lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica) (non posso|sono occupat|non riesco|sono impegnat|riposo)|posso (anche )?allenarmi (il |di |la )?(lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)|(libero|disponibile) (il |di |la )?(lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica))/],
-  ["pref_ramp", (t) => (/(ramp|carico|crescita|progressione)/.test(t) && /(piu |meno |prudente|bilanciato|aggressiv|alz|abbass|aument|dimin|riduci)/.test(t) && !/(com e|come|quanto|valore|e il mio|cos e)/.test(t)) || /(voglio|vorrei|facciamo|andiamo).*(piu|meno) (forte|prudente|cauto|piano|aggressiv)/.test(t)],
+  ["pref_ramp", (t) => (/(ramp|carico|crescita|progressione)/.test(t) && /(piu |meno |prudente|bilanciato|aggressiv|alz|abbass|aument|dimin|riduci)/.test(t) && !/(com e|come|quanto|valore|e il mio|cos e)/.test(t)) || (/(voglio|vorrei|facciamo|andiamo).*(piu|meno) (forte|prudente|cauto|piano|aggressiv)/.test(t) && !/\b(salit\w*|pianura|discesa|sprint|volat\w*|crono\w*|gara|gare|granfondo|come|consigli\w*|andare piu forte)\b/.test(t))],
   ["pref_ore", (t) => /\d+ ?(ore|h)\b|(una|due|tre|quattro|cinque|sei|sette|otto|nove|dieci) ore/.test(t) && /(massimo|solo|al massimo|non piu di|a disposizione|disponibil|ho .* ore (a|in|questa|la) settimana|settimana)/.test(t) && !/(oggi|adesso|stasera|stamattina|domani)/.test(t)],
   ["pref_luogo", (t) => classFrom(t) === null && (/(oggi|stamattina|stasera|adesso).*(rulli|indoor|fuori|all aperto|in strada)|(faccio|vado|preferisco|meglio|metti|solo|sui|sul) (sui |sul )?(rulli|indoor|fuori|all aperto)|^(sui |sul )?(rulli|indoor|fuori|all aperto)$|piove|c e vento forte|fa troppo freddo/.test(t))],
-  ["pref_minuti", (t) => /(ho (solo |soltanto )?(tempo|\d+|un ora|mezz ora|due ore)|solo \d+ ?(min|minuti)|ho \d+ ?(min|minuti)|dispongo|tempo per)/.test(t) && !/(settimana)/.test(t)],
+  ["pref_minuti", (t) => /(ho (solo |soltanto |giusto |appena )?(tempo|\d+|un ora|un oretta|una oretta|mezz ora|mezzoretta|due ore|tre ore)|solo (\d+ ?(min|minuti|h|ore)|mezz ora|un ora|un oretta|mezzoretta|due ore)|ho \d+ ?(min|minuti)|dispongo|tempo per|non piu di \d+ ?(min|minuti))/.test(t) && !/(settimana)/.test(t)],
   ["programma_settimana", /(programma|pianifica|metti|scrivi|inserisci|manda)\b.*(la settimana|tutta la settimana|i prossimi giorni|i prossimi 7|la prossima settimana)/],
   ["programma", (t) => /^(programma(lo|la)?|ok programma|programmalo|programma (questo|quello|l allenamento)|pianificalo|metti(lo)? in calendario|scrivilo|scrivi(lo)? su intervals|inseriscilo|mandalo)\b/.test(t) || /(metti|scrivi|manda|inserisci)\b.*(calendario|intervals|garmin)/.test(t)],
   ["sposta", /(sposta|rimanda|anticipa|posticipa|metti.*a (domani|dopodomani|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica))/],
@@ -63,9 +75,16 @@ const RULES: Rule[] = [
   ["rpe", (t) => /(rpe|sforzo|su 10)/.test(t) && /\d/.test(t)],
   ["cambia", (t) => /(\bcambia\b|\bcambiami\b|\bcambialo\b|altro allenamento|un altro|un altra|diverso|sostituisci|alternativa|non mi va|non mi piace|propon\w* (altro|qualcos altro)|piu facile|meno duro|piu leggero|piu corto|piu breve|piu duro|piu intenso|piu lungo|piu impegnativo|qualcos altro|altro tipo)/.test(t) || (classFrom(t) !== null && /(voglio|vorrei|fammi|dammi|mettimi|proponimi|facciamo|oggi faccio|preferisco|fare)/.test(t))],
   ["libreria", (t) => classFrom(t) !== null && /(\d+ ?(min|minuti|ore|ora)|un ora|mezz ora)/.test(t) && !/(voglio|vorrei|fammi|dammi|mettimi|oggi|ho solo|ho \d)/.test(t)],
-  ["sensazione", /(stanc|gambe (pesanti|dure|vuote|di legno)|sfinit|distrutt|dormito (male|poco)|sonno scarso|non ho dormito|mal di testa|nausea|mi sento (male|giu|scarico|vuoto|fiacco|a pezzi)|spossat|giornata no|affaticat|acciacc|non ne ho|poca energia|stressat|nervos)/],
+  ["notte", (t) => (/\b(stanotte|questa notte|ieri notte|stanotte|nottata|la notte|notte scorsa)\b/.test(t) && !/^(ho|non ho|stanotte ho|ieri notte ho|stanotte non ho) (dormito|chiuso occhio)/.test(t) && !/(dormire meglio|quanto dormire)/.test(t)) || /\b(come|com) (ho dormito|e andato il sonno)\b/.test(t)],
+  ["hrv_settimana", /\b(hrv|variabilita)\b.*\b(settiman\w*|ultimi giorni|ultimi 7|ultimi sette|trend|andamento|sta andando|va|media|periodo|ultimamente)\b|\b(andamento|trend|come va|come sta andando)\b.*\bhrv\b/],
+  ["fc_riposo", /\b(fc|frequenza( cardiaca)?|battiti|bpm|polso)\b.*\b(a riposo|riposo|mattin\w*|risveglio)\b|\b(a riposo)\b.*\b(fc|battiti|frequenza|alta|alti)\b/],
+  ["sonno", (t) => /\b(sonno|dormend\w*|quanto dormo|come dormo|dormo abbastanza|ore di sonno|le mie notti|come sto dormendo)\b/.test(t) && !/(dormire meglio|dormo meglio|dormire bene|dormo male|insonnia|dormito (male|poco)|non ho dormito|addormentar)/.test(t)],
+  ["volume", /\b(sto facendo abbastanza|faccio abbastanza|ne faccio abbastanza|quante ore (sto facendo|faccio|ho fatto)|volume (settimanale|delle ultime|di queste))\b/],
+  ["seduta_di", (t) => new RegExp(`\\b(cosa|che cosa|che|quale)\\b.*\\b(ho|c e|e in programma|e previsto|ho in programma|mi aspetta|tocca)\\b.*\\b(${DAY}|il \\d{1,2})\\b|\\b(${DAY})\\b.*\\b(cosa|che) (ho|c e)\\b`).test(t) && !/\b(faccio|devo fare|mi consigli|propon)\b/.test(t)],
+  ["sensazione", /(stanc|gambe (pesanti|dure|vuote|di legno)|sfinit|distrutt|dormito (male|poco)|sonno scarso|non ho dormito|mal di testa|nausea|mi sento (male|giu|scarico|scarica|vuoto|vuota|fiacco|fiacca|a pezzi|uno straccio|morto|cotto)|sono (un po |un po piu |molto |parecchio |abbastanza |proprio |davvero |tutto )?(a pezzi|uno straccio|cotto|cotta|distrutto|distrutta|morto|scarico|scarica|fuso|fusa|ko|k o)\b|spossat|giornata no|affaticat|acciacc|non ne ho|poca energia|senza energi|niente energi|zero energi|nessuna energia|svuotat|stressat|nervos)/],
   ["sensazione_buona", /(sto benissimo|mi sento (bene|benissimo|forte|in forma|fresco|carico)|gambe (leggere|buone|ottime|frizzanti)|ho dormito bene|pimpante|in gran forma|ho energia)/],
   ["ultima_uscita", /(ultima uscita|com e andata|com e andato|uscita di (ieri|ieri sera|oggi)|allenamento di ieri|ieri come|analizza.*(uscita|allenamento|ultima|ieri)|come sono andato|giudica.*uscita|com era l uscita)/],
+  ["zone", /\b(quanti watt|che watt|a che watt|a quanti watt|quale potenza|che potenza|quanti battiti|che frequenza)\b.*\b(z[1-7]|zona [1-7]|sweet spot|in soglia|recupero|fondo)\b/],
   ["record", /(record|migliori (watt|potenze|sforzi)|picchi|potenza massima|best|watt massimi|curva di potenza|quanti watt)/],
   ["ftp", /(\bftp\b.*(giusta|corretta|alta|bassa|cambia|aggiorn|sbagliat|stima)|(devo|dovrei|conviene) (cambiare|aggiornare|rifare).*(ftp|soglia)|\bftp\b)/],
   ["zone", /(\bzone\b|le mie zone|zone di potenza|zone cardio|zone fc|che potenza.*(z2|z3|z4|z5|zona))/],
@@ -103,6 +122,11 @@ export function detectIntent(raw: string, state: Pick<ChatState, "pending" | "aw
   if (BARE_TERMS.has(t) && findTerm(t) !== null) return make("glossario");
   for (const [type, rule] of RULES) if (test(rule, t)) return make(type);
   return make("unknown");
+}
+
+/** The words of the rules, so the typo fixer knows them. */
+export function ruleWords(): string {
+  return RULES.map(([, r]) => (typeof r === "function" ? "" : r.source)).join(" ") + ` ${DAY} ${KIND} ${SPORT}`;
 }
 
 /** Phrases that work, per group: the help page and the suggestions when a message isn't understood. */

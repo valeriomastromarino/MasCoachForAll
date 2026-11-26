@@ -87,7 +87,7 @@ function asLibrary(name: string, sections: Section[], indoor: boolean, c: Compos
 }
 
 /** The checks of the day (readiness, illness, form, the week's hard days), as for the planned workouts. */
-function fitFor(ctx: ChatContext, date: string, w: LibraryWorkout, drop: string[]) {
+export function fitFor(ctx: ChatContext, date: string, w: LibraryWorkout, drop: string[]) {
   const other = date !== ctx.today;
   const planned = ctx.planned.filter((p) => !drop.includes(p.id)).map((p) => ({ date: p.date, workout: { ...p, id: 0 } }));
   const input = suggestInput(ctx, other ? { date, readiness: "verde", tsbYesterday: null, feeling: null, planned } : { date, planned });

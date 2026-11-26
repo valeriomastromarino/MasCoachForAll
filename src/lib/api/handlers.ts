@@ -307,13 +307,14 @@ async function addCustomWorkout(date: string | undefined, c: { name?: unknown; t
 }
 
 /** A planned workout rewritten by the chat (sprints or a block put inside it), or put back as it was with «annulla». */
-async function rewriteWorkout(id: string, body: { name?: unknown; description?: unknown; secs?: unknown }): Promise<ApiResult> {
+async function rewriteWorkout(id: string, body: { name?: unknown; description?: unknown; secs?: unknown; indoor?: unknown }): Promise<ApiResult> {
   if (!intervalsConfigured()) return DEMO_ONLY();
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 120) : "";
   const description = typeof body.description === "string" ? body.description.trim() : null;
   if (!name || description === null || description.length > 6000) return fail(400, "Richiesta non valida");
   if (!(await isPlannedWorkout(id))) return fail(400, "Si modificano solo gli allenamenti");
-  const updated = await updateEvent(id, { name, description });
+  // «indoor» decides which FTP Intervals uses (the trainer one on the rollers): sent only when the chat changes it.
+  const updated = await updateEvent(id, typeof body.indoor === "boolean" ? { name, description, indoor: body.indoor } : { name, description });
   return ok({ ok: true, ...readBack(updated, body.secs) });
 }
 

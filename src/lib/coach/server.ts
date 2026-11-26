@@ -14,7 +14,24 @@ const read = (key: string) => {
   }
 };
 
-export const coachServer = () => (read(URL_KEY) || DEFAULT_SERVER).replace(/\/+$/, "");
+const AI_KEY = "mascoach-coach-ai";
+
+/**
+ * Whether the chat sends messages to the written coach (Claude Haiku, paid by the message). Off unless the athlete turns
+ * it on (25 November 2026: no API spending by default): the chat answers with the app's own engine, free and offline.
+ */
+export const coachAiOn = () => read(AI_KEY) === "1";
+
+export function setCoachAi(on: boolean) {
+  try {
+    if (on) localStorage.setItem(AI_KEY, "1");
+    else localStorage.removeItem(AI_KEY);
+  } catch {
+    // Storage blocked: the chat keeps using the engine.
+  }
+}
+
+export const coachServer = () =>(read(URL_KEY) || DEFAULT_SERVER).replace(/\/+$/, "");
 export const coachPassword = () => read(PW_KEY);
 
 export function saveCoachServer(url: string, password: string) {

@@ -159,7 +159,9 @@ export function parseMinutes(text: string): number | null {
   const t = normalize(text);
   let m = t.match(/(\d{1,2})\s?h\s?(\d{1,2})\b/) ?? t.match(/(\d{1,2}):(\d{2})\b/);
   if (m) return Number(m[1]) * 60 + Number(m[2]);
-  if (/mezz ora|mezza ora/.test(t)) return 30;
+  if (/mezz ora|mezza ora|mezzoretta|mezz oretta/.test(t)) return 30;
+  if (/\boretta\b/.test(t) && !/\b(due|2|tre|3) orett/.test(t)) return 60;
+  if (/\bun ora e (mezza|mezzo)\b/.test(t)) return 90;
   m = t.match(new RegExp(`${NUM} (?:ore|ora) e (mezza|mezzo)`));
   if (m) return num(m[1]) * 60 + 30;
   m = t.match(new RegExp(`${NUM} (?:ore|ora) e (\\d{1,2})`));

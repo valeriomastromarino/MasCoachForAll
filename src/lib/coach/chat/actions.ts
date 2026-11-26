@@ -215,8 +215,9 @@ export function dolore(ctx: ChatContext, state: ChatState, text: string): ChatRe
   const part = normalize(text).match(BODY_RE)?.[1];
   const note = part ? `ti fa male ${part.endsWith("a") ? "la" : "il"} ${part}` : "hai un fastidio";
   const r = repropose(ctx, state, { feeling: { drop: true, note }, wantClass: undefined }, `Se è un fastidio, oggi vado leggero (prontezza abbassata di un livello).`);
-  r.reply.lines = [...(r.reply.lines ?? []), `Se è un infortunio vero, scrivimi «infortunio${part ? ` al ${part}` : ""}»: lo segno su Intervals e il piano resta Z1-Z2 finché non passa.`, "Se il dolore aumenta pedalando, ti fermi."];
-  r.reply.chips = [...(r.reply.chips ?? []).slice(0, 2), `Infortunio${part ? ` al ${part}` : ""}`];
+  const at = part ? ` ${part.endsWith("a") ? "alla" : /^[aeiou]/.test(part) ? "all'" : "al"}${/^[aeiou]/.test(part) && !part.endsWith("a") ? "" : " "}${part}` : "";
+  r.reply.lines = [...(r.reply.lines ?? []), `Se è un infortunio vero, scrivimi «infortunio${at}»: lo segno su Intervals e il piano resta Z1-Z2 finché non passa.`, "Se il dolore aumenta pedalando, ti fermi."];
+  r.reply.chips = [...(r.reply.chips ?? []).slice(0, 2), `Infortunio${at}`];
   return r;
 }
 

@@ -9,6 +9,7 @@ import type { WorkoutCard } from "@/lib/coach/chat/context";
 import { COACH_PREFILL_EVENT, takeCoachPrefill } from "@/lib/coach/chat/prefill";
 import { normalize } from "@/lib/coach/chat/text";
 import { useCompact } from "@/lib/compact";
+import { coachAiOn } from "@/lib/coach/server";
 import { isApp } from "@/lib/native";
 import { type ChatMessage, clearChat, loadChat, saveChat, saveOverrides } from "@/lib/coach/chat/store";
 import type { DashboardData } from "@/lib/dashboard";
@@ -47,6 +48,7 @@ const STARTER_ICONS = { mood: IconMoodSmile, calendar: IconCalendarEvent, bolt: 
 const YES = /^(si|sii|sisi|ok|okay|va bene|certo|confermo|conferma|fallo|procedi|esatto|d accordo|daccordo|perfetto|yes|dai|vai|fai pure|applica)\b/;
 const NO = /^(no|nono|lascia stare|stop|niente|non farlo|ferma|aspetta|indietro|meglio di no|annulla)\b/;
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const noSubscribe = () => () => {};
 
 export function CoachChat({ data }: { data: DashboardData }) {
   const today = data.today;
@@ -72,6 +74,8 @@ export function CoachChat({ data }: { data: DashboardData }) {
   const [aiActions, setAiActions] = useState<Action[]>([]);
   /** The written coach is not reachable here (single-file app, no key): the chat uses its rules. */
   const [aiOff, setAiOff] = useState(false);
+  /** The written coach turned on in Impostazioni (read after the first paint: the server page doesn't know it). */
+  const aiOn = useSyncExternalStore(noSubscribe, coachAiOn, () => false);
   const scroller = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLInputElement>(null);
   // A request written by another page (calendar: "Chiedi al coach una tabella") waits in the message box.
@@ -192,9 +196,9 @@ export function CoachChat({ data }: { data: DashboardData }) {
       }
     }
 
-    // The written coach answers everything it can; if it isn't there (single-file app, no key, no network), the rules do.
-    // Building and changing sessions is the engine's job, with rules and at no cost: those messages never go to the written coach.
-    const tryAi = !aiOff && !state.pending && !(state.awaiting && !aiActions.length) && !NO.test(n) && !/^annulla/.test(n) && !rulesFirst(t, state, today);
+    // The engine answers (free, offline). The written coach only when the athlete turned it on in Impostazioni, and never for
+    // building and changing sessions: those are the engine's job, with rules and at no cost.
+    const tryAi = coachAiOn() && !aiOff &&!state.pending && !(state.awaiting && !aiActions.length) && !NO.test(n) && !/^annulla/.test(n) && !rulesFirst(t, state, today);
     if (tryAi) {
       push([user]);
       setBusy(true);
@@ -206,7 +210,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
     const aiNote = done && !done.ok && done.why ? say(`Il coach scritto non ha risposto (${done.why}). Ti rispondo con le regole dell'app.`) : null;
 
     const r = chat(t, ctx, state);
-    const coach: ChatMessage = { id: uid(), role: "coach", text: r.reply.text, lines: r.reply.lines, proposal: r.reply.proposal, workout: r.reply.workout, chips: r.reply.chips, at: now };
+    const coach: ChatMessage = { id: uid(), role: "coach", text: r.reply.text, lines: r.reply.lines, proposal: r.reply.proposal, workout: r.reply.workout, chips: r.reply.chips, choices: r.reply.choices, at: now };
     if (r.resetOverrides) saveOverrides({ date: today });
     else if (r.overrides) saveOverrides({ ...(overrides.date === today ? overrides : { date: today }), ...r.overrides, date: today });
     const shown = aiNote ? [user, aiNote, coach] : [user, coach];
@@ -230,7 +234,8 @@ export function CoachChat({ data }: { data: DashboardData }) {
   const waiting = state.pending !== null || aiActions.length > 0;
   // Phone: only the answers to a proposal or to a session being built, and three ideas while the chat is still empty.
   const phoneChip = (c: string) => c === "Sì" || c === "No" || c.startsWith("Mettila ") || c === "Sì, una nuova" || c === "Decidi tu" || c === "Salva in libreria";
-  const chips = compact ? (waiting || state.draft || lastCoach?.chips?.includes("Salva in libreria") ? (lastCoach?.chips ?? []).filter(phoneChip) : []) : (lastCoach?.chips ?? []);
+  // A question of the chat («Quale seduta?», «A che giorno?») keeps its buttons on the phone too.
+  const chips = compact ? (lastCoach?.choices?.length ? lastCoach.choices : waiting || state.draft || lastCoach?.chips?.includes("Salva in libreria") ? (lastCoach?.chips ?? []).filter(phoneChip) : []) : (lastCoach?.chips ?? []);
   const start = (s: (typeof STARTERS)[number]) => {
     if (s.send) return void send(s.send);
     setDraft(s.begin ?? "");
@@ -245,7 +250,7 @@ export function CoachChat({ data }: { data: DashboardData }) {
         ) : (
         <div>
           <h2 className="text-sm font-medium">Parla con il coach</h2>
-          <p className="mt-0.5 text-xs text-muted">{aiOff ? (isApp() ? "Risponde con le regole dell'app: per il coach scritto inserisci la password in Impostazioni." : "Risponde con i tuoi dati e le regole dell'app.") : "Scrivi come vuoi: il coach (Claude Haiku) legge i tuoi dati."} Scrive su Intervals solo dopo il tuo «sì».</p>
+          <p className="mt-0.5 text-xs text-muted">{aiOn && !aiOff ?"Scrivi come vuoi: il coach scritto (Claude Haiku, acceso in Impostazioni) legge i tuoi dati." : `Scrivi come vuoi: risponde il motore dell'app con i tuoi dati, gratis${isApp() ? " e anche senza rete" : ""}. Capisce i refusi, le domande di seguito e le nozioni da coach.`} Scrive su Intervals solo dopo il tuo «sì».</p>
         </div>
         )}
         {(!compact || messages.length > 0) && (

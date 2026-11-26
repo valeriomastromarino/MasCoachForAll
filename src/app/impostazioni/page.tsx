@@ -1,5 +1,6 @@
 import { AccentPicker } from "@/components/brand/AccentPicker";
 import { ThemeToggle } from "@/components/brand/ThemeToggle";
+import { CoachAiCard } from "@/components/coach/CoachAiCard";
 import { ProfileCard } from "@/components/firstrun/ProfileCard";
 import { DataCard } from "@/components/sections/DataCard";
 import { SectionHeading } from "@/components/sections/SectionPage";
@@ -28,6 +29,7 @@ export default function Page() {
       <h2 className="pt-3 text-xs font-medium uppercase tracking-wide text-muted">Collegamenti</h2>
       <DataCard />
       <StravaCard />
+      <CoachAiCard />
       <ProfileCard />
     </div>
   );

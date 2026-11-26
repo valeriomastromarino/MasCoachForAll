@@ -50,6 +50,8 @@ export type ChatMessage = {
   proposal?: Proposal;
   workout?: WorkoutCard;
   chips?: string[];
+  /** Buttons that answer a question of the chat («Quale?»): on the phone too. */
+  choices?: string[];
   at: string;
 };
 
