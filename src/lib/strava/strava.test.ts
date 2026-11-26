@@ -45,10 +45,14 @@ describe("Strava: authorization", () => {
 
 describe("Strava: the tokens in the note", () => {
   it("are sealed: readable only with the same client secret", async () => {
-    const text = await sealTokens(tokens, "segreto-di-prova");
-    expect(text).not.toContain("r1");
+    // Whole, long secrets (with "-", which base64 never writes): a short one like "r1" can turn up by chance in the random ciphertext.
+    const sealed: StravaTokens = { ...tokens, accessToken: "token-di-accesso-di-prova", refreshToken: "token-di-rinnovo-di-prova" };
+    const text = await sealTokens(sealed, "segreto-di-prova");
+    expect(text).not.toContain(sealed.accessToken);
+    expect(text).not.toContain(sealed.refreshToken);
+    expect(text).not.toContain("Mario R.");
     expect(text).toContain("Scollega");
-    expect(await openTokens(text, "segreto-di-prova")).toEqual(tokens);
+    expect(await openTokens(text, "segreto-di-prova")).toEqual(sealed);
     expect(await openTokens(text, "un altro segreto")).toBeNull();
     expect(await openTokens("una nota qualsiasi", "segreto-di-prova")).toBeNull();
     expect(await openTokens(null, "segreto-di-prova")).toBeNull();
